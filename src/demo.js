@@ -37,6 +37,7 @@ export function demoFetch(url) {
   const u=new URL(url),p=u.searchParams;let result;
   if(u.pathname.endsWith('/filters'))result={filters};
   else if(u.pathname.endsWith('/suggest'))result={items:(filters[domainAliases[p.get('campo')] || p.get('campo')] || []).filter(o=>String(o.nome ?? o.ano ?? o.id).toLowerCase().includes(p.get('q').toLowerCase()))};
+  else if(u.pathname.endsWith('/itens/quantidade'))result=1;
   else if(u.pathname.endsWith('/itens')) {
     const index=Number(u.pathname.match(/compras\/\d+\/(\d+)\/itens/)[1])-1;
     result=p.get('pagina')==='1'?[{numeroItem:1,descricao:objects[index%objects.length],materialOuServico:'S',situacaoCompraItem:2,situacaoCompraItemNome:'Homologado',catalogoCodigoItem:'25852',catalogo:{id:1,nome:'Catálogo sintético de demonstração'},quantidade:'1',valorUnitarioEstimado:'120000.25',temResultado:true}]:[];

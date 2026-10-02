@@ -28,7 +28,7 @@ async function interfaceFixture(options={}) {
   const tabs=['native','rules','sorting'].map(name=>{const node=new Element('button');node.dataset.tab=name;return node;});
   const dom={getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),createTextNode:text=>text,addEventListener(){},querySelectorAll:selector=>selector==='dialog'?all.filter(n=>n.tagName==='dialog'):selector==='[data-tab]'?tabs:[],querySelector(){return null;}};
   const cfg=config({DEMO_MODE:true,PNCP_MAX_REFINEMENT_CANDIDATES:10});
-  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:demoFetch})),requests=[],itemRequests=[];
+  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[];
   let detailFailures=options.detailFailures || 0;
   const fetcher=async(url,options={})=>{
     try{
@@ -118,4 +118,42 @@ test('DETAILS-UI-03: erro no carregamento automático permite repetir a consulta
   const ui=await interfaceFixture({detailFailures:1});await ui.openDocument(project(document(1)));
   assert.equal(ui.itemRequests.length,1);const retry=ui.all.find(n=>n.textContent==='Tentar consultar itens');assert(retry);assert.equal(retry.disabled,false);
   await retry.fire('click');assert.equal(ui.itemRequests.length,2);assert(ui.all.some(n=>n.className==='item-card'));assert.equal(retry.textContent,'Atualizar itens');
+});
+
+test('DETAILS-UI-04: mostra 109 itens e mantém a última página sem oferecer uma página vazia',async()=>{
+  let total=109;const itemPages=[];
+  const ui=await interfaceFixture({itemFetcher:url=>{
+    const u=new URL(url);
+    if(u.pathname.endsWith('/itens/quantidade'))return Promise.resolve(Response.json(total));
+    if(u.pathname.endsWith('/itens')) {
+      const page=Number(u.searchParams.get('pagina'));itemPages.push(page);
+      return Promise.resolve(Response.json(Array.from({length:total},(_,i)=>({numeroItem:i+1,descricao:`Item ${i+1}`})).slice((page-1)*100,page*100)));
+    }
+    return demoFetch(url);
+  }});
+  await ui.openDocument(project(document(1)));
+  const section=ui.nodes.get('details-content').children.find(n=>n.className==='items-section');
+  const [toolbar,itemStatus,list,pager]=section.children,[previous,pageLabel,next]=pager.children;
+  assert.equal(toolbar.children[0].textContent,'Itens da contratação (109)');
+  assert.match(itemStatus.textContent,/Itens 1–100 de 109/);assert.equal(pageLabel.textContent,'Página 1 de 2');
+  assert.equal(previous.disabled,true);assert.equal(next.disabled,false);
+  await next.fire('click');
+  assert.equal(list.children.length,9);assert.equal(list.children[0].children[0].textContent,'Item 101');
+  assert.match(itemStatus.textContent,/Itens 101–109 de 109/);assert.equal(pageLabel.textContent,'Página 2 de 2');
+  assert.equal(next.disabled,true);assert.equal(previous.disabled,false);assert.deepEqual(itemPages,[1,2]);
+  assert(!ui.all.some(n=>/Fim dos itens confirmado/.test(n.textContent || '')));
+  await previous.fire('click');assert.equal(pageLabel.textContent,'Página 1 de 2');assert.equal(next.disabled,false);
+  await next.fire('click');
+  total=1;await toolbar.children[1].fire('click');
+  assert.equal(toolbar.children[0].textContent,'Itens da contratação (1)');
+  assert.equal(pageLabel.textContent,'Página 1 de 1');assert.equal(list.children.length,1);assert.equal(pager.hidden,true);
+  assert.match(itemStatus.textContent,/Itens 1–1 de 1/);assert.equal(next.disabled,true);
+});
+
+test('DETAILS-UI-05: contratação sem itens mostra total zero e oculta a paginação',async()=>{
+  const ui=await interfaceFixture({itemFetcher:url=>new URL(url).pathname.endsWith('/itens/quantidade')?Promise.resolve(Response.json(0)):demoFetch(url)});
+  await ui.openDocument(project(document(1)));
+  const section=ui.nodes.get('details-content').children.find(n=>n.className==='items-section'),[toolbar,itemStatus,list,pager]=section.children;
+  assert.equal(toolbar.children[0].textContent,'Itens da contratação (0)');assert.match(itemStatus.textContent,/0 itens/);
+  assert.equal(list.children[0].textContent,'Esta contratação não possui itens.');assert.equal(pager.hidden,true);
 });

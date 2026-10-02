@@ -250,7 +250,7 @@ async function openDetails(doc) {
   const grid=el('dl',undefined,'detail-grid');
   for(const field of fields){const column=state.schema.columns.find(c=>c.field===field),wrap=el('div');wrap.append(el('dt',column.title),el('dd',column.type==='decimal'?money(doc[field]):column.type==='date'?date(doc[field]):doc[field] ?? '—'));grid.append(wrap);}content.append(grid);
   if(doc.matching_item_numbers?.length)content.append(el('p',`Itens que confirmaram o preset: ${doc.matching_item_numbers.join(', ')}.`,'panel-note'));
-  const section=el('section',undefined,'items-section'),toolbar=el('div',undefined,'items-toolbar'),load=el('button','Atualizar itens','button small');toolbar.append(el('h3','Itens da contratação'),load);section.append(toolbar);
+  const section=el('section',undefined,'items-section'),toolbar=el('div',undefined,'items-toolbar'),load=el('button','Atualizar itens','button small'),itemsTitle=el('h3','Itens da contratação');toolbar.append(itemsTitle,load);section.append(toolbar);
   const itemStatus=el('p','Preparando consulta de itens…','items-status'),list=el('div'),pager=el('div',undefined,'item-pager'),previous=el('button','Anterior','button small'),pageLabel=el('span','Página 1'),next=el('button','Próxima','button small');pager.hidden=true;pager.append(previous,pageLabel,next);section.append(itemStatus,list,pager);content.append(section);
   let page=1,controller=null,hasMore=false;
   async function itemPage(target) {
@@ -258,13 +258,18 @@ async function openDetails(doc) {
     load.disabled=true;previous.disabled=true;next.disabled=true;itemStatus.textContent='Consultando itens no PNCP…';
     try {
       const p=doc._purchase,response=await api(`/api/contratacoes/${p.cnpj}/${p.ano}/${p.sequencial}/itens?pagina=${target}&tamanhoPagina=100`,{signal:controller.signal}),result=await response.json();
-      if(token!==state.detailSeq)return;page=target;list.replaceChildren();
+      if(token!==state.detailSeq)return;page=result.page;list.replaceChildren();
       for(const item of result.data) {
         const card=el('article',undefined,'item-card');card.append(el('h4',`Item ${item.numeroItem ?? '—'}`),el('p',item.descricao ?? 'Descrição não informada.'),el('div',`${item.materialOuServico==='S'?'Serviço':item.materialOuServico==='M'?'Material':'Tipo não informado'} · ${item.situacaoCompraItemNome ?? 'Situação não informada'} · Catálogo: ${item.catalogo?.nome ?? '—'} / ${item.catalogoCodigoItem ?? '—'}`,'item-meta'));list.append(card);
       }
-      if(!result.data.length)list.append(el('p',target===1?'Nenhum item retornado.':'Fim dos itens confirmado por uma página vazia.','panel-note'));
-      hasMore=result.has_more;itemStatus.textContent=`Consulta às ${time(result.queried_at)} · ${result.data.length} item(ns) nesta página.`;pageLabel.textContent=`Página ${page}`;pager.hidden=false;previous.disabled=page<=1;next.disabled=!hasMore;load.textContent='Atualizar itens';load.disabled=false;
-    }catch(error){if(token===state.detailSeq && error.name!=='AbortError'){itemStatus.textContent=error.message;load.disabled=false;load.textContent='Tentar consultar itens';previous.disabled=page<=1;next.disabled=!hasMore;}}
+      if(!result.data.length)list.append(el('p','Esta contratação não possui itens.','panel-note'));
+      const first=result.data.length?(page-1)*result.size+1:0,last=result.data.length?first+result.data.length-1:0;
+      itemsTitle.textContent=`Itens da contratação (${fmtInt(result.total_items)})`;
+      hasMore=result.has_more;itemStatus.textContent=`${result.total_items===0?'0 itens':`Itens ${fmtInt(first)}–${fmtInt(last)} de ${fmtInt(result.total_items)}`} · Consulta às ${time(result.queried_at)}.`;pageLabel.textContent=`Página ${page} de ${result.total_pages}`;pager.hidden=result.total_pages<=1;previous.disabled=page<=1;next.disabled=!hasMore;load.textContent='Atualizar itens';load.disabled=false;
+    }catch(error){if(token===state.detailSeq && error.name!=='AbortError'){
+      if(error.code==='PAGE_OUT_OF_RANGE' && Number.isSafeInteger(error.details?.last_page) && error.details.last_page>=1 && error.details.last_page<target)return itemPage(error.details.last_page);
+      itemStatus.textContent=error.message;load.disabled=false;load.textContent='Tentar consultar itens';previous.disabled=page<=1;next.disabled=!hasMore;
+    }}
   }
   if(!doc._purchase){load.disabled=true;itemStatus.textContent='A fonte não forneceu CNPJ, ano e sequencial originais suficientes para consultar itens.';}
   else {load.addEventListener('click',()=>itemPage(page));previous.addEventListener('click',()=>itemPage(page-1));next.addEventListener('click',()=>itemPage(page+1));}

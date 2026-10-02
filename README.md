@@ -43,7 +43,7 @@ O build cria uma distribuição em `dist/`. Não é necessário para rodar o pro
 - Abra **Filtros** para escolher domínios, datas, valores, regras textuais e ordenações. Órgãos, unidades e municípios usam opções e IDs recebidos do PNCP. Autocomplete usa três caracteres, debounce de 450 ms e cancelamento.
 - O menu de cada coluna oferece seus filtros tipados e ordenação. Regex, regras adicionais, categorias, agrupamento e ordenações sem equivalente remoto ativam refinamento.
 - Os presets especializados verificam que **um mesmo item** é serviço e está em andamento ou homologado. Não inserem um `q` aproximado oculto. Delimite o conjunto com datas, UF ou órgão.
-- Clique em uma linha para abrir detalhes. **Consultar itens** faz uma nova leitura, com paginação própria. Uma página curta não garante o fim; a próxima página vazia confirma a conclusão.
+- Clique em uma linha para abrir detalhes e carregar os itens. A quantidade informada pelo PNCP aparece no título, no intervalo de itens e na paginação própria. A última página mantém seus itens visíveis e desabilita **Próxima**. **Atualizar itens** consulta novamente a quantidade e a página atual.
 - **Exportar CSV** refaz a consulta completa com os critérios da última pesquisa concluída. Os dados podem diferir da tabela. Casos indeterminados exigem a opção explícita de exportar apenas confirmados.
 - **Atualizar resultados** repete os critérios. **Cancelar** interrompe as chamadas futuras. Depois de uma falha, a tabela anterior fica identificada e a exportação permanece desabilitada até uma pesquisa bem-sucedida.
 
@@ -80,6 +80,8 @@ As dependências de runtime são Tabulator, `lossless-json` e Undici. O servidor
 | GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/itens` | Aceita `pagina` e `tamanhoPagina` |
 | POST | `/api/export` | Recebe `{query, scope}` e devolve CSV após coleta completa |
 | GET | `/api/health` | Processo e metadados da última chamada; não garante disponibilidade contínua |
+
+Nos detalhes, a rota de itens consulta `/orgaos/{cnpj}/compras/{ano}/{sequencial}/itens/quantidade` no PNCP a cada leitura e retorna `total_items`, `total_pages` e `has_more`. O total determina a última página, inclusive quando ela contém exatamente 100 itens. Uma divergência entre a quantidade e a página recebida exige atualizar a consulta; não garante um snapshot. A coleta integral usada pelos presets continua verificando todas as páginas até uma resposta vazia, sem presumir conclusão a partir de uma página curta.
 
 Exemplo:
 

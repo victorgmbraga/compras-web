@@ -113,6 +113,12 @@ export class QueryService {
   async suggest(type,field,q,size,signal,requestId) {const op=operation(this.config,signal,requestId);try{return {...await this.client.suggest(type,field,q,size,op),request_id:op.id,queried_at:new Date().toISOString()};}finally{op.finish();}}
   async details(purchase,page,size,signal,requestId) {
     const op=operation(this.config,signal,requestId);
-    try {const items=await this.client.itemPage(purchase,page,size,op);return {api_version:'2.0',request_id:op.id,source:this.config.DEMO_MODE?'demo':'pncp',data:plain(items),page,size,has_more:items.length>0,complete:items.length===0,queried_at:new Date().toISOString(),upstream_requests:op.requests,pagination_note:'O fim é confirmado por uma próxima página vazia; páginas curtas não garantem conclusão.'};}finally{op.finish();}
+    try {
+      const total=await this.client.itemQuantity(purchase,op),pages=Math.max(1,Math.ceil(total/size));
+      assert(page<=pages,'PAGE_OUT_OF_RANGE','Página além da quantidade atual de itens.',422,{last_page:pages,total_items:total});
+      const items=total===0?[]:await this.client.itemPage(purchase,page,size,op);
+      assert(items.length===Math.min(size,total-(page-1)*size),'SOURCE_CHANGED','A página de itens não corresponde à quantidade informada pelo PNCP. Atualize os itens.',409,{},true);
+      return {api_version:'2.0',request_id:op.id,source:this.config.DEMO_MODE?'demo':'pncp',data:plain(items),page,size,total_items:total,total_pages:pages,has_more:page<pages,complete:page===pages,snapshot_guaranteed:false,queried_at:new Date().toISOString(),upstream_requests:op.requests,pagination_note:'Paginação baseada na quantidade de itens informada pelo PNCP nesta consulta.'};
+    }finally{op.finish();}
   }
 }

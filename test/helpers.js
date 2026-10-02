@@ -10,6 +10,7 @@ export function fixture(documents,options={}) {
     const u=new URL(url);requests.push(u);
     if(options.handler){const response=await options.handler(u,requests.length,init);if(response)return response;}
     if(u.pathname.endsWith('/filters'))return json({filters:{modalidades:[{id:6,nome:'Pregão - Eletrônico'}],situacoes:[{id:1,nome:'Divulgada no PNCP'},{id:2,nome:'Revogada'}]}});
+    if(u.pathname.endsWith('/itens/quantidade'))return json(options.itemQuantity ?? 1);
     if(u.pathname.endsWith('/itens')) {
       const sequence=u.pathname.match(/compras\/\d+\/(\d+)\/itens/)[1],page=Number(u.searchParams.get('pagina'));
       return json(options.items?options.items(sequence,page):page===1?[{numeroItem:1,materialOuServico:'S',situacaoCompraItemId:2,catalogoCodigoItem:'25852',catalogo:{id:1}}]:[]);

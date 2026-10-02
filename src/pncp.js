@@ -148,6 +148,10 @@ export class PncpClient {
     assert(Array.isArray(result?.items), 'INVALID_UPSTREAM', 'PNCP não retornou sugestões válidas.', 502);
     return { items:normalizeOptions(result.items,field).slice(0,size) };
   }
+  async itemQuantity(purchase, op) {
+    const result = await this.get(`${this.config.PNCP_DETAIL_BASE_URL}/orgaos/${purchase.cnpj}/compras/${purchase.ano}/${purchase.sequencial}/itens/quantidade`,op);
+    return integer(result, 'Quantidade de itens');
+  }
   async itemPage(purchase, page, size, op) {
     const params = new URLSearchParams({ pagina:String(page), tamanhoPagina:String(size) });
     const result = await this.get(`${this.config.PNCP_DETAIL_BASE_URL}/orgaos/${purchase.cnpj}/compras/${purchase.ano}/${purchase.sequencial}/itens?${params}`,op,true);
