@@ -135,8 +135,7 @@ async function requestTable(url,config,params) {
   }
   state.abort?.abort();state.exportAbort?.abort();state.exportSeq++;
   const seq=++state.seq;const controller=new AbortController();state.abort=controller;status('loading',query);
-  notice(state.lastResult?`Atualizando. A tabela mostra o resultado anterior, consultado às ${time(state.lastResult.finished_at)}.`:'Consultando o PNCP…');
-  if(query.mode==='refined')notice('Coletando candidatos e verificando regras. Itens serão consultados quando necessários.');
+  notice('');
   try {
     const response=await api('/api/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(query),signal:controller.signal});
     const result=await response.json();

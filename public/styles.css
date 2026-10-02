@@ -68,6 +68,8 @@ p{line-height:1.55}
 .table-loader-spinner{width:34px;height:34px;margin-bottom:5px;border:3px solid #dce9f4;border-top-color:var(--blue);border-radius:50%;animation:table-loader-spin .8s linear infinite}
 @keyframes table-loader-spin{to{transform:rotate(360deg)}}
 #results-table{height:100%;border:0;border-radius:0;font-size:.875rem;background:white}
+/* Erros de consulta são exibidos na notificação acima da tabela. */
+#results-table .tabulator-alert:has(.tabulator-alert-state-error){display:none}
 .tabulator .tabulator-header{background:#eff4fa;border-color:#d5e0eb;color:#3a536d;font-weight:600}
 .tabulator .tabulator-header .tabulator-col{background:#eff4fa;border-right:1px solid #dbe4ee}
 .tabulator .tabulator-header .tabulator-col .tabulator-col-content{padding:7px 8px}
