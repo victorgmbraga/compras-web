@@ -20,7 +20,7 @@ async function interfaceFixture(options={}) {
     append(...children){this.children.push(...children);}replaceChildren(...children){this.children=children;}
     addEventListener(name,fn){(this.listeners[name]??=[]).push(fn);}
     async fire(name){for(const fn of this.listeners[name] || [])await fn({target:this,preventDefault(){}});await settle();await Promise.allSettled(pending);await settle();}
-    setAttribute(){}querySelectorAll(){return [];}showModal(){this.open=true;}
+    setAttribute(name,value){(this.attributes??={})[name]=String(value);}getAttribute(name){return this.attributes?.[name] ?? null;}querySelectorAll(){return [];}showModal(){this.open=true;}
     close(){this.open=false;for(const fn of this.listeners.close || [])fn();}
   }
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
@@ -29,23 +29,24 @@ async function interfaceFixture(options={}) {
   const dom={getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),createTextNode:text=>text,addEventListener(){},querySelectorAll:selector=>selector==='dialog'?all.filter(n=>n.tagName==='dialog'):selector==='[data-tab]'?tabs:[],querySelector(){return null;}};
   const cfg=config({DEMO_MODE:true,PNCP_MAX_REFINEMENT_CANDIDATES:10});
   const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[];
+  const queryHandler=options.queryHandler;
   let detailFailures=options.detailFailures || 0;
   const fetcher=async(url,options={})=>{
     try{
       if(url==='/api/schema')return Response.json(schema(cfg));
       if(url.startsWith('/api/pncp/filters'))return Response.json(await backend.domains('edital'));
-      if(url==='/api/query'){const input=JSON.parse(options.body);requests.push(input);return Response.json(await backend.execute(input));}
+      if(url==='/api/query'){const input=JSON.parse(options.body);requests.push(input);if(queryHandler)return await queryHandler(input,options,backend);return Response.json(await backend.execute(input,options.signal));}
       if(url.startsWith('/api/contratacoes/')){
         itemRequests.push(url);if(detailFailures-->0)return Response.json({error:{code:'PNCP_HTTP_ERROR',message:'Falha temporária dos itens.'}},{status:503});
         const [,cnpj,ano,sequencial]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/itens/),params=new URL(url,'http://localhost').searchParams;
         return Response.json(await backend.details({cnpj,ano,sequencial},Number(params.get('pagina')),100,options.signal));
       }
       throw new Error(`Unexpected request: ${url}`);
-    }catch(error){return Response.json({error:{code:error.code,message:error.message,details:error.details}},{status:error.status || 500});}
+    }catch(error){if(error.name==='AbortError')throw error;return Response.json({error:{code:error.code,message:error.message,details:error.details}},{status:error.status || 500});}
   };
   class Table {
     constructor(selector,options){this.options=options;this.size=options.paginationSize;this.handlers={};}on(name,fn){this.handlers[name]=fn;}clearSort(){}getPageSize(){return this.size;}
-    setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}redraw(){}
+    setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('/api/query',{page,size:this.size});}redraw(){}
   }
   const context=vm.createContext({document:dom,Tabulator:Table,fetch:fetcher,structuredClone,Intl,Date,Number,URL,URLSearchParams,AbortController,DOMException,setTimeout,clearTimeout,console});
   vm.runInContext(await readFile(new URL('../public/app.js',import.meta.url),'utf8'),context);
@@ -54,9 +55,46 @@ async function interfaceFixture(options={}) {
   const select=async name=>{await nodes.get('presets-button').fire('click');const button=nodes.get('preset-list').children.find(b=>b.children[0].textContent===name);assert(button);await button.fire('click');};
   const openDocument=doc=>vm.runInContext('state.table.handlers.rowClick',context)({}, {getData:()=>doc});
   const tableColumns=()=>JSON.parse(vm.runInContext('JSON.stringify(state.table.options.columns)',context));
-  return {nodes,all,requests,itemRequests,state,select,openDocument,tableColumns};
+  const request=params=>vm.runInContext('requestTable',context)('/api/query',{},params);
+  return {nodes,all,requests,itemRequests,state,select,openDocument,tableColumns,request};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
+
+test('TABLE-LOADER-01: consulta, atualização e paginação mostram loader; sucesso, falha e cancelamento o removem',async()=>{
+  const source=service(Array.from({length:164},(_,i)=>document(i+1))),waiting=[];
+  const ui=await interfaceFixture({queryHandler:(input,{signal})=>new Promise((resolve,reject)=>{
+    const abort=()=>reject(new DOMException('Consulta cancelada.','AbortError'));
+    signal.addEventListener('abort',abort,{once:true});
+    waiting.push({finish:async()=>{signal.removeEventListener('abort',abort);resolve(Response.json(await source.service.execute(input)));},fail:()=>{signal.removeEventListener('abort',abort);resolve(Response.json({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}},{status:503}));}});
+  })});
+  const loader=ui.nodes.get('table-loader'),table=ui.nodes.get('results-table'),title=ui.nodes.get('table-loader-title');
+  const busy=value=>{assert.equal(loader.hidden,!value);assert.equal(table.inert,value);assert.equal(table.getAttribute('aria-busy'),String(value));};
+  busy(false);
+  const initial=ui.request({page:1});await settle();busy(true);assert.equal(title.textContent,'Carregando contratações');assert.equal(ui.nodes.get('cancel-button').hidden,false);
+  await waiting[0].finish();await initial;busy(false);
+  const refresh=ui.nodes.get('refresh-button').fire('click');await settle();busy(true);assert.equal(title.textContent,'Atualizando contratações');
+  await waiting[1].finish();await refresh;busy(false);
+  const second=ui.request({page:2});await settle();busy(true);assert.equal(title.textContent,'Carregando página 2');
+  await waiting[2].finish();const result=await second;assert.equal(result.data.length,64);busy(false);
+  const failure=ui.request({page:1}).catch(error=>error);await settle();busy(true);
+  waiting[3].fail();assert.equal((await failure).code,'PNCP_UNAVAILABLE');busy(false);
+  const cancelled=ui.request({page:2}).catch(error=>error);await settle();busy(true);
+  await ui.nodes.get('cancel-button').fire('click');assert.equal((await cancelled).name,'AbortError');busy(false);
+});
+
+test('TABLE-LOADER-02: resposta antiga não oculta o loader da consulta mais recente',async()=>{
+  const source=service([document(1)]),waiting=[];
+  const ui=await interfaceFixture({queryHandler:input=>new Promise(resolve=>{
+    // Simula uma fonte que entrega a resposta mesmo depois do cancelamento.
+    waiting.push(async()=>resolve(Response.json(await source.service.execute(input))));
+  })});
+  const first=ui.request({page:1}).catch(error=>error);await settle();
+  const latest=ui.request({page:1});await settle();
+  await waiting[0]();assert.equal((await first).name,'AbortError');
+  assert.equal(ui.nodes.get('table-loader').hidden,false);assert.equal(ui.nodes.get('results-table').inert,true);
+  await waiting[1]();await latest;
+  assert.equal(ui.nodes.get('table-loader').hidden,true);assert.equal(ui.nodes.get('results-table').inert,false);
+});
 
 test('PRESET-FLOW-01: selecionar consulta especializada prepara filtros sem iniciar busca',async()=>{
   const ui=await interfaceFixture();ui.nodes.get('search').value='licença';

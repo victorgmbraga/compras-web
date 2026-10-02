@@ -22,9 +22,15 @@ const nativeLabels={ufs:'UF',orgaos:'Órgão',unidades:'Unidade',municipios:'Mun
 const operators={like:'contém',not_like:'não contém','=':'igual a','!=':'diferente de',starts:'começa com',ends:'termina com',regex:'regex',empty:'vazio',not_empty:'preenchido'};
 const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',broadDetails:null,draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
 function notice(message,kind='') { $('notice').textContent=message;$('notice').className='notice '+kind;$('notice').hidden=!message; }
-function status(value) {
+function status(value,query=state.query) {
   state.status=value;
   const busy=value==='loading';
+  $('table-loader').hidden=!busy;
+  $('results-table').setAttribute('aria-busy',String(busy));$('results-table').inert=busy;
+  if(busy) {
+    $('table-loader-title').textContent=query.page>1?`Carregando página ${fmtInt(query.page)}`:state.lastResult?'Atualizando contratações':'Carregando contratações';
+    $('table-loader-message').textContent=query.mode==='refined'?'Consultando o PNCP e verificando os critérios.':'Consultando o PNCP. Aguarde um instante.';
+  }
   if(value!=='error')state.broadDetails=null;
   $('cancel-button').hidden=!busy;$('retry-button').hidden=value!=='error' || !!state.broadDetails;
   $('narrow-button').hidden=value!=='error' || !state.broadDetails;
@@ -116,7 +122,7 @@ async function requestTable(url,config,params) {
     else {const sorter=params.sorters[0],col=state.schema.columns.find(c=>c.field===sorter.field);if(col?.native_order)query.order=col.native_order[sorter.dir];}
   }
   state.abort?.abort();state.exportAbort?.abort();state.exportSeq++;
-  const seq=++state.seq;const controller=new AbortController();state.abort=controller;status('loading');
+  const seq=++state.seq;const controller=new AbortController();state.abort=controller;status('loading',query);
   notice(state.lastResult?`Atualizando. A tabela mostra o resultado anterior, consultado às ${time(state.lastResult.finished_at)}.`:'Consultando o PNCP…');
   if(query.mode==='refined')notice('Coletando candidatos e verificando regras. Itens serão consultados quando necessários.');
   try {
