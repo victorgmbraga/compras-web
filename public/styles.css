@@ -235,4 +235,3 @@ pre{background:#f2f6fa;color:#3c5871;border:1px solid #d9e4ef;border-radius:6px;
   .tabulator .tabulator-footer .tabulator-page-size{max-width:64px}
   .tabulator .tabulator-footer .tabulator-page-counter{display:none}
 }
-@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}.table-loader-spinner{animation:none}}
