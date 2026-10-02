@@ -1,0 +1,41 @@
+{
+  "measured_at": "2026-10-01T18:15:23.534Z",
+  "source": "synthetic_demo",
+  "rate_limiter_for_benchmark": 100000,
+  "note": "Mede o processamento local com HTTP sintético; não representa latência ou capacidade do PNCP.",
+  "measurements": [
+    {
+      "operation": "native",
+      "elapsed_ms": 113,
+      "source_total": 6,
+      "matched_documents": null,
+      "rows": 6,
+      "upstream_requests": 1,
+      "csv_bytes": null,
+      "rss_before_bytes": 51818496,
+      "rss_after_bytes": 58122240
+    },
+    {
+      "operation": "refined",
+      "elapsed_ms": 196,
+      "source_total": 64,
+      "matched_documents": 6,
+      "rows": 6,
+      "upstream_requests": 14,
+      "csv_bytes": null,
+      "rss_before_bytes": 58122240,
+      "rss_after_bytes": 83378176
+    },
+    {
+      "operation": "export",
+      "elapsed_ms": 9,
+      "source_total": 64,
+      "matched_documents": null,
+      "rows": 64,
+      "upstream_requests": 2,
+      "csv_bytes": 29654,
+      "rss_before_bytes": 83378176,
+      "rss_after_bytes": 80236544
+    }
+  ]
+}

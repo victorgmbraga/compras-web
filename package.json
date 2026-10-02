@@ -1,0 +1,23 @@
+{
+  "name": "compras-web-pncp",
+  "version": "2.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Pesquisa de contratações no PNCP em tempo real, com Node.js e Tabulator",
+  "engines": {
+    "node": ">=22.9.0"
+  },
+  "scripts": {
+    "start": "node --max-old-space-size=512 --env-file-if-exists=.env src/server.js",
+    "dev": "node --max-old-space-size=512 --env-file-if-exists=.env --watch src/server.js",
+    "demo": "node --max-old-space-size=512 --env-file-if-exists=.env src/server.js --demo",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "build": "node scripts/build.js",
+    "benchmark:demo": "node scripts/benchmark-demo.js"
+  },
+  "dependencies": {
+    "tabulator-tables": "6.3.1",
+    "lossless-json": "4.3.0",
+    "undici": "7.16.0"
+  }
+}
