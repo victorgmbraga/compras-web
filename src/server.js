@@ -8,6 +8,7 @@ import { AppError, assert, checkKeys, fail } from './errors.js';
 import { PncpClient } from './pncp.js';
 import { QueryService } from './query.js';
 import { demoFetch } from './demo.js';
+import { createDevReload } from './dev-reload.js';
 
 async function readJson(req) {
   assert((req.headers['content-type'] || '').split(';')[0]==='application/json','CONTENT_TYPE_REQUIRED','Envie Content-Type: application/json.');
@@ -21,7 +22,8 @@ function getParams(url, allowed) {
   for(const key of url.searchParams.keys())assert(allowed.includes(key) && url.searchParams.getAll(key).length===1,'UNKNOWN_PARAMETER',`Parâmetro inválido ou repetido: ${key}.`);
 }
 function documentType(url) {const type=url.searchParams.get('tipos_documento') ?? 'edital';assert(type==='edital','DOCUMENT_TYPE_UNAVAILABLE','Somente edital está habilitado.',409);return type;}
-export function createApplication(config,{fetcher,logger=()=>{}}={}) {
+export function createApplication(config,{fetcher,logger=()=>{},liveReload=false}={}) {
+  const devReload=liveReload?createDevReload():null;
   const client=new PncpClient(config,{fetcher:fetcher || (config.DEMO_MODE?demoFetch:undefined),logger});
   const service=new QueryService(config,client);let activeOperations=0;
   const server=http.createServer(async(req,res)=>{
@@ -34,6 +36,7 @@ export function createApplication(config,{fetcher,logger=()=>{}}={}) {
     res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'");
     try {
       try{url=new URL(req.url,'http://localhost');}catch{fail('INVALID_URL','Endereço de requisição inválido.',400);}
+      if(devReload && await devReload.handle(req,res,url))return;
       if(url.pathname==='/api/schema' && req.method==='GET'){getParams(url,[]);return json(res,200,schema(config));}
       if(url.pathname==='/api/health' && req.method==='GET'){getParams(url,[]);return json(res,200,{status:'ok',api_version:'2.0',source:config.DEMO_MODE?'demo':'pncp',live:!config.DEMO_MODE,active_operations:activeOperations,last_pncp_call:config.DEMO_MODE?null:client.lastCall,now:new Date().toISOString()});}
       if(url.pathname==='/imports' || url.pathname.startsWith('/api/imports'))fail('IMPORTS_REMOVED','Importação descontinuada. Os dados são consultados diretamente no PNCP.',410);
@@ -76,7 +79,7 @@ export function createApplication(config,{fetcher,logger=()=>{}}={}) {
         '/vendor/tabulator.min.css':['../node_modules/tabulator-tables/dist/css/tabulator.min.css','text/css; charset=utf-8'],
       };
       const asset=routes[url.pathname];assert(asset,'NOT_FOUND','Página não encontrada.',404);
-      const bytes=await readFile(new URL(asset[0],import.meta.url));res.writeHead(200,{'Content-Type':asset[1],'Content-Length':bytes.length});res.end(req.method==='HEAD'?undefined:bytes);
+      let bytes=await readFile(new URL(asset[0],import.meta.url));if(devReload && url.pathname==='/')bytes=devReload.inject(bytes);res.writeHead(200,{'Content-Type':asset[1],'Content-Length':bytes.length});res.end(req.method==='HEAD'?undefined:bytes);
     }catch(error) {
       const appError=error instanceof AppError?error:new AppError('INTERNAL_ERROR','Erro interno ao concluir a operação.',500);
       if(!res.destroyed && !res.headersSent) {
@@ -87,7 +90,7 @@ export function createApplication(config,{fetcher,logger=()=>{}}={}) {
     }finally {if(counted)activeOperations--;logger({event:'operation',request_id:id,method:req.method,route:url?.pathname ?? null,status:res.statusCode,elapsed_ms:Date.now()-start});}
   });
   server.requestTimeout=Math.max(30000,config.PNCP_OPERATION_TIMEOUT_SECONDS*1000+10000);server.headersTimeout=10000;
-  return {server,service,client,close:async()=>{await new Promise(resolve=>server.close(resolve));await client.close();}};
+  return {server,service,client,close:async()=>{devReload?.close();await new Promise(resolve=>server.close(resolve));await client.close();}};
 }
 if(process.argv[1] && fileURLToPath(import.meta.url)===process.argv[1]) {
   const env={...process.env};
@@ -95,8 +98,8 @@ if(process.argv[1] && fileURLToPath(import.meta.url)===process.argv[1]) {
     const at=process.argv.indexOf(flag);if(at>=0)env[key]=process.argv[at+1] || '';
   }
   const config=loadConfig(env);if(process.argv.includes('--demo'))config.DEMO_MODE=true;
-  const app=createApplication(config,{logger:metadata=>process.stdout.write(JSON.stringify(metadata)+'\n')});
+  const app=createApplication(config,{liveReload:process.argv.includes('--dev'),logger:metadata=>process.stdout.write(JSON.stringify(metadata)+'\n')});
   app.server.listen(config.PORT,config.HOST,()=>console.log(`Compras Web: http://${config.HOST}:${config.PORT} (${config.DEMO_MODE?'DEMONSTRAÇÃO — dados sintéticos':'PNCP ao vivo'})`));
-  const shutdown=()=>{app.server.close();app.client.close().then(()=>process.exit(0));setTimeout(()=>process.exit(1),10000).unref();};
+  const shutdown=()=>{app.close().then(()=>process.exit(0));setTimeout(()=>process.exit(1),10000).unref();};
   process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
 }

@@ -109,6 +109,8 @@ test('DETAILS-UI-01: abrir uma linha carrega itens automaticamente e usa o link 
   await ui.openDocument(doc);assert.equal(ui.nodes.get('details-dialog').open,true);assert.equal(ui.itemRequests.length,1);
   assert.equal(ui.itemRequests[0],'/api/contratacoes/00000000000000/2026/1/itens?pagina=1&tamanhoPagina=100');
   assert(ui.all.some(n=>n.className==='item-card'));assert.equal(ui.all.find(n=>n.textContent==='Abrir no PNCP').href,'https://pncp.gov.br/app/editais/00000000000000/2026/1');
+  assert(!ui.all.some(n=>n.textContent==='Atualizar itens'));
+  assert.equal(ui.all.find(n=>n.textContent==='Tentar consultar itens').hidden,true);
 });
 test('DETAILS-UI-02: ausência de identificação mostra aviso sem tentar consultar itens',async()=>{
   const ui=await interfaceFixture();await ui.openDocument(project(document(1,{orgao_cnpj:null})));
@@ -116,8 +118,8 @@ test('DETAILS-UI-02: ausência de identificação mostra aviso sem tentar consul
 });
 test('DETAILS-UI-03: erro no carregamento automático permite repetir a consulta de itens',async()=>{
   const ui=await interfaceFixture({detailFailures:1});await ui.openDocument(project(document(1)));
-  assert.equal(ui.itemRequests.length,1);const retry=ui.all.find(n=>n.textContent==='Tentar consultar itens');assert(retry);assert.equal(retry.disabled,false);
-  await retry.fire('click');assert.equal(ui.itemRequests.length,2);assert(ui.all.some(n=>n.className==='item-card'));assert.equal(retry.textContent,'Atualizar itens');
+  assert.equal(ui.itemRequests.length,1);const retry=ui.all.find(n=>n.textContent==='Tentar consultar itens');assert(retry);assert.equal(retry.hidden,false);
+  await retry.fire('click');assert.equal(ui.itemRequests.length,2);assert(ui.all.some(n=>n.className==='item-card'));assert.equal(retry.hidden,true);
 });
 
 test('DETAILS-UI-04: mostra 109 itens e mantém a última página sem oferecer uma página vazia',async()=>{
@@ -144,7 +146,7 @@ test('DETAILS-UI-04: mostra 109 itens e mantém a última página sem oferecer u
   assert(!ui.all.some(n=>/Fim dos itens confirmado/.test(n.textContent || '')));
   await previous.fire('click');assert.equal(pageLabel.textContent,'Página 1 de 2');assert.equal(next.disabled,false);
   await next.fire('click');
-  total=1;await toolbar.children[1].fire('click');
+  await previous.fire('click');total=1;await next.fire('click');
   assert.equal(toolbar.children[0].textContent,'Itens da contratação (1)');
   assert.equal(pageLabel.textContent,'Página 1 de 1');assert.equal(list.children.length,1);assert.equal(pager.hidden,true);
   assert.match(itemStatus.textContent,/Itens 1–1 de 1/);assert.equal(next.disabled,true);

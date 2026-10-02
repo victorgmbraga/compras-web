@@ -250,12 +250,12 @@ async function openDetails(doc) {
   const grid=el('dl',undefined,'detail-grid');
   for(const field of fields){const column=state.schema.columns.find(c=>c.field===field),wrap=el('div');wrap.append(el('dt',column.title),el('dd',column.type==='decimal'?money(doc[field]):column.type==='date'?date(doc[field]):doc[field] ?? '—'));grid.append(wrap);}content.append(grid);
   if(doc.matching_item_numbers?.length)content.append(el('p',`Itens que confirmaram o preset: ${doc.matching_item_numbers.join(', ')}.`,'panel-note'));
-  const section=el('section',undefined,'items-section'),toolbar=el('div',undefined,'items-toolbar'),load=el('button','Atualizar itens','button small'),itemsTitle=el('h3','Itens da contratação');toolbar.append(itemsTitle,load);section.append(toolbar);
+  const section=el('section',undefined,'items-section'),toolbar=el('div',undefined,'items-toolbar'),retry=el('button','Tentar consultar itens','button small'),itemsTitle=el('h3','Itens da contratação');retry.hidden=true;toolbar.append(itemsTitle,retry);section.append(toolbar);
   const itemStatus=el('p','Preparando consulta de itens…','items-status'),list=el('div'),pager=el('div',undefined,'item-pager'),previous=el('button','Anterior','button small'),pageLabel=el('span','Página 1'),next=el('button','Próxima','button small');pager.hidden=true;pager.append(previous,pageLabel,next);section.append(itemStatus,list,pager);content.append(section);
   let page=1,controller=null,hasMore=false;
   async function itemPage(target) {
     controller?.abort();controller=new AbortController();state.detailAbort=controller;
-    load.disabled=true;previous.disabled=true;next.disabled=true;itemStatus.textContent='Consultando itens no PNCP…';
+    retry.hidden=true;previous.disabled=true;next.disabled=true;itemStatus.textContent='Consultando itens no PNCP…';
     try {
       const p=doc._purchase,response=await api(`/api/contratacoes/${p.cnpj}/${p.ano}/${p.sequencial}/itens?pagina=${target}&tamanhoPagina=100`,{signal:controller.signal}),result=await response.json();
       if(token!==state.detailSeq)return;page=result.page;list.replaceChildren();
@@ -265,14 +265,14 @@ async function openDetails(doc) {
       if(!result.data.length)list.append(el('p','Esta contratação não possui itens.','panel-note'));
       const first=result.data.length?(page-1)*result.size+1:0,last=result.data.length?first+result.data.length-1:0;
       itemsTitle.textContent=`Itens da contratação (${fmtInt(result.total_items)})`;
-      hasMore=result.has_more;itemStatus.textContent=`${result.total_items===0?'0 itens':`Itens ${fmtInt(first)}–${fmtInt(last)} de ${fmtInt(result.total_items)}`} · Consulta às ${time(result.queried_at)}.`;pageLabel.textContent=`Página ${page} de ${result.total_pages}`;pager.hidden=result.total_pages<=1;previous.disabled=page<=1;next.disabled=!hasMore;load.textContent='Atualizar itens';load.disabled=false;
+      hasMore=result.has_more;itemStatus.textContent=`${result.total_items===0?'0 itens':`Itens ${fmtInt(first)}–${fmtInt(last)} de ${fmtInt(result.total_items)}`} · Consulta às ${time(result.queried_at)}.`;pageLabel.textContent=`Página ${page} de ${result.total_pages}`;pager.hidden=result.total_pages<=1;previous.disabled=page<=1;next.disabled=!hasMore;
     }catch(error){if(token===state.detailSeq && error.name!=='AbortError'){
       if(error.code==='PAGE_OUT_OF_RANGE' && Number.isSafeInteger(error.details?.last_page) && error.details.last_page>=1 && error.details.last_page<target)return itemPage(error.details.last_page);
-      itemStatus.textContent=error.message;load.disabled=false;load.textContent='Tentar consultar itens';previous.disabled=page<=1;next.disabled=!hasMore;
+      itemStatus.textContent=error.message;retry.hidden=false;previous.disabled=page<=1;next.disabled=!hasMore;
     }}
   }
-  if(!doc._purchase){load.disabled=true;itemStatus.textContent='A fonte não forneceu CNPJ, ano e sequencial originais suficientes para consultar itens.';}
-  else {load.addEventListener('click',()=>itemPage(page));previous.addEventListener('click',()=>itemPage(page-1));next.addEventListener('click',()=>itemPage(page+1));}
+  if(!doc._purchase){itemStatus.textContent='A fonte não forneceu CNPJ, ano e sequencial originais suficientes para consultar itens.';}
+  else {retry.addEventListener('click',()=>itemPage(page));previous.addEventListener('click',()=>itemPage(page-1));next.addEventListener('click',()=>itemPage(page+1));}
   const raw=el('details'),summary=el('summary','Registro original da busca'),pre=el('pre',JSON.stringify(doc._raw,null,2));raw.append(summary,pre);content.append(raw);openDialog('details-dialog');
   if(doc._purchase)await itemPage(1);
 }

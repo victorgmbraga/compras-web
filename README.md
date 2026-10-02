@@ -21,6 +21,16 @@ npm start
 
 Abra **http://localhost:8000**. `npm start` lê `.env`, quando presente. Para alterar configurações, copie `.env.example` para `.env` e ajuste os valores. Os assets do Tabulator são servidos pela própria aplicação; não dependem de CDN.
 
+Para desenvolver com **recarga automática do navegador**:
+
+```sh
+npm run dev
+```
+
+Abra o mesmo endereço. Ao salvar mudanças em `src/` ou `public/` (JavaScript, JSON, HTML, CSS e SVG), o servidor reinicia e a página aberta recarrega automaticamente. Mudanças na `.env`, `package.json` e `package-lock.json` também reiniciam o servidor. A recarga refaz a página inteira, descartando filtros e resultados em tela. Alterações nas dependências exigem executar `npm install`.
+
+Para usar dados sintéticos durante o desenvolvimento, execute `npm run dev -- --demo`. `npm start`, `npm run demo` e o deploy de produção continuam sem o mecanismo de recarga automática.
+
 Para experimentar a interface com **dados sintéticos identificados visualmente**:
 
 ```sh
@@ -43,7 +53,7 @@ O build cria uma distribuição em `dist/`. Não é necessário para rodar o pro
 - Abra **Filtros** para escolher domínios, datas, valores, regras textuais e ordenações. Órgãos, unidades e municípios usam opções e IDs recebidos do PNCP. Autocomplete usa três caracteres, debounce de 450 ms e cancelamento.
 - O menu de cada coluna oferece seus filtros tipados e ordenação. Regex, regras adicionais, categorias, agrupamento e ordenações sem equivalente remoto ativam refinamento.
 - Os presets especializados verificam que **um mesmo item** é serviço e está em andamento ou homologado. Não inserem um `q` aproximado oculto. Delimite o conjunto com datas, UF ou órgão.
-- Clique em uma linha para abrir detalhes e carregar os itens. A quantidade informada pelo PNCP aparece no título, no intervalo de itens e na paginação própria. A última página mantém seus itens visíveis e desabilita **Próxima**. **Atualizar itens** consulta novamente a quantidade e a página atual.
+- Clique em uma linha para abrir detalhes e carregar os itens automaticamente. A quantidade informada pelo PNCP aparece no título, no intervalo de itens e na paginação própria. A última página mantém seus itens visíveis e desabilita **Próxima**. Em caso de falha, **Tentar consultar itens** permite repetir a consulta.
 - **Exportar CSV** refaz a consulta completa com os critérios da última pesquisa concluída. Os dados podem diferir da tabela. Casos indeterminados exigem a opção explícita de exportar apenas confirmados.
 - **Atualizar resultados** repete os critérios. **Cancelar** interrompe as chamadas futuras. Depois de uma falha, a tabela anterior fica identificada e a exportação permanece desabilitada até uma pesquisa bem-sucedida.
 
