@@ -15,6 +15,11 @@ const app=createApplication(config,{fetcher:async(url,init)=>{
   const u=new URL(url);
   if(u.searchParams.get('q')==='falha-ui')return new Response('<html>falha</html>',{headers:{'Content-Type':'text/html'}});
   if(u.searchParams.get('q')==='lenta-ui')await new Promise(resolve=>setTimeout(resolve,500));
+  if(u.searchParams.get('q')==='janela-ui') {
+    const size=Number(u.searchParams.get('tam_pagina')),page=Number(u.searchParams.get('pagina'));
+    const docs=Array.from({length:size},(_,i)=>({...demoDocuments[i%demoDocuments.length],id:`janela-${(page-1)*size+i+1}`,numero_controle_pncp:`janela-${(page-1)*size+i+1}`}));
+    return Response.json({items:docs,total:4143240});
+  }
   if(u.searchParams.get('q')==='pagina-ui') {
     const docs=Array.from({length:164},(_,i)=>({...demoDocuments[i%demoDocuments.length],id:`pagina-${i+1}`,numero_controle_pncp:`pagina-${i+1}`}));
     const size=Number(u.searchParams.get('tam_pagina')),page=Number(u.searchParams.get('pagina'));
@@ -34,6 +39,14 @@ try {
   assert.match(await page.locator('#source-badge').innerText(),/dados fictícios/);check('Demonstração marcada e interface disponível');
   await search('');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
+  assert.equal(await page.locator('.result-toolbar .criteria-row').count(),1);
+  assert.equal(await page.locator('.tabulator-footer .result-info').count(),1);
+  assert.equal(await page.locator('.source-footer').count(),0);check('Critérios na barra e informações no rodapé da tabela');
+  await search('janela-ui');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='4.143.240 contratações');
+  assert.match(await page.locator('.tabulator-page-counter').innerText(),/Exibindo 1-100 de\s+4\.143\.240 contratações/);
+  assert.equal(await page.locator('#notice').isVisible(),false);assert(await page.locator('#window-warning').isVisible());
+  assert.match(await page.locator('#window-warning').getAttribute('title'),/janela acessível é de 10000 documentos/);
+  await page.locator('#audit-button').click();assert(await page.locator('#audit-dialog').isVisible());await page.locator('#audit-dialog .close-dialog').click();check('Total real, limite em tooltip e critérios pelo marcador (i)');
   for(const [action,label]of [['first','Primeira página'],['prev','Página anterior'],['next','Próxima página'],['last','Última página']]) {
     const button=page.locator(`.tabulator-page[data-page="${action}"]`);
     assert.equal(await button.locator('svg.pagination-icon').count(),1);
@@ -41,6 +54,7 @@ try {
   }
   check('Todos os botões de navegação usam ícones SVG com rótulos acessíveis');
   await search('pagina-ui');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='164 contratações');
+  assert.equal(await page.locator('#window-warning').isVisible(),false);
   // Tabulator virtualizes rows; the page counter represents the full page.
   await page.waitForFunction(()=>/1\s*[-–]\s*100\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Consulta nativa e primeira página de 100 documentos');
   await page.locator('.tabulator-page[data-page="last"]').click();await page.waitForFunction(()=>/101\s*[-–]\s*164\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de última página abre a segunda página com 64 documentos');

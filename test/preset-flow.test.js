@@ -56,9 +56,55 @@ async function interfaceFixture(options={}) {
   const openDocument=doc=>vm.runInContext('state.table.handlers.rowClick',context)({}, {getData:()=>doc});
   const tableColumns=()=>JSON.parse(vm.runInContext('JSON.stringify(state.table.options.columns)',context));
   const request=params=>vm.runInContext('requestTable',context)('/api/query',{},params);
-  return {nodes,all,requests,itemRequests,state,select,openDocument,tableColumns,request};
+  const footer=()=>vm.runInContext('state.table.options.paginationCounter',context)();
+  return {nodes,all,requests,itemRequests,state,select,openDocument,tableColumns,request,footer};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
+
+test('TABLE-FOOTER-01: total real no rodapé, aviso de janela no marcador e demais avisos acima da tabela',async()=>{
+  let total=4143240,extraWarning=false,fail=false;
+  const source=service([],{handler:u=>{
+    const size=Number(u.searchParams.get('tam_pagina')),page=Number(u.searchParams.get('pagina'));
+    return Response.json({items:Array.from({length:size},(_,i)=>document((page-1)*size+i+1)),total});
+  }});
+  const ui=await interfaceFixture({queryHandler:async input=>{
+    if(fail)return Response.json({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}},{status:503});
+    const result=await source.service.execute(input);
+    if(extraWarning)result.warnings.push({code:'MISSING_IDENTITY',message:'Há documentos sem identidade de negócio na página.'});
+    return Response.json(result);
+  }});
+  assert.equal(ui.footer(),ui.nodes.get('result-info'));assert.equal(ui.nodes.get('result-info').hidden,false);
+  const result=await ui.request({page:1});
+  assert.equal(result.last_row,10000);assert.equal(result.last_page,100);
+  assert.equal(ui.nodes.get('result-range').textContent,'Exibindo 1-100 de ');
+  assert.equal(ui.nodes.get('result-title').textContent,'4.143.240 contratações');
+  const warning=ui.nodes.get('window-warning');assert.equal(warning.hidden,false);
+  assert.equal(warning.title,'Refine a pesquisa para acessar todos os resultados. A janela acessível é de 10000 documentos.');
+  assert.equal(warning.getAttribute('aria-label'),warning.title);assert.equal(ui.nodes.get('notice').hidden,true);
+  await ui.nodes.get('audit-button').fire('click');assert.equal(ui.nodes.get('audit-dialog').open,true);
+  assert.equal(JSON.parse(ui.nodes.get('audit-json').textContent).total,total);
+  extraWarning=true;await ui.request({page:100});
+  assert.equal(ui.nodes.get('result-range').textContent,'Exibindo 9.901-10.000 de ');
+  assert.equal(ui.nodes.get('notice').hidden,false);
+  assert.equal(ui.nodes.get('notice').textContent,'Há documentos sem identidade de negócio na página.');
+  fail=true;await assert.rejects(ui.request({page:1}),e=>e.code==='PNCP_UNAVAILABLE');
+  assert.match(ui.nodes.get('notice').textContent,/PNCP indisponível/);assert.match(ui.nodes.get('notice').textContent,/resultado anterior/);
+  assert.equal(ui.nodes.get('notice').className,'notice error');assert.equal(warning.hidden,false);
+  fail=false;extraWarning=false;total=10000;await ui.request({page:1});
+  assert.equal(warning.hidden,true);assert.equal(ui.nodes.get('notice').hidden,true);
+});
+
+test('TABLE-FOOTER-02: intervalo usa os dados da página curta e apresenta zero para consulta vazia',async()=>{
+  const source=service(Array.from({length:164},(_,i)=>document(i+1))),empty=service([]);
+  let noResults=false;
+  const ui=await interfaceFixture({queryHandler:async input=>Response.json(await (noResults?empty:source).service.execute(input))});
+  await ui.request({page:1});assert.equal(ui.nodes.get('result-range').textContent,'Exibindo 1-100 de ');
+  await ui.request({page:2});assert.equal(ui.nodes.get('result-range').textContent,'Exibindo 101-164 de ');
+  assert.equal(ui.nodes.get('result-title').textContent,'164 contratações');
+  noResults=true;await ui.request({page:1});
+  assert.equal(ui.nodes.get('result-range').textContent,'Exibindo 0-0 de ');assert.equal(ui.nodes.get('result-title').textContent,'0 contratações');
+  assert.equal(ui.nodes.get('window-warning').hidden,true);
+});
 
 test('TABLE-LOADER-01: consulta, atualização e paginação mostram loader; sucesso, falha e cancelamento o removem',async()=>{
   const source=service(Array.from({length:164},(_,i)=>document(i+1))),waiting=[];

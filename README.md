@@ -49,6 +49,7 @@ O build cria uma distribuição em `dist/`. Não é necessário para rodar o pro
 ## Utilização
 
 - A tabela usa páginas de **100 contratações**, ocupa a altura restante da janela e tem cabeçalho e controles compactos. Use **Expandir tabela** para dedicar quase toda a tela aos resultados; **Restaurar layout** ou **Esc** retorna à busca. As linhas mostram até duas linhas do objeto; os detalhes exibem o texto completo.
+- Os critérios e as ações ficam na barra acima da tabela. O rodapé mostra o intervalo da página, o total real da consulta e seus horários. Quando o total ultrapassa 10.000, **(!)** explica a janela acessível ao passar o mouse; outros avisos continuam acima da tabela. **(i)** abre os critérios e a cobertura da consulta.
 - Consultas, paginação e atualização mostram um indicador de carregamento sobre a tabela. A navegação na tabela fica suspensa durante a consulta; **Cancelar** permanece disponível na barra de ações.
 - A coluna **Situação** distingue os [valores oficiais da contratação no PNCP](https://pncp.gov.br/manual/pt-br/latest/tabelas_de_dominio/situacao_da_contratacao.html): Divulgada no PNCP (verde), Revogada (vermelho), Anulada (roxo) e Suspensa (âmbar). Valores não reconhecidos ou ausentes usam cinza, preservando o texto recebido; a ausência aparece como **—**.
 - Pesquise um termo para consultar o PNCP. A busca textual alcança os campos indexados pelo portal e não é um filtro exclusivo do objeto.

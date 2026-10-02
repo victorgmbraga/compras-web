@@ -117,12 +117,19 @@ function columnMenu(event,column) {
 function renderResult(result,query) {
   state.lastQuery=clone(query);state.lastResult=result;
   state.placeholder.textContent=result.data.length?'Informe uma pesquisa e consulte as contratações do PNCP.':'Nenhuma contratação encontrada com estes critérios.';
+  const first=result.data.length?(result.page-1)*result.size+1:0;
+  const last=result.data.length?first+result.data.length-1:0;
+  $('result-range').textContent=`Exibindo ${fmtInt(first)}-${fmtInt(last)} de `;$('result-range').hidden=false;
   $('result-title').textContent=`${fmtInt(result.total)} ${result.total===1?'contratação':'contratações'}`;
   const source=result.demo?'Demonstração': 'PNCP';
-  $('result-meta').textContent=`${source} · consulta às ${time(result.finished_at)} · ${(result.elapsed_ms/1000).toFixed(1).replace('.',',')} s · ${result.upstream_requests} chamada(s)`;
+  $('result-meta').textContent=`· ${source} · consulta às ${time(result.finished_at)} · ${(result.elapsed_ms/1000).toFixed(1).replace('.',',')} s · ${result.upstream_requests} chamada(s)`;
   $('result-meta').title=$('result-meta').textContent;
-  $('coverage').textContent=result.mode==='refined'?`${fmtInt(result.source_total)} candidatos · ${fmtInt(result.matched_documents)} confirmados · ${fmtInt(result.unverifiable_documents)} não verificáveis`:`${fmtInt(result.accessible_total)} acessíveis · uma contratação por linha`;
-  notice(result.warnings.map(w=>w.message).join('\n'),result.warnings.length?'warning':'');
+  const windowWarning=result.warnings.find(w=>w.code==='WINDOW_LIMITED');
+  $('window-warning').hidden=!windowWarning;
+  $('window-warning').title=windowWarning?.message || '';
+  $('window-warning').setAttribute('aria-label',windowWarning?.message || '');
+  const warnings=result.warnings.filter(w=>w.code!=='WINDOW_LIMITED');
+  notice(warnings.map(w=>w.message).join('\n'),warnings.length?'warning':'');
   status(result.data.length?'success':'empty');
 }
 async function requestTable(url,config,params) {
@@ -330,9 +337,11 @@ async function init() {
   $('native-field').value='ufs';$('rule-field').value='objeto_compra';$('sort-field').value='data_publicacao_pncp';
   const tableColumns=[state.schema.columns.find(c=>c.field==='titulo'),...state.schema.columns.filter(c=>c.field!=='titulo')];
   state.placeholder=el('div','Informe uma pesquisa e consulte as contratações do PNCP.');
+  const resultInfo=$('result-info');
   state.table=new Tabulator('#results-table',{
     height:'100%',layout:'fitDataFill',nestedFieldSeparator:false,movableColumns:true,
-    pagination:true,paginationMode:'remote',paginationSize:TABLE_PAGE_SIZE,paginationSizeSelector:false,paginationButtonCount:4,paginationCounter:'rows',
+    pagination:true,paginationMode:'remote',paginationSize:TABLE_PAGE_SIZE,paginationSizeSelector:false,paginationButtonCount:4,
+    paginationCounter:()=>{resultInfo.hidden=false;return resultInfo;},
     sortMode:'remote',filterMode:'remote',ajaxRequestFunc:requestTable,dataLoader:false,data:[],
     placeholder:state.placeholder,
     locale:'pt-br',langs:{'pt-br':{pagination:{page_size:'Linhas',page_title:'Página',first:paginationIcons.first,first_title:'Primeira página',last:paginationIcons.last,last_title:'Última página',prev:paginationIcons.prev,prev_title:'Página anterior',next:paginationIcons.next,next_title:'Próxima página',counter:{showing:'Exibindo',of:'de',rows:'contratações',pages:'páginas'}}}},

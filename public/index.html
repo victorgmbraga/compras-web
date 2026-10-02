@@ -22,11 +22,13 @@
         <button type="button" class="button" id="filters-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10m-7 5h4"/></svg> Filtros <span id="filter-count" class="count-badge" hidden></span></button>
         <button type="button" id="presets-button" class="button subtle"><span aria-hidden="true">☷</span> Consultas prontas</button>
       </form>
-      <div class="criteria-row"><span class="preset-chip" id="active-preset">Todas as contratações</span><label class="mode-label">Modo <select id="mode" aria-label="Modo de consulta"><option value="native">Busca direta</option><option value="refined">Refinamento</option></select></label><label class="order-label">Ordenar <select id="order" aria-label="Ordenação PNCP"><option value="-data">Mais recentes</option><option value="data">Mais antigas</option><option value="relevancia">Relevância</option></select></label><button id="clear-button" class="text-button" hidden>Limpar critérios</button><span id="mode-hint" class="mode-hint"></span></div>
-      <div id="native-chips" class="chip-row" aria-label="Critérios ativos"></div>
     </section>
     <section id="results-area" class="result-surface" aria-label="Resultados">
-      <div class="result-toolbar"><div class="result-info"><h2 id="result-title">Resultados</h2><span id="result-meta">Faça uma pesquisa para consultar o PNCP.</span></div><div class="result-actions"><button id="cancel-button" class="button danger" hidden>Cancelar</button><button id="retry-button" class="button" hidden>Tentar novamente</button><button id="narrow-button" class="button primary" hidden>Delimitar pesquisa</button><button id="expand-table-button" class="button" aria-label="Expandir tabela" aria-pressed="false" aria-controls="results-area query-area" title="Expandir tabela"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span>Expandir tabela</span></button><button id="refresh-button" class="button" disabled aria-label="Atualizar resultados" title="Atualizar resultados">↻ <span>Atualizar</span></button><button id="columns-button" class="button" aria-label="Selecionar colunas" title="Selecionar colunas">▥ <span>Colunas</span></button><button id="export-button" class="button dark" disabled aria-label="Exportar CSV" title="Exportar CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg><span>Exportar CSV</span></button></div></div>
+      <div class="result-toolbar">
+        <div class="criteria-row"><span class="preset-chip" id="active-preset">Todas as contratações</span><label class="mode-label">Modo <select id="mode" aria-label="Modo de consulta"><option value="native">Busca direta</option><option value="refined">Refinamento</option></select></label><label class="order-label">Ordenar <select id="order" aria-label="Ordenação PNCP"><option value="-data">Mais recentes</option><option value="data">Mais antigas</option><option value="relevancia">Relevância</option></select></label><button id="clear-button" class="text-button" hidden>Limpar critérios</button><span id="mode-hint" class="mode-hint"></span></div>
+        <div class="result-actions"><button id="cancel-button" class="button danger" hidden>Cancelar</button><button id="retry-button" class="button" hidden>Tentar novamente</button><button id="narrow-button" class="button primary" hidden>Delimitar pesquisa</button><button id="expand-table-button" class="button" aria-label="Expandir tabela" aria-pressed="false" aria-controls="results-area query-area" title="Expandir tabela"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span>Expandir tabela</span></button><button id="refresh-button" class="button" disabled aria-label="Atualizar resultados" title="Atualizar resultados">↻ <span>Atualizar</span></button><button id="columns-button" class="button" aria-label="Selecionar colunas" title="Selecionar colunas">▥ <span>Colunas</span></button><button id="export-button" class="button dark" disabled aria-label="Exportar CSV" title="Exportar CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg><span>Exportar CSV</span></button></div>
+      </div>
+      <div id="native-chips" class="chip-row" aria-label="Critérios ativos"></div>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
       <div class="table-shell">
         <div id="results-table" aria-busy="false"></div>
@@ -39,7 +41,11 @@
         </div>
         <div id="startup-error" class="startup-error" hidden></div>
       </div>
-      <div class="source-footer"><span id="coverage">Uma contratação por linha · itens nos detalhes</span><button id="audit-button" class="text-button" disabled>Ver critérios da consulta</button></div>
+      <div id="result-info" class="result-info" hidden>
+        <div class="result-count"><span id="result-range" hidden></span><h2 id="result-title">Resultados</h2><span id="window-warning" class="footer-marker warning" tabindex="0" role="img" hidden>(!)</span></div>
+        <span id="result-meta">Faça uma pesquisa para consultar o PNCP.</span>
+        <button id="audit-button" class="footer-marker" type="button" aria-label="Ver critérios da consulta" title="Ver critérios da consulta" disabled>(i)</button>
+      </div>
     </section>
   </main>
 
