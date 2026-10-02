@@ -16,8 +16,11 @@
     "benchmark:demo": "node scripts/benchmark-demo.js"
   },
   "dependencies": {
-    "tabulator-tables": "6.3.1",
     "lossless-json": "4.3.0",
+    "tabulator-tables": "6.3.1",
     "undici": "7.16.0"
+  },
+  "devDependencies": {
+    "railway": "3.12.0"
   }
 }

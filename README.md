@@ -119,6 +119,8 @@ Detalhes de itens requerem CNPJ, ano e sequencial originais, sem inventar identi
 
 ## Implantação Node.js
 
+Para publicar no **Railway**, use a configuração [`.railway/railway.ts`](.railway/railway.ts) e siga o [guia de deploy](docs/railway.md), com comandos de publicação, variáveis e verificação do serviço.
+
 Execute em um serviço que mantenha um processo Node.js, com HTTPS na entrada e saída permitida para `pncp.gov.br`. Configure `HOST=0.0.0.0` e a `PORT` fornecida pela hospedagem. Há um Dockerfile:
 
 ```sh
