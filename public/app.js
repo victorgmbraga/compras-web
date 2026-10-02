@@ -1,6 +1,14 @@
 const $ = id => document.getElementById(id);
 const el = (tag, text, className) => { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(className)node.className=className; return node; };
 const clone = value => structuredClone(value);
+const TABLE_PAGE_SIZE = 100;
+// Ícones Lucide de paginação (ISC/MIT): THIRD_PARTY_LICENSES.md.
+const paginationIcons={
+  first:'<svg class="pagination-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m17 18-6-6 6-6"/><path d="M7 6v12"/></svg>',
+  prev:'<svg class="pagination-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 18-6-6 6-6"/></svg>',
+  next:'<svg class="pagination-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg>',
+  last:'<svg class="pagination-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 18 6-6-6-6"/><path d="M17 6v12"/></svg>',
+};
 const fmtInt = value => new Intl.NumberFormat('pt-BR').format(value);
 const time = value => value ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : '—';
 const date = value => value ? (/^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0,10).split('-').reverse().join('/') : value) : '—';
@@ -102,7 +110,7 @@ function renderResult(result,query) {
 async function requestTable(url,config,params) {
   if(!state.query)return {data:[],last_page:1,last_row:0};
   const query=clone(state.query);
-  query.page=Number(params.page || 1);query.size=Number(params.size || state.schema.limits.default_page_size);
+  query.page=Number(params.page || 1);query.size=TABLE_PAGE_SIZE;
   if(params.sorters?.length) {
     if(query.mode==='refined')query.sorters=params.sorters.map(({field,dir})=>({field,dir}));
     else {const sorter=params.sorters[0],col=state.schema.columns.find(c=>c.field===sorter.field);if(col?.native_order)query.order=col.native_order[sorter.dir];}
@@ -129,9 +137,9 @@ function execute() {
   if(state.query.order==='relevancia' && !state.query.q.trim())state.query.order='-data';
   if(hasRefinement(state.query))state.query.mode='refined';
   updateCriteria();
-  state.table.setData('/api/query',{page:1,size:state.table.getPageSize()}).catch(()=>{});
+  state.table.setData('/api/query',{page:1,size:TABLE_PAGE_SIZE}).catch(()=>{});
 }
-function defaultQuery() {return {api_version:'2.0',mode:'native',preset:'all',document_type:'edital',q:'',status:'todos',pncp_filters:{},order:'-data',filters:[],header_filters:[],filter_join:'and',deduplicate:'none',sorters:[],page:1,size:state.schema.limits.default_page_size};}
+function defaultQuery() {return {api_version:'2.0',mode:'native',preset:'all',document_type:'edital',q:'',status:'todos',pncp_filters:{},order:'-data',filters:[],header_filters:[],filter_join:'and',deduplicate:'none',sorters:[],page:1,size:TABLE_PAGE_SIZE};}
 function listRules(target,list,label) {
   $(target).replaceChildren();list.forEach((rule,index)=>{
     const row=el('div',undefined,'active-rule');row.append(el('span',label(rule)));
@@ -307,10 +315,10 @@ async function init() {
   state.placeholder=el('div','Informe uma pesquisa e consulte as contratações do PNCP.');
   state.table=new Tabulator('#results-table',{
     height:'100%',layout:'fitDataFill',nestedFieldSeparator:false,movableColumns:true,
-    pagination:true,paginationMode:'remote',paginationSize:state.schema.limits.default_page_size,paginationSizeSelector:state.schema.limits.page_sizes,paginationButtonCount:4,paginationCounter:'rows',
+    pagination:true,paginationMode:'remote',paginationSize:TABLE_PAGE_SIZE,paginationSizeSelector:false,paginationButtonCount:4,paginationCounter:'rows',
     sortMode:'remote',filterMode:'remote',ajaxRequestFunc:requestTable,dataLoader:false,data:[],
     placeholder:state.placeholder,
-    locale:'pt-br',langs:{'pt-br':{pagination:{page_size:'Linhas',page_title:'Página',first:'Primeira',first_title:'Primeira página',last:'Última',last_title:'Última página',prev:'Anterior',prev_title:'Página anterior',next:'Próxima',next_title:'Próxima página',counter:{showing:'Exibindo',of:'de',rows:'contratações',pages:'páginas'}}}},
+    locale:'pt-br',langs:{'pt-br':{pagination:{page_size:'Linhas',page_title:'Página',first:paginationIcons.first,first_title:'Primeira página',last:paginationIcons.last,last_title:'Última página',prev:paginationIcons.prev,prev_title:'Página anterior',next:paginationIcons.next,next_title:'Próxima página',counter:{showing:'Exibindo',of:'de',rows:'contratações',pages:'páginas'}}}},
     columns:tableColumns.map(column=>({title:column.title,field:column.field,width:column.width || 180,minWidth:85,visible:!!column.visible,formatter:colFormatter(column),variableHeight:column.field==='objeto_compra',headerSort:false,headerMenu:columnMenu,tooltip:false})),
   });
   state.table.on('rowClick',(event,row)=>openDetails(row.getData()));
@@ -327,9 +335,8 @@ async function init() {
   $('expand-table-button').addEventListener('click',()=>expandTable(!document.body.classList.contains('table-expanded')));
   $('refresh-button').addEventListener('click',async()=>{
     if(!state.lastQuery)return;
-    const {page,size}=state.lastQuery;state.query=clone(state.lastQuery);$('search').value=state.query.q;updateCriteria();
-    const resized=Number(state.table.getPageSize())!==size;
-    try{if(resized)await state.table.setPageSize(size);if(!resized || page!==1)await state.table.setPage(page);}catch{}
+    const {page}=state.lastQuery;state.query=clone(state.lastQuery);$('search').value=state.query.q;updateCriteria();
+    try{await state.table.setPage(page);}catch{}
   });
   $('retry-button').addEventListener('click',execute);
   $('narrow-button').addEventListener('click',()=>openFilters());

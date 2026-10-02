@@ -85,10 +85,11 @@ test('PRESET-FLOW-03: busca ampla mostra contagem e permite corrigir sem trocar 
 });
 test('PRESET-FLOW-04: consultas nativas seguem diretas; datas removidas não ficam ocultas',async()=>{
   const ui=await interfaceFixture();await ui.select('Todas as contratações');assert.equal(ui.requests.length,1);
+  assert.equal(ui.requests[0].size,100);assert.equal(ui.state().size,100);
   await ui.select('Oracle');ui.nodes.get('draft-search').value='Oracle';
   ui.nodes.get('draft-publication-start').value='2026-09-01';await ui.nodes.get('draft-publication-start').fire('input');
   ui.nodes.get('draft-publication-start').value='';await ui.nodes.get('draft-publication-start').fire('input');
-  await ui.nodes.get('apply-filters').fire('click');assert.deepEqual(ui.requests[1].pncp_filters,{});assert.equal(ui.requests[1].q,'Oracle');
+  await ui.nodes.get('apply-filters').fire('click');assert.deepEqual(ui.requests[1].pncp_filters,{});assert.equal(ui.requests[1].q,'Oracle');assert.equal(ui.requests[1].size,100);
 });
 test('PRESET-FLOW-05: limite rejeita consulta especializada antes de carregar itens, sem truncar',async()=>{
   const s=service(Array.from({length:11},(_,i)=>document(i+1,{description:'Oracle'})),{}, {PNCP_MAX_REFINEMENT_CANDIDATES:10});

@@ -77,6 +77,8 @@ p{line-height:1.55}
 .status-cell{display:inline-block;font-size:.8125rem;border-radius:4px;padding:2px 7px;background:#eaf3f1;color:#296451}
 .tabulator .tabulator-footer{border-top:1px solid var(--line);background:white;color:#566b80;padding:6px 9px}
 .tabulator .tabulator-footer .tabulator-page{border:1px solid var(--line);background:white;border-radius:4px;padding:4px 7px;color:#4a647e;font-size:.8125rem}
+.tabulator .tabulator-footer .tabulator-page:is([data-page="first"],[data-page="prev"],[data-page="next"],[data-page="last"]){display:inline-flex;align-items:center;justify-content:center;min-width:30px;min-height:30px;padding:4px;vertical-align:middle}
+.tabulator .tabulator-footer .pagination-icon{width:18px;height:18px;stroke-width:2}
 .tabulator .tabulator-footer .tabulator-page.active{background:var(--navy);color:white;border-color:var(--navy)}
 .tabulator .tabulator-footer .tabulator-page-size{font-size:.8125rem;padding:4px;border-color:var(--line);border-radius:4px}
 .tabulator .tabulator-footer .tabulator-paginator{font-size:.8125rem}
@@ -216,9 +218,6 @@ pre{background:#f2f6fa;color:#3c5871;border:1px solid #d9e4ef;border-radius:6px;
   .tabulator .tabulator-footer .tabulator-footer-contents{flex-wrap:wrap;gap:4px}
   .tabulator .tabulator-footer .tabulator-paginator{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;white-space:normal;gap:4px;font-size:.75rem;min-width:0}
   .tabulator .tabulator-footer .tabulator-page{margin:0;padding:5px 6px;font-size:.75rem;min-height:30px}
-  .tabulator .tabulator-footer .tabulator-page[data-page="first"],.tabulator .tabulator-footer .tabulator-page[data-page="last"]{font-size:0;min-width:30px}
-  .tabulator .tabulator-footer .tabulator-page[data-page="first"]::before{content:"«";font-size:1rem}
-  .tabulator .tabulator-footer .tabulator-page[data-page="last"]::before{content:"»";font-size:1rem}
   .tabulator .tabulator-footer .tabulator-pages{display:none}
   .tabulator .tabulator-footer .tabulator-page-size{max-width:64px}
   .tabulator .tabulator-footer .tabulator-page-counter{display:none}

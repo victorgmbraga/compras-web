@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 import { createApplication } from '../src/server.js';
 import { loadConfig } from '../src/config.js';
-import { demoFetch } from '../src/demo.js';
+import { demoFetch, demoDocuments } from '../src/demo.js';
 const { chromium }=await import(process.env.COMPRAS_QA_PLAYWRIGHT_MODULE || 'playwright');
 let launch={headless:true};
 if(process.env.COMPRAS_QA_CHROMIUM_MODULE) {
@@ -15,6 +15,11 @@ const app=createApplication(config,{fetcher:async(url,init)=>{
   const u=new URL(url);
   if(u.searchParams.get('q')==='falha-ui')return new Response('<html>falha</html>',{headers:{'Content-Type':'text/html'}});
   if(u.searchParams.get('q')==='lenta-ui')await new Promise(resolve=>setTimeout(resolve,500));
+  if(u.searchParams.get('q')==='pagina-ui') {
+    const docs=Array.from({length:164},(_,i)=>({...demoDocuments[i%demoDocuments.length],id:`pagina-${i+1}`,numero_controle_pncp:`pagina-${i+1}`}));
+    const size=Number(u.searchParams.get('tam_pagina')),page=Number(u.searchParams.get('pagina'));
+    return Response.json({items:docs.slice((page-1)*size,page*size),total:docs.length});
+  }
   if(u.searchParams.get('q')==='xss-ui')return new Response(JSON.stringify({items:[{id:'xss',doc_type:'_doc',document_type:'edital',description:'<img src=x onerror="window.pwned=true">',orgao_cnpj:'00000000000000',ano:'2026',numero_sequencial:'1'}],total:1}),{headers:{'Content-Type':'application/json'}});
   return demoFetch(url,init);
 }});
@@ -28,10 +33,21 @@ try {
   await page.waitForFunction(()=>document.querySelector('.tabulator'));
   assert.match(await page.locator('#source-badge').innerText(),/dados fictícios/);check('Demonstração marcada e interface disponível');
   await search('');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
+  assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
+  for(const [action,label]of [['first','Primeira página'],['prev','Página anterior'],['next','Próxima página'],['last','Última página']]) {
+    const button=page.locator(`.tabulator-page[data-page="${action}"]`);
+    assert.equal(await button.locator('svg.pagination-icon').count(),1);
+    assert.equal(await button.getAttribute('aria-label'),label);assert.equal(await button.getAttribute('title'),label);
+  }
+  check('Todos os botões de navegação usam ícones SVG com rótulos acessíveis');
+  await search('pagina-ui');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='164 contratações');
   // Tabulator virtualizes rows; the page counter represents the full page.
-  await page.waitForFunction(()=>/1\s*[-–]\s*50\s+de\s+64/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Consulta nativa e primeira página de 50 documentos');
-  await page.locator('.tabulator-page[data-page="next"]').click();await page.waitForFunction(()=>/51\s*[-–]\s*64\s+de\s+64/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Paginação remota, segunda página com 14 documentos');
-  await page.locator('#refresh-button').click();await page.waitForFunction(()=>!document.querySelector('#refresh-button').disabled);assert.equal(await page.locator('.tabulator-page.active').getAttribute('data-page'),'2');assert.match(await page.locator('.tabulator-page-counter').innerText(),/51\s*[-–]\s*64/);check('Atualizar mantém a segunda página');
+  await page.waitForFunction(()=>/1\s*[-–]\s*100\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Consulta nativa e primeira página de 100 documentos');
+  await page.locator('.tabulator-page[data-page="last"]').click();await page.waitForFunction(()=>/101\s*[-–]\s*164\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de última página abre a segunda página com 64 documentos');
+  await page.locator('#refresh-button').click();await page.waitForFunction(()=>!document.querySelector('#refresh-button').disabled);assert.equal(await page.locator('.tabulator-page.active').getAttribute('data-page'),'2');assert.match(await page.locator('.tabulator-page-counter').innerText(),/101\s*[-–]\s*164/);check('Atualizar mantém a segunda página');
+  await page.locator('.tabulator-page[data-page="first"]').click();await page.waitForFunction(()=>/1\s*[-–]\s*100\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de primeira página retorna ao início');
+  await page.locator('.tabulator-page[data-page="next"]').click();await page.waitForFunction(()=>/101\s*[-–]\s*164\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de próxima página avança');
+  await page.locator('.tabulator-page[data-page="prev"]').click();await page.waitForFunction(()=>/1\s*[-–]\s*100\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de página anterior retorna');
   await search('firewall');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='6 contratações');assert.equal(await page.locator('.tabulator-page.active').getAttribute('data-page'),'1');check('Novos critérios voltam à página 1');
   await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});await page.locator('.item-card').waitFor();assert.match(await page.locator('.item-card').innerText(),/Homologado/);check('Detalhes carregam itens automaticamente');
   await page.locator('#details-dialog .close-dialog').click();
