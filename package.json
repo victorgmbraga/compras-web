@@ -1,6 +1,6 @@
 {
   "name": "compras-web-pncp",
-  "version": "2.0.1",
+  "version": "2.0.3",
   "private": true,
   "type": "module",
   "description": "Pesquisa de contratações no PNCP em tempo real, com Node.js e Tabulator",

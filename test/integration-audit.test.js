@@ -15,10 +15,11 @@ test('AUDIT-01: anos de /filters usam ano, sem id, e preservam o valor de busca'
   assert.deepEqual(domains.filters.ufs,[{id:'DF',label:'DF'}]);
 });
 
-test('AUDIT-02: caminho real /compras abre a contratação e mantém validação de origem', () => {
+test('AUDIT-02: caminho da busca /compras abre /app/editais e mantém validação de origem', () => {
   const path='/compras/76208867000107/2026/534';
-  assert.equal(safeLink(path,true),'https://pncp.gov.br/app'+path);
-  assert.equal(project(document(1,{item_url:path})).url_pncp,'https://pncp.gov.br/app'+path);
+  for(const input of [path,'/app'+path,'https://pncp.gov.br'+path,'https://pncp.gov.br/app'+path])assert.equal(safeLink(input,true),'https://pncp.gov.br/app/editais/76208867000107/2026/534');
+  assert.equal(project(document(1,{item_url:path})).url_pncp,'https://pncp.gov.br/app/editais/76208867000107/2026/534');
+  assert.equal(safeLink('/app/editais/76208867000107/2026/534',true),'https://pncp.gov.br/app/editais/76208867000107/2026/534');
   for(const value of ['//evil.example/compras/1','/compras/../../../../evil','javascript:alert(1)','https://evil.example/compras/1']) {
     assert.equal(safeLink(value,true),'https://pncp.gov.br/app');
   }

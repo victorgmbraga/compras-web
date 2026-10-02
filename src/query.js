@@ -21,7 +21,8 @@ export class QueryService {
   async collect(query, op, limit, first = null) {
     const size=this.config.PNCP_PAGE_SIZE;
     const head=first || await this.client.search(query,1,size,op);
-    assert(head.total<=limit && head.total<=10000,query.mode==='refined'?'QUERY_TOO_BROAD':'EXPORT_TOO_BROAD','Delimite datas, UF ou órgão para consultar integralmente os resultados.',422,{source_total:head.total,limit});
+    const fmt=n=>new Intl.NumberFormat('pt-BR').format(n);
+    assert(head.total<=limit && head.total<=10000,query.mode==='refined'?'QUERY_TOO_BROAD':'EXPORT_TOO_BROAD',`A busca retornou ${fmt(head.total)} candidatos; o limite para ${query.mode==='refined'?'refinamento':'exportação'} é ${fmt(limit)}. Delimite a pesquisa por texto, período de publicação, UF ou órgão. Regras adicionais são verificadas depois da coleta e não reduzem esse total.`,422,{source_total:head.total,limit});
     const documents=[],seen=new Set();
     const pages=Math.max(1,Math.ceil(head.total/size));
     for(let page=1;page<=pages;page++) {

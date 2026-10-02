@@ -102,7 +102,7 @@ Preservar o registro original em memória durante a operação para a tela de de
 
 Para construir `url_pncp`, um caminho como `/editais/...` deve produzir `https://pncp.gov.br/app/editais/...`; evitar o comportamento de uma resolução genérica que remova `/app`. Validar esquema e origem antes de transformar o campo em link. Se o caminho não for reconhecido, oferecer o link geral do portal em vez de inventar um endereço de detalhe.
 
-Nota de integração de 02/10/2026: a resposta real também usa `/compras/{cnpj}/{ano}/{sequencial}`; esse caminho é resolvido como `https://pncp.gov.br/app/compras/...`. As diferenças de domínio de anos e de situação de itens estão documentadas na [auditoria de integração](auditoria-integracao-pncp.md).
+Nota de integração de 02/10/2026: a resposta real também usa `/compras/{cnpj}/{ano}/{sequencial}`; na implementação 2.0.3, esse caminho é convertido para `https://pncp.gov.br/app/editais/...`, conforme a rota do portal indicada pelo usuário. As diferenças de domínio de anos e de situação de itens estão documentadas na [auditoria de integração](auditoria-integracao-pncp.md).
 
 Campos ausentes, `null`, texto vazio, `false`, zero, arrays e objetos não são intercambiáveis. Não aplicar os antigos marcadores de ausência de CSV: textos como `NA`, `NULL` ou `None` permanecem textos se vierem assim no JSON. Campos extras podem aparecer nos detalhes, mas só entram em filtros e colunas após registro no esquema.
 
@@ -586,7 +586,7 @@ A tabela deve ocupar a maior parte da janela. Os painéis de consultas e filtros
 | Nomes com pontos | `nestedFieldSeparator=false` se forem campos literais |
 | Busca/autocomplete | Debounce de 450 ms e cancelamento de pedido anterior |
 | Colunas iniciais | Objeto, órgão/unidade, UF, modalidade, situação da contratação, publicação, valor estimado e categorias |
-| Detalhes | Resumo do documento, link PNCP e carregamento sob demanda dos itens |
+| Detalhes | Resumo do documento, link PNCP e carregamento automático da primeira página de itens ao abrir a contratação |
 
 A lista de colunas e suas capacidades vem de `/api/schema`. Não usar um input `like` universal em todos os cabeçalhos. Indicar quando um critério exige refinamento e aplicar o modo antes de enviar a consulta.
 

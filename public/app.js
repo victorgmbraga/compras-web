@@ -12,12 +12,14 @@ function money(value) {
 }
 const nativeLabels={ufs:'UF',orgaos:'Órgão',unidades:'Unidade',municipios:'Município',esferas:'Esfera',poderes:'Poder',modalidades:'Modalidade',situacoes:'Situação administrativa',anos:'Ano',data_publicacao_inicio:'Publicação a partir de',data_publicacao_fim:'Publicação até',valor_total_estimado_min:'Valor estimado mínimo',valor_total_estimado_max:'Valor estimado máximo',valor_total_homologado_min:'Valor homologado mínimo',valor_total_homologado_max:'Valor homologado máximo',tipos_item:'Tipo de item',situacoes_item:'Situação dos itens',srp:'Sistema de Registro de Preços'};
 const operators={like:'contém',not_like:'não contém','=':'igual a','!=':'diferente de',starts:'começa com',ends:'termina com',regex:'regex',empty:'vazio',not_empty:'preenchido'};
-const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
+const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',broadDetails:null,draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
 function notice(message,kind='') { $('notice').textContent=message;$('notice').className='notice '+kind;$('notice').hidden=!message; }
 function status(value) {
   state.status=value;
   const busy=value==='loading';
-  $('cancel-button').hidden=!busy;$('retry-button').hidden=value!=='error';
+  if(value!=='error')state.broadDetails=null;
+  $('cancel-button').hidden=!busy;$('retry-button').hidden=value!=='error' || !!state.broadDetails;
+  $('narrow-button').hidden=value!=='error' || !state.broadDetails;
   $('refresh-button').disabled=!state.lastQuery || busy;
   $('export-button').disabled=!['success','empty'].includes(value);
   $('audit-button').disabled=!state.lastResult;
@@ -117,7 +119,7 @@ async function requestTable(url,config,params) {
   }catch(error) {
     if(seq===state.seq) {
       if(error.name==='AbortError'){status('cancelled');notice('Consulta cancelada. Nenhum novo resultado foi aplicado.','warning');}
-      else {status('error');notice(`${error.message}${error.code?' ['+error.code+']':''}${state.lastResult?'\nA tabela mantém o resultado anterior, consultado às '+time(state.lastResult.finished_at)+'.':''}`,'error');}
+      else {state.broadDetails=error.code==='QUERY_TOO_BROAD'?(error.details || {}):null;status('error');notice(`${error.message}${error.code?' ['+error.code+']':''}${state.lastResult?'\nA tabela mantém o resultado anterior, consultado às '+time(state.lastResult.finished_at)+'.':''}`,'error');}
     }
     throw error;
   }finally{if(seq===state.seq)state.abort=null;}
@@ -138,6 +140,8 @@ function listRules(target,list,label) {
 }
 function renderDraftLists() {
   const q=state.draft;const rules=r=>`${state.schema.columns.find(c=>c.field===r.field).title} ${operators[r.type]}${['empty','not_empty'].includes(r.type)?'':' “'+r.value+'”'}`;
+  $('draft-publication-start').value=q.pncp_filters.data_publicacao_inicio || '';
+  $('draft-publication-end').value=q.pncp_filters.data_publicacao_fim || '';
   $('native-filter-list').replaceChildren();
   for(const [key,value]of Object.entries(q.pncp_filters)) {
     const row=el('div',undefined,'active-rule');row.append(el('span',`${nativeLabels[key] || key}: ${Array.isArray(value)?value.join(', '):String(value)}`));
@@ -150,9 +154,15 @@ function setTab(name) {
   for(const tab of document.querySelectorAll('[data-tab]'))tab.setAttribute('aria-selected',String(tab.dataset.tab===name));
   for(const id of ['native','rules','sorting'])$('tab-'+id).hidden=id!==name;
 }
-async function openFilters(column=null) {
+async function openFilters(column=null,preset=null) {
   $('add-rule').dataset.header='false';$('add-rule').textContent='Adicionar regra';
-  state.draft=clone(state.query);$('draft-status').value=state.draft.status;$('filter-join').value=state.draft.filter_join;$('deduplicate').checked=state.draft.deduplicate==='objeto_exato';
+  state.draft=clone(state.query);state.draft.q=$('search').value;
+  if(preset)Object.assign(state.draft,{preset:preset.id,mode:preset.mode,filters:[],header_filters:[],sorters:[],filter_join:'and',deduplicate:'none'});
+  const selectedPreset=state.schema.presets.find(p=>p.id===state.draft.preset);
+  $('filters-title').textContent=preset?`Preparar consulta: ${preset.name}`:'Filtros e refinamento';
+  const guidance=$('preset-guidance');guidance.hidden=state.draft.mode!=='refined';
+  guidance.textContent=`${selectedPreset.name}: delimite os candidatos com texto, período de publicação, UF ou órgão. O limite é ${fmtInt(state.schema.limits.refinement_candidates)} candidatos antes da verificação das regras e dos itens. Nenhum período ou texto é aplicado automaticamente.${Number.isFinite(state.broadDetails?.source_total)?' A última tentativa retornou '+fmtInt(state.broadDetails.source_total)+' candidatos.':''}`;
+  $('draft-search').value=state.draft.q;$('draft-status').value=state.draft.status;$('filter-join').value=state.draft.filter_join;$('deduplicate').checked=state.draft.deduplicate==='objeto_exato';
   $('domain-error').hidden=true;$('rule-value').value='';renderDraftLists();setTab('native');openDialog('filters-dialog');
   if(column?.domain){$('native-field').value=column.domain;}
   else if(column?.native_range){$('native-field').value=column.native_range[0];}
@@ -240,8 +250,8 @@ async function openDetails(doc) {
   const grid=el('dl',undefined,'detail-grid');
   for(const field of fields){const column=state.schema.columns.find(c=>c.field===field),wrap=el('div');wrap.append(el('dt',column.title),el('dd',column.type==='decimal'?money(doc[field]):column.type==='date'?date(doc[field]):doc[field] ?? '—'));grid.append(wrap);}content.append(grid);
   if(doc.matching_item_numbers?.length)content.append(el('p',`Itens que confirmaram o preset: ${doc.matching_item_numbers.join(', ')}.`,'panel-note'));
-  const section=el('section',undefined,'items-section'),toolbar=el('div',undefined,'items-toolbar'),load=el('button','Consultar itens','button small');toolbar.append(el('h3','Itens da contratação'),load);section.append(toolbar);
-  const itemStatus=el('p','Os itens ainda não foram consultados.','items-status'),list=el('div'),pager=el('div',undefined,'item-pager'),previous=el('button','Anterior','button small'),pageLabel=el('span','Página 1'),next=el('button','Próxima','button small');pager.hidden=true;pager.append(previous,pageLabel,next);section.append(itemStatus,list,pager);content.append(section);
+  const section=el('section',undefined,'items-section'),toolbar=el('div',undefined,'items-toolbar'),load=el('button','Atualizar itens','button small');toolbar.append(el('h3','Itens da contratação'),load);section.append(toolbar);
+  const itemStatus=el('p','Preparando consulta de itens…','items-status'),list=el('div'),pager=el('div',undefined,'item-pager'),previous=el('button','Anterior','button small'),pageLabel=el('span','Página 1'),next=el('button','Próxima','button small');pager.hidden=true;pager.append(previous,pageLabel,next);section.append(itemStatus,list,pager);content.append(section);
   let page=1,controller=null,hasMore=false;
   async function itemPage(target) {
     controller?.abort();controller=new AbortController();state.detailAbort=controller;
@@ -259,6 +269,7 @@ async function openDetails(doc) {
   if(!doc._purchase){load.disabled=true;itemStatus.textContent='A fonte não forneceu CNPJ, ano e sequencial originais suficientes para consultar itens.';}
   else {load.addEventListener('click',()=>itemPage(page));previous.addEventListener('click',()=>itemPage(page-1));next.addEventListener('click',()=>itemPage(page+1));}
   const raw=el('details'),summary=el('summary','Registro original da busca'),pre=el('pre',JSON.stringify(doc._raw,null,2));raw.append(summary,pre);content.append(raw);openDialog('details-dialog');
+  if(doc._purchase)await itemPage(1);
 }
 async function exportCsv() {
   if(!state.lastQuery || !['success','empty'].includes(state.status))return;
@@ -287,6 +298,7 @@ async function init() {
     if(column.sortable){const option=el('option',column.title);option.value=column.field;$('sort-field').append(option);}
   }
   $('native-field').value='ufs';$('rule-field').value='objeto_compra';$('sort-field').value='data_publicacao_pncp';
+  const tableColumns=[state.schema.columns.find(c=>c.field==='titulo'),...state.schema.columns.filter(c=>c.field!=='titulo')];
   state.placeholder=el('div','Informe uma pesquisa e consulte as contratações do PNCP.');
   state.table=new Tabulator('#results-table',{
     height:'100%',layout:'fitDataFill',nestedFieldSeparator:false,movableColumns:true,
@@ -294,15 +306,15 @@ async function init() {
     sortMode:'remote',filterMode:'remote',ajaxRequestFunc:requestTable,dataLoader:false,data:[],
     placeholder:state.placeholder,
     locale:'pt-br',langs:{'pt-br':{pagination:{page_size:'Linhas',page_title:'Página',first:'Primeira',first_title:'Primeira página',last:'Última',last_title:'Última página',prev:'Anterior',prev_title:'Página anterior',next:'Próxima',next_title:'Próxima página',counter:{showing:'Exibindo',of:'de',rows:'contratações',pages:'páginas'}}}},
-    columns:state.schema.columns.map(column=>({title:column.title,field:column.field,width:column.width || 180,minWidth:85,visible:!!column.visible,formatter:colFormatter(column),variableHeight:column.field==='objeto_compra',headerSort:false,headerMenu:columnMenu,tooltip:false})),
+    columns:tableColumns.map(column=>({title:column.title,field:column.field,width:column.width || 180,minWidth:85,visible:!!column.visible,formatter:colFormatter(column),variableHeight:column.field==='objeto_compra',headerSort:false,headerMenu:columnMenu,tooltip:false})),
   });
   state.table.on('rowClick',(event,row)=>openDetails(row.getData()));
-  for(const column of state.schema.columns) {
+  for(const column of tableColumns) {
     const label=el('label',undefined,'checkbox-label'),input=el('input');input.type='checkbox';input.checked=!!column.visible;input.addEventListener('change',()=>{input.checked?state.table.showColumn(column.field):state.table.hideColumn(column.field);});label.append(input,document.createTextNode(column.title));$('column-list').append(label);
   }
   for(const preset of state.schema.presets) {
     const button=el('button',undefined,'preset-card');button.disabled=!preset.available;button.append(el('strong',preset.name),el('span',preset.available?(preset.mode==='native'?'Busca direta · filtros opcionais':preset.id==='desenvolvimento' || preset.id==='infraestrutura'?'Serviços por catálogo · esfera federal · pregão':'Serviço em andamento ou homologado · padrões do objeto'):preset.reason));
-    button.addEventListener('click',()=>{state.query.preset=preset.id;state.query.mode=preset.mode;state.query.filters=[];state.query.header_filters=[];state.query.sorters=[];state.query.filter_join='and';state.query.deduplicate='none';state.table.clearSort();updateCriteria();$('presets-dialog').close();if(preset.mode==='refined')notice('Delimite a pesquisa por datas, UF ou órgão. Os presets não inserem uma busca textual aproximada.','warning');execute();});$('preset-list').append(button);
+    button.addEventListener('click',()=>{$('presets-dialog').close();if(preset.mode==='refined'){openFilters(null,preset);return;}Object.assign(state.query,{preset:preset.id,mode:preset.mode,filters:[],header_filters:[],sorters:[],filter_join:'and',deduplicate:'none'});state.table.clearSort();updateCriteria();execute();});$('preset-list').append(button);
   }
   $('search-form').addEventListener('submit',event=>{event.preventDefault();execute();});
   $('presets-button').addEventListener('click',()=>openDialog('presets-dialog'));
@@ -315,6 +327,7 @@ async function init() {
     try{if(resized)await state.table.setPageSize(size);if(!resized || page!==1)await state.table.setPage(page);}catch{}
   });
   $('retry-button').addEventListener('click',execute);
+  $('narrow-button').addEventListener('click',()=>openFilters());
   $('cancel-button').addEventListener('click',()=>{state.abort?.abort();});
   $('mode').addEventListener('change',()=>{if($('mode').value==='native' && hasRefinement(state.query)){notice('Remova as regras, a ordenação refinada e o agrupamento para usar busca direta.','warning');$('mode').value='refined';return;}state.query.mode=$('mode').value;updateCriteria();});
   $('order').addEventListener('change',()=>{state.query.order=$('order').value;state.query.sorters=[];state.table.clearSort();execute();});
@@ -324,7 +337,8 @@ async function init() {
   $('add-rule').addEventListener('click',()=>{if(state.draft.filters.length+state.draft.header_filters.length>=60)return;const value=$('rule-value').value,type=$('rule-type').value;const list=$('add-rule').dataset.header==='true'?state.draft.header_filters:state.draft.filters;list.push({field:$('rule-field').value,type,value:['empty','not_empty'].includes(type)?'':value});$('rule-value').value='';renderDraftLists();});
   $('rule-type').addEventListener('change',()=>{$('rule-value').disabled=['empty','not_empty'].includes($('rule-type').value);});
   $('add-sorter').addEventListener('click',()=>{if(state.draft.sorters.length<10)state.draft.sorters.push({field:$('sort-field').value,dir:$('sort-direction').value});renderDraftLists();});
-  $('apply-filters').addEventListener('click',()=>{state.draft.status=$('draft-status').value;state.draft.filter_join=$('filter-join').value;state.draft.deduplicate=$('deduplicate').checked?'objeto_exato':'none';state.query=clone(state.draft);if(hasRefinement(state.query))state.query.mode='refined';state.table.clearSort();$('filters-dialog').close();updateCriteria();execute();});
+  for(const [id,field]of [['draft-publication-start','data_publicacao_inicio'],['draft-publication-end','data_publicacao_fim']])$(id).addEventListener('input',()=>{const value=$(id).value;if(value)state.draft.pncp_filters[field]=value;else delete state.draft.pncp_filters[field];renderDraftLists();});
+  $('apply-filters').addEventListener('click',()=>{state.draft.q=$('draft-search').value;state.draft.status=$('draft-status').value;state.draft.filter_join=$('filter-join').value;state.draft.deduplicate=$('deduplicate').checked?'objeto_exato':'none';state.query=clone(state.draft);$('search').value=state.query.q;if(hasRefinement(state.query))state.query.mode='refined';state.table.clearSort();$('filters-dialog').close();updateCriteria();execute();});
   $('filters-dialog').addEventListener('close',()=>{state.domainAbort?.abort();state.suggestAbort?.abort();clearTimeout(state.suggestTimer);state.domainSeq++;state.suggestSeq++;});
   $('details-dialog').addEventListener('close',()=>{state.detailAbort?.abort();state.detailSeq++;});
   $('export-dialog').addEventListener('close',()=>{state.exportAbort?.abort();state.exportSeq++;});

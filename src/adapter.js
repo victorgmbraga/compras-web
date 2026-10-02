@@ -23,6 +23,8 @@ export function safeLink(value, portal = false) {
     }
     else url = new URL(value);
     if (!['http:','https:'].includes(url.protocol) || url.username || url.password || (portal && url.origin !== 'https://pncp.gov.br')) return portal ? 'https://pncp.gov.br/app' : null;
+    // The search index uses /compras; the public portal opens purchases at /app/editais.
+    if(portal)url.pathname=url.pathname.replace(/^\/(?:app\/)?compras\//,'/app/editais/');
     return url.href;
   } catch { return portal ? 'https://pncp.gov.br/app' : null; }
 }

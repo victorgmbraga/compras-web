@@ -2,7 +2,11 @@
 
 Implementação da especificação 2.0.0 fornecida, com backend Node.js e frontend Tabulator 6.3.1. Não depende de banco, importação, índices locais ou armazenamento de contratações no navegador.
 
-**Versão 2.0.1 — revisão de integração:** corrige domínios de anos, links `/compras/`, situação dos itens, cobertura de dados insuficientes, datas precisas, atualização da página, recuperação de sugestões/detalhes e concorrência do CSV. **54 testes passaram**, além de 11 verificações HTTP locais com respostas oficiais capturadas. Veja [a auditoria e seu alcance](docs/auditoria-integracao-pncp.md). Ao atualizar, preserve sua `.env`.
+**Versão 2.0.3 — tabela e detalhes:** Título é a primeira coluna padrão; Município fica visível por padrão. Abrir uma contratação consulta os itens automaticamente. Links da busca em `/compras/` passam a abrir `/app/editais/` no portal. Veja [as alterações](docs/alteracoes-interface-2.0.3.md).
+
+**Revisão anterior 2.0.2 — consultas prontas:** a seleção de consultas especializadas abre a preparação dos filtros antes da busca. Erros de limite mostram contagens e a ação **Delimitar pesquisa**. **60 testes passaram**. Veja [a correção e as instruções de uso](docs/correcao-consultas-prontas.md).
+
+**Revisão anterior 2.0.1:** corrige domínios de anos, links `/compras/`, situação dos itens, cobertura de dados insuficientes, datas precisas, atualização da página, recuperação de sugestões/detalhes e concorrência do CSV. **54 testes passaram**, além de 11 verificações HTTP locais com respostas oficiais capturadas. Veja [a auditoria e seu alcance](docs/auditoria-integracao-pncp.md). Ao atualizar, preserve sua `.env`.
 
 **Correção de integração (02/10/2026):** o tipo funcional retornado pela busca vem em `document_type` (`edital`), enquanto `doc_type` contém o metadado técnico `_doc`. A validação, a coluna `tipo_documento` e a identidade dos documentos foram corrigidas. Consulte [o diagnóstico e os testes](docs/correcao-validacao-pncp.md).
 
@@ -138,3 +142,7 @@ A licença MIT do Tabulator está em `THIRD_PARTY_LICENSES.md`. As dependências
 - [Paginação remota Tabulator](https://www.tabulator.info/docs/6.3/page)
 - [Busca PNCP](https://pncp.gov.br/api/search/)
 - [Consulta de itens — manual PNCP](https://pncp.gov.br/manual/pt-br/latest/contratacao/consultar_itens_de_uma_contratacao.html)
+
+### Consultas prontas: preparação da pesquisa (2.0.2)
+
+Ao selecionar uma consulta especializada, a interface abre os filtros antes de executá-la. Informe texto, período de publicação, UF ou órgão e clique em **Aplicar e pesquisar**. O limite padrão é de 500 candidatos do PNCP, antes da verificação dos padrões do objeto e dos itens. A mensagem `QUERY_TOO_BROAD` mostra o total e o limite e oferece **Delimitar pesquisa**. As consultas nativas continuam diretas. Cancelar a preparação mantém a consulta anterior. Nenhum texto ou período é inserido automaticamente; critérios de busca textual escolhidos por você delimitam o escopo e podem excluir outras grafias previstas na regra especializada. Veja [a correção detalhada](docs/correcao-consultas-prontas.md).

@@ -1,4 +1,8 @@
-# Relatório de validação — Compras Web 2.0.1
+Atualização 2.0.3: **63 testes passaram**. Três regressões novas verificam o carregamento automático dos itens, ausência de identificação e recuperação após falha. A regressão de URLs foi atualizada para `/app/editais/`. A ordem visual começa por Título e Município é visível. Os novos fluxos executam os handlers reais com DOM mínimo, adaptador de Tabulator e serviço com respostas sintéticas; não verificam renderização em navegador.
+
+Atualização 2.0.2: os **60 testes** passaram (54 da auditoria anterior + 6 de consultas prontas). Os novos testes executam os handlers reais do frontend com um DOM mínimo e um adaptador de Tabulator, integrados ao serviço de consulta com respostas sintéticas. Não verificam renderização em navegador. Evidências e capturas de navegador abaixo correspondem à auditoria 2.0.1.
+
+# Relatório de validação — Compras Web 2.0.2
 
 Data inicial: 1 de outubro de 2026. Atualização de integração: 2 de outubro de 2026. Ambiente de testes: Node.js 24.19.0, Linux. Backend Node.js; tabela Tabulator 6.3.1.
 
