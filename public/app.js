@@ -2,6 +2,13 @@ const $ = id => document.getElementById(id);
 const el = (tag, text, className) => { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(className)node.className=className; return node; };
 const clone = value => structuredClone(value);
 const TABLE_PAGE_SIZE = 100;
+// Situação da Contratação: PNCP, Manual de Integração, tabela de domínio 7.13.
+const purchaseStatusClasses=new Map([
+  ['divulgada no pncp','status-cell--divulgada'],
+  ['revogada','status-cell--revogada'],
+  ['anulada','status-cell--anulada'],
+  ['suspensa','status-cell--suspensa'],
+]);
 // Ícones Lucide de paginação (ISC/MIT): THIRD_PARTY_LICENSES.md.
 const paginationIcons={
   first:'<svg class="pagination-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m17 18-6-6 6-6"/><path d="M7 6v12"/></svg>',
@@ -84,7 +91,12 @@ function colFormatter(column) {
     if(column.field==='objeto_compra'){node.className='object-text';node.title=value ?? '';}
     if(column.type==='decimal')node.className='money-cell';
     if(column.field==='categorizacao')node.className='category-cell';
-    if(column.field==='situacao_compra_nome_pncp' && value)node.className='status-cell';
+    if(column.field==='situacao_compra_nome_pncp') {
+      const label=String(value ?? '').normalize('NFC').trim().replace(/\s+/g,' ');
+      node.className=`status-cell ${purchaseStatusClasses.get(label.toLocaleLowerCase('pt-BR')) || 'status-cell--unknown'}`;
+      if(!label)node.textContent='—';
+      node.title=label || 'Situação não informada';
+    }
     return node;
   };
 }

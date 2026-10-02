@@ -50,6 +50,7 @@ O build cria uma distribuição em `dist/`. Não é necessário para rodar o pro
 
 - A tabela usa páginas de **100 contratações**, ocupa a altura restante da janela e tem cabeçalho e controles compactos. Use **Expandir tabela** para dedicar quase toda a tela aos resultados; **Restaurar layout** ou **Esc** retorna à busca. As linhas mostram até duas linhas do objeto; os detalhes exibem o texto completo.
 - Consultas, paginação e atualização mostram um indicador de carregamento sobre a tabela. A navegação na tabela fica suspensa durante a consulta; **Cancelar** permanece disponível na barra de ações.
+- A coluna **Situação** distingue os [valores oficiais da contratação no PNCP](https://pncp.gov.br/manual/pt-br/latest/tabelas_de_dominio/situacao_da_contratacao.html): Divulgada no PNCP (verde), Revogada (vermelho), Anulada (roxo) e Suspensa (âmbar). Valores não reconhecidos ou ausentes usam cinza, preservando o texto recebido; a ausência aparece como **—**.
 - Pesquise um termo para consultar o PNCP. A busca textual alcança os campos indexados pelo portal e não é um filtro exclusivo do objeto.
 - Abra **Filtros** para escolher domínios, datas, valores, regras textuais e ordenações. Órgãos, unidades e municípios usam opções e IDs recebidos do PNCP. Autocomplete usa três caracteres, debounce de 450 ms e cancelamento.
 - O menu de cada coluna oferece seus filtros tipados e ordenação. Regex, regras adicionais, categorias, agrupamento e ordenações sem equivalente remoto ativam refinamento.

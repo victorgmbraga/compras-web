@@ -80,7 +80,12 @@ p{line-height:1.55}
 .object-text{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .money-cell{font-variant-numeric:tabular-nums;font-weight:550}
 .category-cell{font-size:.8125rem;color:#40737e;white-space:normal}
-.status-cell{display:inline-block;font-size:.8125rem;border-radius:4px;padding:2px 7px;background:#eaf3f1;color:#296451}
+.status-cell{display:inline-block;font-size:.8125rem;border-radius:4px;padding:2px 7px;background:#edf0f4;color:#526174}
+.status-cell--divulgada{background:#eaf3f1;color:#296451}
+.status-cell--revogada{background:#fdece9;color:#98352c}
+.status-cell--anulada{background:#f1eafa;color:#694098}
+.status-cell--suspensa{background:#fff3d6;color:#805910}
+.status-cell--unknown{background:#edf0f4;color:#526174}
 .tabulator .tabulator-footer{border-top:1px solid var(--line);background:white;color:#566b80;padding:6px 9px}
 .tabulator .tabulator-footer .tabulator-page{border:1px solid var(--line);background:white;border-radius:4px;padding:4px 7px;color:#4a647e;font-size:.8125rem}
 .tabulator .tabulator-footer .tabulator-page:is([data-page="first"],[data-page="prev"],[data-page="next"],[data-page="last"]){display:inline-flex;align-items:center;justify-content:center;min-width:30px;min-height:30px;padding:4px;vertical-align:middle}
