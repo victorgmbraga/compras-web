@@ -342,8 +342,7 @@ async function init() {
   state.schema=await (await api('/api/schema')).json();
   state.query=defaultQuery();
   $('search').value='';
-  if(state.schema.demo){$('source-label').textContent='Demonstração · dados fictícios';$('source-label-compact').textContent='Dados fictícios';$('source-badge').classList.add('demo');}
-  $('source-badge').title=$('source-label').textContent;
+  $('source-badge').hidden=!state.schema.demo;
   $('refinement-limit').textContent=fmtInt(state.schema.limits.refinement_candidates);
   for(const cap of state.schema.capabilities.filter(c=>!c.reserved)) {
     const option=el('option',`${nativeLabels[cap.name] || cap.name}${cap.state==='enabled'?'':' · pendente'}`);option.value=cap.name;option.disabled=cap.state!=='enabled';$('native-field').append(option);
