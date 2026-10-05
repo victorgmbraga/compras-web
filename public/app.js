@@ -29,9 +29,21 @@ const nativeLabels={ufs:'UF',orgaos:'Órgão',unidades:'Unidade',municipios:'Mun
 const operators={like:'contém',not_like:'não contém','=':'igual a','!=':'diferente de',starts:'começa com',ends:'termina com',regex:'regex',empty:'vazio',not_empty:'preenchido'};
 const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',broadDetails:null,draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
 function notice(message,kind='') { $('notice').textContent=message;$('notice').className='notice '+kind;$('notice').hidden=!message; }
+function hideWindowTooltip() { $('window-warning-tooltip').hidden=true; }
+function showWindowTooltip() {
+  const marker=$('window-warning'),tooltip=$('window-warning-tooltip');
+  if(marker.hidden || state.status==='loading' || !tooltip.textContent)return;
+  tooltip.hidden=false;
+  const anchor=marker.getBoundingClientRect(),box=tooltip.getBoundingClientRect(),gap=8;
+  const left=Math.max(gap,Math.min(anchor.left+(anchor.width-box.width)/2,window.innerWidth-box.width-gap));
+  const above=anchor.top-box.height-gap;
+  const top=above>=gap?above:Math.min(anchor.bottom+gap,window.innerHeight-box.height-gap);
+  tooltip.style.left=`${left}px`;tooltip.style.top=`${Math.max(gap,top)}px`;
+}
 function status(value,query=state.query) {
   state.status=value;
   const busy=value==='loading';
+  if(busy)hideWindowTooltip();
   $('table-loader').hidden=!busy;
   $('results-table').setAttribute('aria-busy',String(busy));$('results-table').inert=busy;
   if(busy) {
@@ -56,6 +68,7 @@ function expandTable(expanded) {
   requestAnimationFrame(()=>state.table?.redraw(true));
 }
 document.addEventListener('keydown',event=>{
+  if(event.key==='Escape')hideWindowTooltip();
   if(event.key==='Escape' && document.body.classList.contains('table-expanded') && !document.querySelector('dialog[open]'))expandTable(false);
 });
 for(const dialog of document.querySelectorAll('dialog')) {
@@ -126,8 +139,8 @@ function renderResult(result,query) {
   $('result-meta').title=$('result-meta').textContent;
   const windowWarning=result.warnings.find(w=>w.code==='WINDOW_LIMITED');
   $('window-warning').hidden=!windowWarning;
-  $('window-warning').title=windowWarning?.message || '';
-  $('window-warning').setAttribute('aria-label',windowWarning?.message || '');
+  $('window-warning-tooltip').textContent=windowWarning?.message || '';
+  hideWindowTooltip();
   const warnings=result.warnings.filter(w=>w.code!=='WINDOW_LIMITED');
   notice(warnings.map(w=>w.message).join('\n'),warnings.length?'warning':'');
   status(result.data.length?'success':'empty');
@@ -382,6 +395,12 @@ async function init() {
   $('export-dialog').addEventListener('close',()=>{state.exportAbort?.abort();state.exportSeq++;});
   $('export-button').addEventListener('click',()=>{if(!state.lastQuery)return;$('export-error').hidden=true;$('confirmed-label').hidden=!state.lastResult.unverifiable_documents;$('confirmed-only').checked=false;$('download-csv').disabled=false;$('download-csv').textContent='Gerar CSV completo';openDialog('export-dialog');});
   $('download-csv').addEventListener('click',exportCsv);
+  $('window-warning').addEventListener('mouseenter',showWindowTooltip);
+  $('window-warning').addEventListener('mouseleave',hideWindowTooltip);
+  $('window-warning').addEventListener('focus',showWindowTooltip);
+  $('window-warning').addEventListener('blur',hideWindowTooltip);
+  window.addEventListener('resize',hideWindowTooltip);
+  document.addEventListener('scroll',hideWindowTooltip,true);
   $('audit-button').addEventListener('click',()=>{const result=state.lastResult;$('audit-summary').replaceChildren(el('p',`Coleta de ${time(result.started_at)} a ${time(result.finished_at)}. ${result.collection_complete?'Conjunto delimitado coletado integralmente.':'Uma página da busca remota.'} Não há garantia de snapshot entre páginas.`),el('p',result.complete_for_rule===false?'Existem candidatos não verificáveis; a cobertura da regra é incompleta.':'Verifique as contagens e os critérios efetivamente aplicados.'));$('audit-json').textContent=JSON.stringify({...result,data:undefined},null,2);openDialog('audit-dialog');});
   updateCriteria();status('idle');
 }

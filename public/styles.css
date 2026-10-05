@@ -59,9 +59,11 @@ p{line-height:1.55}
 .result-count{display:flex;align-items:center;gap:3px;white-space:nowrap;color:var(--navy);font-weight:650;flex-shrink:0}
 .result-info h2{font-size:inherit;font-weight:inherit;white-space:nowrap}
 #result-meta{font-size:inherit;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.footer-marker{border:0;background:transparent;color:var(--blue);font-size:inherit;font-weight:650;line-height:inherit;padding:2px;flex-shrink:0}
+.footer-marker{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;min-width:20px;min-height:20px;border:0;border-radius:4px;background:transparent;color:var(--blue);font-size:inherit;line-height:inherit;padding:2px;flex-shrink:0;transition:background .12s,color .12s}
+.footer-marker svg{width:15px;height:15px;stroke-width:2;pointer-events:none}
 .footer-marker.warning{color:#b53229;cursor:help}
-button.footer-marker:hover:not(:disabled){text-decoration:underline}
+button.footer-marker:hover:not(:disabled){background:#edf5fc;color:#105887}
+.footer-tooltip{position:fixed;z-index:1000;width:min(320px,calc(100vw - 16px));padding:10px 12px;border:1px solid #e9d8b6;border-radius:6px;background:#fffaeb;color:#7c6028;box-shadow:0 4px 16px #133d6826;font-size:.8125rem;line-height:1.5;white-space:normal;pointer-events:none}
 .result-actions{display:flex;gap:5px;align-items:center;flex-shrink:0}
 .result-actions .button{padding:5px 9px;min-height:30px;font-size:.8125rem}
 .table-shell{flex:1;min-height:0;min-width:0;position:relative;overflow:hidden}

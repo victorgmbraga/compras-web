@@ -48,7 +48,7 @@ async function interfaceFixture(options={}) {
     constructor(selector,options){this.options=options;this.size=options.paginationSize;this.handlers={};}on(name,fn){this.handlers[name]=fn;}clearSort(){}getPageSize(){return this.size;}
     setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('/api/query',{page,size:this.size});}redraw(){}
   }
-  const context=vm.createContext({document:dom,Tabulator:Table,fetch:fetcher,structuredClone,Intl,Date,Number,URL,URLSearchParams,AbortController,DOMException,setTimeout,clearTimeout,console});
+  const context=vm.createContext({document:dom,window:{addEventListener(){}},Tabulator:Table,fetch:fetcher,structuredClone,Intl,Date,Number,URL,URLSearchParams,AbortController,DOMException,setTimeout,clearTimeout,console});
   vm.runInContext(await readFile(new URL('../public/app.js',import.meta.url),'utf8'),context);
   await settle();assert.equal(nodes.get('startup-error').hidden,true);
   const state=()=>JSON.parse(vm.runInContext('JSON.stringify(state.query)',context));
@@ -79,8 +79,8 @@ test('TABLE-FOOTER-01: total real no rodapé, aviso de janela no marcador e dema
   assert.equal(ui.nodes.get('result-range').textContent,'Exibindo 1-100 de ');
   assert.equal(ui.nodes.get('result-title').textContent,'4.143.240 contratações');
   const warning=ui.nodes.get('window-warning');assert.equal(warning.hidden,false);
-  assert.equal(warning.title,'Refine a pesquisa para acessar todos os resultados. A janela acessível é de 10000 documentos.');
-  assert.equal(warning.getAttribute('aria-label'),warning.title);assert.equal(ui.nodes.get('notice').hidden,true);
+  assert.equal(ui.nodes.get('window-warning-tooltip').textContent,'Refine a pesquisa para acessar todos os resultados. A janela acessível é de 10000 documentos.');
+  assert.equal(ui.nodes.get('window-warning-tooltip').hidden,true);assert.equal(ui.nodes.get('notice').hidden,true);
   await ui.nodes.get('audit-button').fire('click');assert.equal(ui.nodes.get('audit-dialog').open,true);
   assert.equal(JSON.parse(ui.nodes.get('audit-json').textContent).total,total);
   extraWarning=true;await ui.request({page:100});

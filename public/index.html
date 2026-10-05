@@ -42,12 +42,13 @@
         <div id="startup-error" class="startup-error" hidden></div>
       </div>
       <div id="result-info" class="result-info" hidden>
-        <div class="result-count"><span id="result-range" hidden></span><h2 id="result-title">Resultados</h2><span id="window-warning" class="footer-marker warning" tabindex="0" role="img" hidden>(!)</span></div>
+        <div class="result-count"><span id="result-range" hidden></span><h2 id="result-title">Resultados</h2><span id="window-warning" class="footer-marker warning" tabindex="0" role="img" aria-label="Limite de resultados acessíveis" aria-describedby="window-warning-tooltip" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg></span></div>
         <span id="result-meta">Faça uma pesquisa para consultar o PNCP.</span>
-        <button id="audit-button" class="footer-marker" type="button" aria-label="Ver critérios da consulta" title="Ver critérios da consulta" disabled>(i)</button>
+        <button id="audit-button" class="footer-marker" type="button" aria-label="Ver critérios da consulta" title="Ver critérios da consulta" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></svg></button>
       </div>
     </section>
   </main>
+  <div id="window-warning-tooltip" class="footer-tooltip" role="tooltip" hidden></div>
 
   <dialog id="presets-dialog" class="modal"><div class="dialog-header"><div><span class="eyebrow">CONSULTAS PRONTAS</span><h2>Escolha uma consulta</h2></div><button class="icon-button close-dialog" aria-label="Fechar">×</button></div><div id="preset-list" class="preset-list"></div><p class="dialog-note">Ao escolher uma consulta especializada, prepare os filtros e clique em Aplicar e pesquisar. O período e o texto são definidos por você; os itens são verificados após a coleta.</p></dialog>
   <dialog id="filters-dialog" class="modal filters-modal"><div class="dialog-header"><div><span class="eyebrow">CRITÉRIOS DA PESQUISA</span><h2 id="filters-title">Filtros e refinamento</h2></div><button class="icon-button close-dialog" aria-label="Fechar">×</button></div>

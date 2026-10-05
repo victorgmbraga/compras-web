@@ -45,8 +45,9 @@ try {
   await search('janela-ui');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='4.143.240 contratações');
   assert.match(await page.locator('.tabulator-page-counter').innerText(),/Exibindo 1-100 de\s+4\.143\.240 contratações/);
   assert.equal(await page.locator('#notice').isVisible(),false);assert(await page.locator('#window-warning').isVisible());
-  assert.match(await page.locator('#window-warning').getAttribute('title'),/janela acessível é de 10000 documentos/);
-  await page.locator('#audit-button').click();assert(await page.locator('#audit-dialog').isVisible());await page.locator('#audit-dialog .close-dialog').click();check('Total real, limite em tooltip e critérios pelo marcador (i)');
+  await page.locator('#window-warning').hover();await page.locator('#window-warning-tooltip').waitFor({state:'visible'});
+  assert.match(await page.locator('#window-warning-tooltip').innerText(),/janela acessível é de 10000 documentos/);
+  await page.locator('#audit-button').click();assert(await page.locator('#audit-dialog').isVisible());await page.locator('#audit-dialog .close-dialog').click();check('Total real, limite em tooltip e critérios pelo ícone de informação');
   for(const [action,label]of [['first','Primeira página'],['prev','Página anterior'],['next','Próxima página'],['last','Última página']]) {
     const button=page.locator(`.tabulator-page[data-page="${action}"]`);
     assert.equal(await button.locator('svg.pagination-icon').count(),1);
