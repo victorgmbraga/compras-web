@@ -182,8 +182,6 @@ pre{background:#f2f6fa;color:#3c5871;border:1px solid #d9e4ef;border-radius:6px;
 .criteria-row .mode-label,.criteria-row .order-label,.criteria-row .text-button{flex-shrink:0}
 .criteria-row .text-button{font-size:.8125rem}
 .tabulator .tabulator-footer .tabulator-footer-contents{padding:0;gap:8px}
-.table-expanded .topbar{display:none}
-.table-expanded #expand-table-button{color:var(--blue);border-color:#9bbbd7;background:#edf5fc}
 
 @media(max-width:1100px){
   .result-actions .button span{display:none}
