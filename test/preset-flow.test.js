@@ -51,15 +51,40 @@ async function interfaceFixture(options={}) {
   const context=vm.createContext({document:dom,window:{addEventListener(){}},Tabulator:Table,fetch:fetcher,structuredClone,Intl,Date,Number,URL,URLSearchParams,AbortController,DOMException,setTimeout,clearTimeout,console});
   vm.runInContext(await readFile(new URL('../public/app.js',import.meta.url),'utf8'),context);
   await settle();assert.equal(nodes.get('startup-error').hidden,true);
+  const buildTable=async()=>{vm.runInContext('state.table.handlers.tableBuilt()',context);await Promise.allSettled(pending);await settle();};
+  if(!options.deferTableBuilt)await buildTable();
   const state=()=>JSON.parse(vm.runInContext('JSON.stringify(state.query)',context));
   const select=async name=>{await nodes.get('presets-button').fire('click');const button=nodes.get('preset-list').children.find(b=>b.children[0].textContent===name);assert(button);await button.fire('click');};
   const openDocument=doc=>vm.runInContext('state.table.handlers.rowClick',context)({}, {getData:()=>doc});
   const tableColumns=()=>JSON.parse(vm.runInContext('JSON.stringify(state.table.options.columns)',context));
   const request=params=>vm.runInContext('requestTable',context)('/api/query',{},params);
   const footer=()=>vm.runInContext('state.table.options.paginationCounter',context)();
-  return {nodes,all,requests,itemRequests,state,select,openDocument,tableColumns,request,footer};
+  return {nodes,all,requests,itemRequests,state,select,openDocument,tableColumns,request,footer,buildTable};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
+
+test('STARTUP-UI-01: abrir a aplicação consulta a primeira página sem texto ou filtros',async()=>{
+  const ui=await interfaceFixture();assert.equal(ui.requests.length,1);
+  assert.deepEqual(ui.requests[0],{
+    api_version:'2.0',mode:'native',preset:'all',document_type:'edital',q:'',status:'todos',
+    pncp_filters:{},order:'-data',filters:[],header_filters:[],filter_join:'and',deduplicate:'none',sorters:[],page:1,size:100,
+  });
+  assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');
+  assert.equal(ui.nodes.get('table-loader').hidden,true);assert.equal(ui.nodes.get('export-button').disabled,false);
+});
+
+test('STARTUP-UI-02: falha da pesquisa inicial usa o aviso de consulta e permite tentar novamente',async()=>{
+  let fail=true;
+  const ui=await interfaceFixture({queryHandler:async(input,options,backend)=>fail
+    ?Response.json({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}},{status:503})
+    :Response.json(await backend.execute(input,options.signal))});
+  assert.equal(ui.requests.length,1);assert.equal(ui.nodes.get('startup-error').hidden,true);
+  assert.match(ui.nodes.get('notice').textContent,/PNCP indisponível/);
+  assert.equal(ui.nodes.get('retry-button').hidden,false);assert.equal(ui.nodes.get('table-loader').hidden,true);
+  fail=false;await ui.nodes.get('retry-button').fire('click');
+  assert.equal(ui.requests.length,2);assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');
+  assert.equal(ui.nodes.get('notice').hidden,true);
+});
 
 test('TABLE-FOOTER-01: total real no rodapé, aviso de janela no marcador e demais avisos acima da tabela',async()=>{
   let total=4143240,extraWarning=false,fail=false;
@@ -108,7 +133,7 @@ test('TABLE-FOOTER-02: intervalo usa os dados da página curta e apresenta zero 
 
 test('TABLE-LOADER-01: consulta, atualização e paginação mostram loader; sucesso, falha e cancelamento o removem',async()=>{
   const source=service(Array.from({length:164},(_,i)=>document(i+1))),waiting=[];
-  const ui=await interfaceFixture({queryHandler:(input,{signal})=>new Promise((resolve,reject)=>{
+  const ui=await interfaceFixture({deferTableBuilt:true,queryHandler:(input,{signal})=>new Promise((resolve,reject)=>{
     const abort=()=>reject(new DOMException('Consulta cancelada.','AbortError'));
     signal.addEventListener('abort',abort,{once:true});
     waiting.push({finish:async()=>{signal.removeEventListener('abort',abort);resolve(Response.json(await source.service.execute(input)));},fail:()=>{signal.removeEventListener('abort',abort);resolve(Response.json({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}},{status:503}));}});
@@ -116,7 +141,7 @@ test('TABLE-LOADER-01: consulta, atualização e paginação mostram loader; suc
   const loader=ui.nodes.get('table-loader'),table=ui.nodes.get('results-table'),title=ui.nodes.get('table-loader-title');
   const busy=value=>{assert.equal(loader.hidden,!value);assert.equal(table.inert,value);assert.equal(table.getAttribute('aria-busy'),String(value));};
   busy(false);
-  const initial=ui.request({page:1});await settle();busy(true);assert.equal(title.textContent,'Carregando contratações');assert.equal(ui.nodes.get('cancel-button').hidden,false);
+  const initial=ui.buildTable();await settle();busy(true);assert.equal(title.textContent,'Carregando contratações');assert.equal(ui.nodes.get('cancel-button').hidden,false);
   await waiting[0].finish();await initial;busy(false);
   const refresh=ui.nodes.get('refresh-button').fire('click');await settle();busy(true);assert.equal(title.textContent,'Atualizando contratações');
   await waiting[1].finish();await refresh;busy(false);
@@ -130,7 +155,7 @@ test('TABLE-LOADER-01: consulta, atualização e paginação mostram loader; suc
 
 test('TABLE-LOADER-02: resposta antiga não oculta o loader da consulta mais recente',async()=>{
   const source=service([document(1)]),waiting=[];
-  const ui=await interfaceFixture({queryHandler:input=>new Promise(resolve=>{
+  const ui=await interfaceFixture({deferTableBuilt:true,queryHandler:input=>new Promise(resolve=>{
     // Simula uma fonte que entrega a resposta mesmo depois do cancelamento.
     waiting.push(async()=>resolve(Response.json(await source.service.execute(input))));
   })});
@@ -144,7 +169,7 @@ test('TABLE-LOADER-02: resposta antiga não oculta o loader da consulta mais rec
 
 test('PRESET-FLOW-01: selecionar consulta especializada prepara filtros sem iniciar busca',async()=>{
   const ui=await interfaceFixture();ui.nodes.get('search').value='licença';
-  await ui.select('Oracle');assert.equal(ui.requests.length,0);assert.equal(ui.nodes.get('filters-dialog').open,true);
+  await ui.select('Oracle');assert.equal(ui.requests.length,1);assert.equal(ui.nodes.get('filters-dialog').open,true);
   assert.match(ui.nodes.get('filters-title').textContent,/Oracle/);assert.match(ui.nodes.get('preset-guidance').textContent,/10 candidatos/);
   assert.equal(ui.nodes.get('draft-search').value,'licença');assert.equal(ui.state().preset,'all');
   ui.nodes.get('draft-search').value='texto cancelado';ui.nodes.get('filters-dialog').close();assert.equal(ui.state().preset,'all');assert.equal(ui.state().q,'');
@@ -155,7 +180,7 @@ test('PRESET-FLOW-02: texto e datas explícitos reduzem candidatos antes da veri
   ui.nodes.get('draft-publication-start').value='2026-09-01';await ui.nodes.get('draft-publication-start').fire('input');
   ui.nodes.get('draft-publication-end').value='2026-09-30';await ui.nodes.get('draft-publication-end').fire('input');
   await ui.nodes.get('apply-filters').fire('click');
-  assert.equal(ui.requests.length,1);const q=ui.requests[0];assert.equal(q.preset,'oracle');assert.equal(q.mode,'refined');assert.equal(q.q,'Oracle');
+  assert.equal(ui.requests.length,2);const q=ui.requests[1];assert.equal(q.preset,'oracle');assert.equal(q.mode,'refined');assert.equal(q.q,'Oracle');
   assert.deepEqual(q.pncp_filters,{data_publicacao_inicio:'2026-09-01',data_publicacao_fim:'2026-09-30'});
   assert.equal(ui.nodes.get('result-title').textContent,'6 contratações');assert.equal(ui.nodes.get('narrow-button').hidden,true);
 });
@@ -165,15 +190,15 @@ test('PRESET-FLOW-03: busca ampla mostra contagem e permite corrigir sem trocar 
   assert.equal(ui.nodes.get('narrow-button').hidden,false);assert.equal(ui.nodes.get('retry-button').hidden,true);
   await ui.nodes.get('narrow-button').fire('click');assert.match(ui.nodes.get('preset-guidance').textContent,/64 candidatos/);
   assert.equal(ui.state().preset,'oracle');ui.nodes.get('draft-search').value='Oracle';await ui.nodes.get('apply-filters').fire('click');
-  assert.equal(ui.requests.length,2);assert.equal(ui.nodes.get('result-title').textContent,'6 contratações');assert.equal(ui.nodes.get('narrow-button').hidden,true);
+  assert.equal(ui.requests.length,3);assert.equal(ui.nodes.get('result-title').textContent,'6 contratações');assert.equal(ui.nodes.get('narrow-button').hidden,true);
 });
 test('PRESET-FLOW-04: consultas nativas seguem diretas; datas removidas não ficam ocultas',async()=>{
-  const ui=await interfaceFixture();await ui.select('Todas as contratações');assert.equal(ui.requests.length,1);
+  const ui=await interfaceFixture();await ui.select('Todas as contratações');assert.equal(ui.requests.length,2);
   assert.equal(ui.requests[0].size,100);assert.equal(ui.state().size,100);
   await ui.select('Oracle');ui.nodes.get('draft-search').value='Oracle';
   ui.nodes.get('draft-publication-start').value='2026-09-01';await ui.nodes.get('draft-publication-start').fire('input');
   ui.nodes.get('draft-publication-start').value='';await ui.nodes.get('draft-publication-start').fire('input');
-  await ui.nodes.get('apply-filters').fire('click');assert.deepEqual(ui.requests[1].pncp_filters,{});assert.equal(ui.requests[1].q,'Oracle');assert.equal(ui.requests[1].size,100);
+  await ui.nodes.get('apply-filters').fire('click');assert.deepEqual(ui.requests[2].pncp_filters,{});assert.equal(ui.requests[2].q,'Oracle');assert.equal(ui.requests[2].size,100);
 });
 test('PRESET-FLOW-05: limite rejeita consulta especializada antes de carregar itens, sem truncar',async()=>{
   const s=service(Array.from({length:11},(_,i)=>document(i+1,{description:'Oracle'})),{}, {PNCP_MAX_REFINEMENT_CANDIDATES:10});
@@ -186,7 +211,7 @@ test('PRESET-FLOW-06: seleção preserva texto e filtros nativos já aplicados; 
   await ui.nodes.get('apply-filters').fire('click');const before=ui.state();
   await ui.select('Microsoft');assert.equal(ui.nodes.get('draft-search').value,'Oracle');assert.equal(ui.nodes.get('draft-publication-start').value,'2026-09-01');
   ui.nodes.get('draft-publication-start').value='2026-09-20';await ui.nodes.get('draft-publication-start').fire('input');ui.nodes.get('filters-dialog').close();
-  assert.deepEqual(ui.state(),before);assert.equal(ui.requests.length,1);
+  assert.deepEqual(ui.state(),before);assert.equal(ui.requests.length,2);
 });
 test('DETAILS-UI-01: abrir uma linha carrega itens automaticamente e usa o link /app/editais',async()=>{
   const ui=await interfaceFixture(),doc=project(document(1,{item_url:'/compras/00000000000000/2026/1'}));

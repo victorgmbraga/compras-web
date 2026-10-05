@@ -37,7 +37,7 @@ try {
   await page.goto(`http://127.0.0.1:${app.server.address().port}`,{waitUntil:'load'});
   await page.waitForFunction(()=>document.querySelector('.tabulator'));
   assert.match(await page.locator('#source-badge').innerText(),/dados fictícios/);check('Demonstração marcada e interface disponível');
-  await search('');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
+  await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');check('Pesquisa inicial sem filtros executada automaticamente');
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
   assert.equal(await page.locator('.result-toolbar .criteria-row').count(),1);
   assert.equal(await page.locator('.tabulator-footer .result-info').count(),1);

@@ -341,6 +341,7 @@ async function exportCsv() {
 async function init() {
   state.schema=await (await api('/api/schema')).json();
   state.query=defaultQuery();
+  $('search').value='';
   if(state.schema.demo){$('source-label').textContent='Demonstração · dados fictícios';$('source-label-compact').textContent='Dados fictícios';$('source-badge').classList.add('demo');}
   $('source-badge').title=$('source-label').textContent;
   $('refinement-limit').textContent=fmtInt(state.schema.limits.refinement_candidates);
@@ -407,5 +408,6 @@ async function init() {
   document.addEventListener('scroll',hideWindowTooltip,true);
   $('audit-button').addEventListener('click',()=>{const result=state.lastResult;$('audit-summary').replaceChildren(el('p',`Coleta de ${time(result.started_at)} a ${time(result.finished_at)}. ${result.collection_complete?'Conjunto delimitado coletado integralmente.':'Uma página da busca remota.'} Não há garantia de snapshot entre páginas.`),el('p',result.complete_for_rule===false?'Existem candidatos não verificáveis; a cobertura da regra é incompleta.':'Verifique as contagens e os critérios efetivamente aplicados.'));$('audit-json').textContent=JSON.stringify({...result,data:undefined},null,2);openDialog('audit-dialog');});
   updateCriteria();status('idle');
+  state.table.on('tableBuilt',execute);
 }
 init().catch(error=>{$('startup-error').hidden=false;$('startup-error').textContent=`Não foi possível iniciar a interface: ${error.message}. Recarregue a página.`;notice('Falha ao carregar o esquema da aplicação.','error');});
