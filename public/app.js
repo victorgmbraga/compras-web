@@ -62,7 +62,6 @@ function status(value,query=state.query) {
   $('narrow-button').hidden=value!=='error' || !state.broadDetails;
   $('refresh-button').disabled=!state.lastQuery || busy;
   $('export-button').disabled=!['success','empty'].includes(value);
-  $('audit-button').disabled=!state.lastResult;
   $('search-button').disabled=false;
 }
 function openDialog(id) { const dialog=$(id);if(!dialog.open)dialog.showModal(); }
@@ -346,7 +345,6 @@ async function init() {
   $('refinement-limit').textContent=fmtInt(state.schema.limits.refinement_candidates);
   for(const cap of state.schema.capabilities.filter(c=>!c.reserved)) {
     const option=el('option',`${nativeLabels[cap.name] || cap.name}${cap.state==='enabled'?'':' · pendente'}`);option.value=cap.name;option.disabled=cap.state!=='enabled';$('native-field').append(option);
-    if(cap.state!=='enabled')$('pending-list').append(el('p',`${cap.name}: ${cap.reason}`,'pending-entry'));
   }
   for(const column of state.schema.columns) {
     if(column.type==='text'){const option=el('option',column.title);option.value=column.field;$('rule-field').append(option);}
@@ -375,7 +373,7 @@ async function init() {
   }
   $('search-form').addEventListener('submit',event=>{event.preventDefault();execute();});
   $('presets-button').addEventListener('click',()=>openDialog('presets-dialog'));
-  $('filters-button').addEventListener('click',()=>openFilters());$('columns-button').addEventListener('click',()=>openDialog('columns-dialog'));$('help-button').addEventListener('click',()=>openDialog('help-dialog'));
+  $('filters-button').addEventListener('click',()=>openFilters());$('columns-button').addEventListener('click',()=>openDialog('columns-dialog'));
   $('refresh-button').addEventListener('click',async()=>{
     if(!state.lastQuery)return;
     const {page}=state.lastQuery;state.query=clone(state.lastQuery);$('search').value=state.query.q;updateCriteria();
@@ -405,7 +403,6 @@ async function init() {
   $('window-warning').addEventListener('blur',hideWindowTooltip);
   window.addEventListener('resize',hideWindowTooltip);
   document.addEventListener('scroll',hideWindowTooltip,true);
-  $('audit-button').addEventListener('click',()=>{const result=state.lastResult;$('audit-summary').replaceChildren(el('p',`Coleta de ${time(result.started_at)} a ${time(result.finished_at)}. ${result.collection_complete?'Conjunto delimitado coletado integralmente.':'Uma página da busca remota.'} Não há garantia de snapshot entre páginas.`),el('p',result.complete_for_rule===false?'Existem candidatos não verificáveis; a cobertura da regra é incompleta.':'Verifique as contagens e os critérios efetivamente aplicados.'));$('audit-json').textContent=JSON.stringify({...result,data:undefined},null,2);openDialog('audit-dialog');});
   updateCriteria();status('idle');
   state.table.on('tableBuilt',execute);
 }

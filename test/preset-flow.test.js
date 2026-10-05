@@ -106,8 +106,6 @@ test('TABLE-FOOTER-01: total real no rodapé, aviso de janela no marcador e dema
   const warning=ui.nodes.get('window-warning');assert.equal(warning.hidden,false);
   assert.equal(ui.nodes.get('window-warning-tooltip').textContent,'Refine a pesquisa para acessar todos os resultados. A janela acessível é de 10000 documentos.');
   assert.equal(ui.nodes.get('window-warning-tooltip').hidden,true);assert.equal(ui.nodes.get('notice').hidden,true);
-  await ui.nodes.get('audit-button').fire('click');assert.equal(ui.nodes.get('audit-dialog').open,true);
-  assert.equal(JSON.parse(ui.nodes.get('audit-json').textContent).total,total);
   extraWarning=true;await ui.request({page:100});
   assert.equal(ui.nodes.get('result-range').textContent,'Exibindo 9.901-10.000 de ');
   assert.equal(ui.nodes.get('notice').hidden,false);

@@ -17,7 +17,7 @@
       <button type="button" class="button" id="filters-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10m-7 5h4"/></svg><span>Filtros</span><span id="filter-count" class="count-badge" hidden></span></button>
       <button type="button" id="presets-button" class="button subtle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Consultas prontas</span></button>
     </form>
-    <div class="topbar-right"><span id="source-badge" class="source-badge demo" title="Demonstração · dados fictícios" hidden><span id="source-label">Demonstração · dados fictícios</span><span id="source-label-compact">Dados fictícios</span></span><button type="button" id="help-button" class="icon-button" aria-label="Ajuda" title="Como pesquisar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2-3 4m.1 3h.01"/></svg></button></div>
+    <span id="source-badge" class="source-badge demo" title="Demonstração · dados fictícios" hidden><span id="source-label">Demonstração · dados fictícios</span><span id="source-label-compact">Dados fictícios</span></span>
   </header>
   <main class="workspace">
     <h1 class="sr-only">Pesquisar contratações</h1>
@@ -42,7 +42,6 @@
       <div id="result-info" class="result-info" hidden>
         <div class="result-count"><span id="result-range" hidden></span><h2 id="result-title">Resultados</h2><span id="window-warning" class="footer-marker warning" tabindex="0" role="img" aria-label="Limite de resultados acessíveis" aria-describedby="window-warning-tooltip" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg></span></div>
         <span id="result-meta">Faça uma pesquisa para consultar o PNCP.</span>
-        <button id="audit-button" class="footer-marker" type="button" aria-label="Ver critérios da consulta" title="Ver critérios da consulta" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></svg></button>
       </div>
     </section>
   </main>
@@ -60,9 +59,7 @@
 
   <dialog id="columns-dialog" class="modal narrow"><div class="dialog-header"><h2>Colunas da tabela</h2><button class="icon-button close-dialog" aria-label="Fechar">×</button></div><div id="column-list" class="column-list"></div><p class="dialog-note">O CSV inclui todas as colunas documentais, independentemente desta seleção.</p></dialog>
   <dialog id="details-dialog" class="drawer"><div class="dialog-header"><div><span class="eyebrow">CONTRATAÇÃO</span><h2>Detalhes</h2></div><button class="icon-button close-dialog" aria-label="Fechar detalhes">×</button></div><div id="details-content"></div></dialog>
-  <dialog id="audit-dialog" class="modal"><div class="dialog-header"><h2>Critérios e cobertura</h2><button class="icon-button close-dialog" aria-label="Fechar">×</button></div><div id="audit-summary"></div><pre id="audit-json"></pre></dialog>
   <dialog id="export-dialog" class="modal narrow"><div class="dialog-header"><h2>Exportar resultados</h2><button class="icon-button close-dialog" aria-label="Fechar">×</button></div><p>A exportação consulta novamente todos os resultados dos últimos critérios concluídos. As atualizações no PNCP podem alterar os dados em relação à tabela.</p><label id="confirmed-label" class="checkbox-label" hidden><input type="checkbox" id="confirmed-only">Exportar apenas correspondências confirmadas; excluir os candidatos não verificáveis.</label><p id="export-error" class="inline-error" hidden role="status"></p><div class="dialog-footer"><button class="button close-dialog">Cancelar</button><button id="download-csv" class="button primary">Gerar CSV completo</button></div></dialog>
-  <dialog id="help-dialog" class="modal"><div class="dialog-header"><h2>Como pesquisar</h2><button class="icon-button close-dialog" aria-label="Fechar">×</button></div><p><strong>Busca direta:</strong> consulta uma página no PNCP. A busca textual alcança vários campos indexados, não apenas o objeto.</p><p><strong>Refinamento:</strong> verifica o conjunto completo de candidatos delimitado pelos filtros nativos. É necessário para regex, categorias, consultas especializadas e agrupamento por objeto.</p><p>Use o menu de cada coluna para filtrar ou ordenar. Clique em uma linha para abrir o documento e consultar os itens.</p><p>Não há banco local nem importação. Cada pesquisa, página, atualização, consulta de itens e exportação faz novas chamadas. O PNCP não garante uma fotografia imutável entre páginas.</p><details><summary>Capacidades pendentes de validação</summary><div id="pending-list"></div></details><p class="dialog-note">Tabulator 6.3.1 · licença MIT incluída na distribuição.</p></dialog>
   <noscript>Ative o JavaScript para pesquisar e exibir a tabela.</noscript>
 </body>
 </html>
