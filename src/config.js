@@ -13,7 +13,7 @@ const defaults = {
   PNCP_MAX_OPERATION_BYTES: 100 * 1024 * 1024,
   PNCP_MAX_REQUESTS_PER_OPERATION: 1000, REGEX_TIMEOUT_MS: 1500,
   PNCP_PRESET_CATALOG_ID: '', PNCP_VALIDATED_FILTERS: '',
-  PNCP_VALIDATED_PRESET_OPTIMIZATIONS: '', DEMO_MODE: false,
+  PNCP_VALIDATED_PRESET_OPTIMIZATIONS: 'situacoes,tipos_item,situacoes_item,esferas,modalidades', DEMO_MODE: false,
 };
 export function loadConfig(env = process.env) {
   const config = { ...defaults };

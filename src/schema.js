@@ -31,7 +31,7 @@ export const domainAliases = {
 export const reserved = ['tipos_documento', 'q', 'status', 'ordenacao', 'pagina', 'tam_pagina', 'total'];
 // Enabled core filters are grounded in the supplied PNCP reference examples.
 // Other portal arguments are catalogued, but deliberately require verification.
-export const initialEnabled = ['ufs', 'orgaos', 'unidades', 'municipios', 'esferas', 'poderes', 'modalidades', 'situacoes', 'anos', 'data_publicacao_inicio', 'data_publicacao_fim', 'valor_total_estimado_min', 'valor_total_estimado_max', 'valor_total_homologado_min', 'valor_total_homologado_max'];
+export const initialEnabled = ['ufs', 'orgaos', 'unidades', 'municipios', 'esferas', 'poderes', 'modalidades', 'situacoes', 'situacoes_item', 'tipos_item', 'anos', 'data_publicacao_inicio', 'data_publicacao_fim', 'valor_total_estimado_min', 'valor_total_estimado_max', 'valor_total_homologado_min', 'valor_total_homologado_max'];
 export function capabilities(config) {
   const additional = config.PNCP_VALIDATED_FILTERS.split(',').map(s => s.trim()).filter(Boolean);
   for (const name of additional) assert(data.arguments.some(a => a.name === name) && !reserved.includes(name), 'INVALID_CONFIG', `Filtro validado desconhecido ou reservado: ${name}.`);
@@ -40,7 +40,7 @@ export function capabilities(config) {
     const type = a.format.includes('lista') ? 'list' : a.format.includes('booleano') ? 'boolean' : a.format === 'data' ? 'date' : a.format.includes('decimal') ? 'decimal' : a.format.includes('inteiro') ? 'integer' : 'text';
     const documents = a.context === 'Geral' ? ['edital', 'contrato', 'ata', 'pcaorgao', 'irp'] : ['E', 'C', 'A', 'P', 'I'].filter(k => a.context.split(' ').includes(k)).map(k => ({ E: 'edital', C: 'contrato', A: 'ata', P: 'pcaorgao', I: 'irp' })[k]);
     const enabled = isReserved || ((initialEnabled.includes(a.name) || additional.includes(a.name)) && documents.includes('edital'));
-    return { ...a, type, cardinality: type === 'list' ? 'multiple' : 'single', documents, reserved: isReserved, domain: type === 'list' ? (domainAliases[a.name] || a.name) : null, state: enabled ? 'enabled' : 'pending_validation', evidence: additional.includes(a.name) ? 'server_configuration:PNCP_VALIDATED_FILTERS' : isReserved || initialEnabled.includes(a.name) ? 'supplied_reference:2.0.0; live_integration_not_verified_in_build_environment' : 'portal_bundle:buildCurrentQueryParams', reason: enabled ? null : 'Aplicação e domínio ainda não verificados para editais.' };
+    return { ...a, type, cardinality: type === 'list' ? 'multiple' : 'single', documents, reserved: isReserved, domain: type === 'list' ? (domainAliases[a.name] || a.name) : null, state: enabled ? 'enabled' : 'pending_validation', evidence: ['tipos_item','situacoes_item'].includes(a.name) ? 'live_api:2026-10-05; docs/otimizacao-consultas-prontas.md' : additional.includes(a.name) ? 'server_configuration:PNCP_VALIDATED_FILTERS' : isReserved || initialEnabled.includes(a.name) ? 'supplied_reference:2.0.0; live_integration_not_verified_in_build_environment' : 'portal_bundle:buildCurrentQueryParams', reason: enabled ? null : 'Aplicação e domínio ainda não verificados para editais.' };
   });
 }
 const names = { all: 'Todas as contratações', personalizado: 'Pesquisa personalizada', desenvolvimento: 'Desenvolvimento', infraestrutura: 'Infraestrutura', oracle: 'Oracle', microsoft: 'Microsoft', adobe: 'Adobe', symantec: 'Symantec / Broadcom', antivirus: 'Antivírus e proteção', graebert: 'Graebert / CAD', mongodb: 'MongoDB' };

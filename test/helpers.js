@@ -9,7 +9,7 @@ export function fixture(documents,options={}) {
   const fetcher=async(url,init)=>{
     const u=new URL(url);requests.push(u);
     if(options.handler){const response=await options.handler(u,requests.length,init);if(response)return response;}
-    if(u.pathname.endsWith('/filters'))return json({filters:{modalidades:[{id:6,nome:'Pregão - Eletrônico'}],situacoes:[{id:1,nome:'Divulgada no PNCP'},{id:2,nome:'Revogada'}]}});
+    if(u.pathname.endsWith('/filters'))return json({filters:{modalidades:[{id:6,nome:'Pregão - Eletrônico'}],situacoes:[{id:1,nome:'Divulgada no PNCP'},{id:2,nome:'Revogada'}],item_situacoes:[{id:1,nome:'Em andamento'},{id:2,nome:'Homologado'},{id:3,nome:'Cancelado'}],item_tipos:[{id:'S',nome:'Serviço'},{id:'M',nome:'Material'}]}});
     if(u.pathname.endsWith('/itens/quantidade'))return json(options.itemQuantity ?? 1);
     if(u.pathname.endsWith('/itens')) {
       const sequence=u.pathname.match(/compras\/\d+\/(\d+)\/itens/)[1],page=Number(u.searchParams.get('pagina'));

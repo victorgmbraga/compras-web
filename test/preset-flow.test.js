@@ -201,7 +201,9 @@ test('PRESET-FLOW-04: consultas nativas seguem diretas; datas removidas não fic
 test('PRESET-FLOW-05: limite rejeita consulta especializada antes de carregar itens, sem truncar',async()=>{
   const s=service(Array.from({length:11},(_,i)=>document(i+1,{description:'Oracle'})),{}, {PNCP_MAX_REFINEMENT_CANDIDATES:10});
   await assert.rejects(s.service.execute(query({mode:'refined',preset:'oracle'})),e=>e.code==='QUERY_TOO_BROAD' && e.details.source_total===11 && e.details.limit===10 && /11 candidatos/.test(e.message));
-  assert.equal(s.requests.length,1);assert(!s.requests[0].searchParams.has('q'));
+  const searches=s.requests.filter(u=>u.searchParams.has('tam_pagina'));
+  assert.equal(searches.length,1);assert(!searches[0].searchParams.has('q'));
+  assert(!s.requests.some(u=>u.pathname.endsWith('/itens')));
 });
 test('PRESET-FLOW-06: seleção preserva texto e filtros nativos já aplicados; cancelar não altera consulta',async()=>{
   const ui=await interfaceFixture();await ui.nodes.get('filters-button').fire('click');
