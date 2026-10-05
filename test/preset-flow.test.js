@@ -244,3 +244,26 @@ test('DETAILS-UI-05: contratação sem itens mostra total zero e oculta a pagina
   assert.equal(toolbar.children[0].textContent,'Itens da contratação (0)');assert.match(itemStatus.textContent,/0 itens/);
   assert.equal(list.children[0].textContent,'Esta contratação não possui itens.');assert.equal(pager.hidden,true);
 });
+
+test('DETAILS-UI-06: quantidade e valores do PNCP preservam precisão, zero e ausência de informação',async()=>{
+  const ui=await interfaceFixture({itemFetcher:url=>{
+    const path=new URL(url).pathname;
+    if(path.endsWith('/itens/quantidade'))return Promise.resolve(Response.json(4));
+    if(path.endsWith('/itens'))return Promise.resolve(new Response(`[
+      {"numeroItem":1,"quantidade":1234.56789,"valorUnitarioEstimado":9007199254740993.12345,"valorTotal":111222333444555666.98765},
+      {"numeroItem":2,"quantidade":0,"valorUnitarioEstimado":0,"valorTotal":0},
+      {"numeroItem":3,"quantidade":null,"valorTotal":null},
+      {"numeroItem":4,"quantidade":30.0000,"valorUnitarioEstimado":3296.01,"valorTotal":98880.3}
+    ]`,{headers:{'Content-Type':'application/json'}}));
+    return demoFetch(url);
+  }});
+  await ui.openDocument(project(document(1)));
+  const values=ui.all.filter(n=>n.className==='item-values');assert.equal(values.length,4);
+  assert.deepEqual(values[0].children.map(n=>n.children[0].textContent),['Quantidade','Valor unitário estimado','Valor total estimado']);
+  assert.deepEqual(values.map(n=>n.children.map(field=>field.children[1].textContent)),[
+    ['1.234,56789','R$ 9.007.199.254.740.993,12345','R$ 111.222.333.444.555.666,98765'],
+    ['0','R$ 0,00','R$ 0,00'],
+    ['—','—','—'],
+    ['30','R$ 3.296,01','R$ 98.880,30'],
+  ]);
+});

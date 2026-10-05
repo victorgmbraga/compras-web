@@ -19,6 +19,13 @@ const paginationIcons={
 const fmtInt = value => new Intl.NumberFormat('pt-BR').format(value);
 const time = value => value ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : '—';
 const date = value => value ? (/^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0,10).split('-').reverse().join('/') : value) : '—';
+function quantity(value) {
+  if(value===null || value===undefined)return '—';
+  const match=String(value).match(/^(-?)(\d+)(?:\.(\d+))?$/);
+  if(!match)return String(value);
+  const fraction=(match[3] || '').replace(/0+$/,'');
+  return `${match[1]}${match[2].replace(/\B(?=(\d{3})+(?!\d))/g,'.')}${fraction?','+fraction:''}`;
+}
 function money(value) {
   if(value===null || value===undefined)return '—';
   const match=String(value).match(/^(-?)(\d+)(?:\.(\d+))?$/);
@@ -297,7 +304,12 @@ async function openDetails(doc) {
       const p=doc._purchase,response=await api(`/api/contratacoes/${p.cnpj}/${p.ano}/${p.sequencial}/itens?pagina=${target}&tamanhoPagina=100`,{signal:controller.signal}),result=await response.json();
       if(token!==state.detailSeq)return;page=result.page;list.replaceChildren();
       for(const item of result.data) {
-        const card=el('article',undefined,'item-card');card.append(el('h4',`Item ${item.numeroItem ?? '—'}`),el('p',item.descricao ?? 'Descrição não informada.'),el('div',`${item.materialOuServico==='S'?'Serviço':item.materialOuServico==='M'?'Material':'Tipo não informado'} · ${item.situacaoCompraItemNome ?? 'Situação não informada'} · Catálogo: ${item.catalogo?.nome ?? '—'} / ${item.catalogoCodigoItem ?? '—'}`,'item-meta'));list.append(card);
+        const card=el('article',undefined,'item-card');card.append(el('h4',`Item ${item.numeroItem ?? '—'}`),el('p',item.descricao ?? 'Descrição não informada.'),el('div',`${item.materialOuServico==='S'?'Serviço':item.materialOuServico==='M'?'Material':'Tipo não informado'} · ${item.situacaoCompraItemNome ?? 'Situação não informada'} · Catálogo: ${item.catalogo?.nome ?? '—'} / ${item.catalogoCodigoItem ?? '—'}`,'item-meta'));
+        const values=el('dl',undefined,'item-values');
+        for(const [label,value] of [['Quantidade',quantity(item.quantidade)],['Valor unitário estimado',money(item.valorUnitarioEstimado)],['Valor total estimado',money(item.valorTotal)]]) {
+          const field=el('div');field.append(el('dt',label),el('dd',value));values.append(field);
+        }
+        card.append(values);list.append(card);
       }
       if(!result.data.length)list.append(el('p','Esta contratação não possui itens.','panel-note'));
       const first=result.data.length?(page-1)*result.size+1:0,last=result.data.length?first+result.data.length-1:0;

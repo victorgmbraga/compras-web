@@ -40,7 +40,7 @@ export function demoFetch(url) {
   else if(u.pathname.endsWith('/itens/quantidade'))result=1;
   else if(u.pathname.endsWith('/itens')) {
     const index=Number(u.pathname.match(/compras\/\d+\/(\d+)\/itens/)[1])-1;
-    result=p.get('pagina')==='1'?[{numeroItem:1,descricao:objects[index%objects.length],materialOuServico:'S',situacaoCompraItem:2,situacaoCompraItemNome:'Homologado',catalogoCodigoItem:'25852',catalogo:{id:1,nome:'Catálogo sintético de demonstração'},quantidade:'1',valorUnitarioEstimado:'120000.25',temResultado:true}]:[];
+    result=p.get('pagina')==='1'?[{numeroItem:1,descricao:objects[index%objects.length],materialOuServico:'S',situacaoCompraItem:2,situacaoCompraItemNome:'Homologado',catalogoCodigoItem:'25852',catalogo:{id:1,nome:'Catálogo sintético de demonstração'},quantidade:'1',valorUnitarioEstimado:'120000.25',valorTotal:'120000.25',temResultado:true}]:[];
   } else {
     let docs=demoDocuments;
     const fieldMap={ufs:'uf',orgaos:'orgao_id',unidades:'unidade_id',municipios:'municipio_id',esferas:'esfera_id',poderes:'poder_id',modalidades:'modalidade_licitacao_id',situacoes:'situacao_id',anos:'ano'};

@@ -167,6 +167,9 @@ dialog select[multiple]{min-height:155px}
 .item-card h4{font-size:.875rem;margin:0 0 7px;color:#295575}
 .item-card p{font-size:.875rem;margin:7px 0}
 .item-meta{font-size:.8125rem;color:#61768b}
+.item-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 16px;margin:12px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.item-values dt{font-size:.75rem;color:#6c7e8f;margin-bottom:4px}
+.item-values dd{font-size:.875rem;font-weight:600;font-variant-numeric:tabular-nums;color:#295575;margin:0;overflow-wrap:anywhere;line-height:1.5}
 .item-pager{display:flex;gap:10px;align-items:center;margin:13px 0}
 .item-pager span{font-size:.875rem}
 .items-status{font-size:.8125rem;color:#61768b;margin:12px 0}
@@ -202,6 +205,7 @@ pre{background:#f2f6fa;color:#3c5871;border:1px solid #d9e4ef;border-radius:6px;
   .tabulator .tabulator-footer .tabulator-paginator{flex-basis:100%}
 }
 @media(max-width:600px){
+  .item-values{grid-template-columns:1fr}
   .topbar{padding:8px;gap:8px}
   .brand{font-size:.9375rem;gap:6px}
   .brand img{width:26px;height:26px}
