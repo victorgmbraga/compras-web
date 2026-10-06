@@ -1,0 +1,189 @@
+# Viabilidade dos filtros pendentes do PNCP
+
+Data: 6 de outubro de 2026.
+
+## Conclusão e escopo
+
+É viável ampliar os filtros nativos sem restaurar consultas prontas ou refinamento local. Não há evidência suficiente para habilitar todos indiscriminadamente.
+
+O catálogo atual contém 87 argumentos: 7 reservados, 17 filtros habilitados e **63 filtros pendentes**. A configuração local carregada com `--env-file-if-exists=.env` também apresentou 63 pendentes. Desses, **54 têm contexto `edital`** e **9 são exclusivos de `contrato`**, tipo documental ainda desabilitado.
+
+Entre os 54 candidatos a edital há 34 escalares, 19 listas e uma enumeração singular. O transporte genérico já atende boa parte deles, mas configuração de habilitação não substitui validação de domínio e efeito remoto.
+
+Nenhum filtro ou configuração foi habilitado nesta análise. O contrato vigente permanece em [consultas-pncp.md](consultas-pncp.md).
+
+## Método e alcance dos ensaios
+
+- Inspeção de `src/schema.js`, `src/pncp-arguments.json`, `src/validation.js`, `src/pncp.js`, `src/query.js`, `src/server.js` e `public/app.js`.
+- Chamadas reais pelo `PncpClient`, sem modo demo, sem retries e sem alterar arquivos de configuração. Nas rodadas paralelas, cada processo usou uma chamada por segundo; a rodada complementar usou duas por segundo.
+- Consultas de sondagem: `document_type=edital`, `q=firewall`, `status=todos`, `order=-data`, primeira página e tamanho 10. Listas foram serializadas com pipe pelo cliente existente.
+- Filtros ainda pendentes foram sondados diretamente pelo cliente, **não pela API da aplicação**, que corretamente continua rejeitando capacidades pendentes.
+- A baseline obtida por uma das rodadas retornou 3.478 documentos. Outras tentativas de baseline falharam no transporte. Os totais abaixo são registros de momentos diferentes e não constituem comparação controlada nem snapshot.
+- O primeiro ensaio de domínios pelo cliente retornou 28 chaves normalizadas. Houve sucesso nos três catálogos auxiliares. As tentativas de sugestões desta rodada falharam no transporte.
+- As 34 capacidades escalares receberam 49 sondagens, incluindo `true` e `false` para os 15 booleanos; somadas às duas baselines, foram 51 chamadas, das quais 19 retornaram uma busca válida. Falhas remanescentes incluíram `PNCP_TRANSPORT_ERROR` e `PNCP_TIMEOUT`.
+- Falha de transporte não significa parâmetro inválido ou endpoint inexistente. HTTP 200, zero resultados ou mudança de total, isoladamente, não certificam o predicado.
+
+A ferramenta de fetch e uma tentativa com cURL falharam; o cliente Node da aplicação conseguiu respostas reais, embora de forma intermitente. Não há evidência para atribuir as falhas à API ou à rede local especificamente.
+
+## Domínios efetivamente observados
+
+O endpoint `/api/search/filters?tipos_documento=edital` forneceu, entre outros:
+
+| Chave | Opções normalizadas | Exemplo de identidade |
+| --- | ---: | --- |
+| `fontes` | 291 | `3`: Compras.gov.br |
+| `fontes_orcamentarias` | 6 | `2`: Municipal |
+| `tipos` | 4 | `3`: Ato que autoriza a Contratação Direta |
+| `normativos_base` | 20 | `1`: Lei 14.133/2021 |
+| `amparos_legais` | 153 | `19`: Lei 14.133/2021, Art. 75, II |
+| `modos_disputa` | 6 | `5`: Não se aplica |
+| `criterios_julgamento` | 9 | `1`: Menor preço |
+| `item_categorias_leilao` | 3 | `3`: Não se aplica |
+| `item_beneficios` | 5 | `5`: Não se aplica |
+| `resultado_item_situacoes` | 4 | `1`: Informado |
+| `item_unidades_medida` | 499 | `UNIDADE` e `Unidade` são opções distintas |
+| `orgaos_subrogados` | 361 | `5007`: SECRETARIA DE SAUDE |
+| `unidades_subrogadas` | 1.229 | `24550`: [P]-HOSPITAL DA RESTAURAÇÃO |
+| `fornecedores` | 15.000 | `40491`: CRISTALIA PRODUTOS QUIMICOS FARMACEUTICOS LTDA |
+| `tipos_margens_preferencia` | 2 | `1`: Resolução CIIA-PAC; `2`: Resolução CICS |
+
+Essas quantidades não garantem enumeração completa; o código trata os domínios extensos como parciais. Não vieram chaves para `municipios_fornecedor`, `paises_fornecedor`, `portes_fornecedor`, `naturezas_juridicas` ou `reservas_remanescentes` nessa resposta.
+
+Os catálogos sob `/api/pncp/v1` responderam com arrays na raiz:
+
+| Endpoint | Registros | Identidade observada |
+| --- | ---: | --- |
+| `/paises` | 248 | Aruba: `id="ABW"`, `codigoPaisBcb=655`; Brasil: `id="BRA"`, `codigoPaisBcb=1058` |
+| `/portes-empresa` | 6 | ME: `id=1` |
+| `/naturezas-juridicas` | 96 | Natureza Jurídica não informada: `id="0000"`, `statusAtivo=false` |
+
+O código do Banco Central e o ID do catálogo de países não são equivalentes. O formato efetivamente exigido pelo filtro de busca precisa ser comprovado. `ABW` recebeu HTTP 200 com zero resultados; `BRA` falhou no transporte; `1058` recebeu HTTP 200 com zero resultados. Esses ensaios não resolvem qual identidade a busca espera.
+
+## Matriz dos 54 candidatos a edital
+
+### Escalares: 34
+
+Todos têm entrada e serialização genéricas existentes. A coluna de sondagem informa apenas respostas recebidas, sem homologar a semântica. Onde consta "transporte", nenhuma resposta de busca válida foi obtida para aquele filtro nesta rodada.
+
+| Filtro | Tipo | Sondagem real | Pendência principal |
+| --- | --- | --- | --- |
+| `codigo_ibge` | Texto, 7 dígitos | `5300108`: transporte | Confirmar filtro explícito de IBGE, distinto de `municipios` |
+| `srp` | Booleano | `true`/`false`: transporte | Confirmar efeito e ausência de campo |
+| `indicador_orcamento_sigiloso` | Booleano | `true`: 216; `false`: 3.259 | Confirmar correspondência com dados conhecidos |
+| `tem_ata_registro_preco` | Booleano | `false`: 3.037; `true`: transporte | Confirmar vínculo e tratamento de ausência |
+| `tem_contrato_empenho` | Booleano | `true`/`false`: transporte | Confirmar vínculo |
+| `tem_nfe_contrato` | Booleano | `false`: 3.424; `true`: transporte | Confirmar vínculo, sem confundir com `possui_nfe` |
+| `exigencia_conteudo_nacional` | Booleano | `true`: 1; `false`: transporte | Confirmar condição documental |
+| `possui_emenda_parlamentar` | Booleano | `true`/`false`: transporte | Confirmar vínculo |
+| `permite_adesao` | Booleano | `true`: 0; `false`: transporte | Obter controle positivo |
+| `indicador_subcontratacao` | Booleano | `true`: 6; `false`: transporte | Confirmar condição no resultado do item |
+| `data_homologacao_inicio` | Data | `2099-01-01`: transporte | Confirmar data do resultado, limites e fuso |
+| `data_homologacao_fim` | Data | `1900-01-01`: timeout | Confirmar data do resultado, limites e fuso |
+| `incentivo_produtivo_basico` | Booleano | `true`: 5; `false`: 3.465 | Confirmar condição do item |
+| `aplicabilidade_margem_preferencia_normal` | Booleano | `true`/`false`: transporte | Confirmar condição do item |
+| `aplicabilidade_margem_preferencia_adicional` | Booleano | `true`: 7; `false`: transporte | Confirmar condição do item |
+| `item_quantidade_min` | Decimal | `1000000000000`: transporte | Confirmar quantidade e unidade do item |
+| `item_quantidade_max` | Decimal | `0`: transporte | Confirmar quantidade e unidade do item |
+| `item_valor_unitario_estimado_min` | Decimal | `1000000000000`: transporte | Confirmar valor do item |
+| `item_valor_unitario_estimado_max` | Decimal | `0`: transporte | Confirmar valor do item |
+| `item_valor_total_estimado_min` | Decimal | `1000000000000`: transporte | Confirmar valor do item |
+| `item_valor_total_estimado_max` | Decimal | `0`: 57 | Confirmar valor do item e zeros/ausência |
+| `ordem_classificacao_min` | Inteiro | `99999999`: transporte | Confirmar domínio; decidir se zero é válido |
+| `ordem_classificacao_max` | Inteiro | `1`: 1.748 | Confirmar classificação do resultado |
+| `indicador_aplicacao_margem_preferencia` | Booleano | `true`: 0; `false`: 3.475 | Obter controle positivo de resultado |
+| `indicador_aplicacao_beneficio_me_epp` | Booleano | `true`: 160; `false`: transporte | Confirmar benefício aplicado no resultado |
+| `indicador_aplicacao_criterio_desempate` | Booleano | `true`: 42; `false`: transporte | Confirmar condição do resultado |
+| `resultado_quantidade_homologado_min` | Decimal | `1000000000000`: transporte | Confirmar quantidade do resultado |
+| `resultado_quantidade_homologado_max` | Decimal | `0`: transporte | Confirmar quantidade do resultado |
+| `resultado_valor_unitario_homologado_min` | Decimal | `1000000000000`: transporte | Confirmar valor do resultado |
+| `resultado_valor_unitario_homologado_max` | Decimal | `0`: 66 | Confirmar valor do resultado e zeros/ausência |
+| `resultado_valor_total_homologado_min` | Decimal | `1000000000000`: transporte | Confirmar valor do resultado |
+| `resultado_valor_total_homologado_max` | Decimal | `0`: 65 | Confirmar valor do resultado e zeros/ausência |
+| `resultado_percentual_desconto_min` | Decimal | `1000000000000`: transporte | Confirmar escala e limites do percentual |
+| `resultado_percentual_desconto_max` | Decimal | `0`: 1.946 | Confirmar escala, zeros e ausência |
+
+Valores muito altos e datas extremas foram sondagens de formato/limite, não exemplos recomendados para o usuário. Intervalos já têm validação de ordem no backend; isso não comprova inclusividade ou correlação dos registros filhos na API.
+
+### Listas e enumeração: 20
+
+As listas recebem strings e são enviadas por pipe. A enumeração de margem de preferência deve permanecer singular.
+
+| Filtro | Origem de opções | Sondagem real | Trabalho necessário |
+| --- | --- | --- | --- |
+| `fontes` | `/filters` | `3`: transporte | Confirmar efeito e validar domínio |
+| `fontes_orcamentarias` | `/filters` | `2`: transporte | Confirmar efeito e validar domínio |
+| `tipos` | `/filters` | `3`: transporte | Confirmar efeito; checagem de domínio já existe |
+| `normativos_base` | `/filters` | `1`: 3.441 | Confirmar efeito e dependência de amparos |
+| `amparos_legais` | `/filters`, condicionado por normativos | `19`: 943 | Reconciliar seleção quando mudar normativo |
+| `modos_disputa` | `/filters` | `5`: transporte | Confirmar efeito e compatibilidade de modalidade |
+| `criterios_julgamento` | `/filters` | `1`: transporte | Confirmar condição do item e validar domínio |
+| `categorias_leilao` | `item_categorias_leilao` | `1`/`3`: transporte | Confirmar aplicabilidade e alias existente |
+| `beneficios` | `item_beneficios` | `5`: 1.383 | Confirmar benefício do item, não benefício aplicado |
+| `situacoes_resultado` | `resultado_item_situacoes` | `1`: 2.170 | Confirmar resultado e alias existente |
+| `reservas_remanescentes` | Domínio não presente na resposta observada | `1`: transporte | Identificar provedor e validar enumeração |
+| `orgaos_subrogados` | `/filters` parcial e sugestões | `5007`: transporte; sugestões: transporte | Confirmar `/suggest` e IDs |
+| `unidades_subrogadas` | `/filters` parcial e sugestões | `24550`: 0; sugestões: transporte | Obter controle positivo e confirmar sugestões |
+| `fornecedores` | `/filters` parcial e sugestões | `40491`: transporte; sugestões: transporte | Confirmar fornecedor do resultado e sugestões |
+| `unidades_medida` | `item_unidades_medida` parcial e sugestões | `UNIDADE`: transporte; sugestões: transporte | Preservar texto, caixa e espaços; confirmar campo de sugestão |
+| `municipios_fornecedor` | Sugestões previstas no catálogo | Sugestões: transporte; busca não executada | Incluir no encaminhamento de domínios parciais; confirmar IDs |
+| `paises_fornecedor` | `/api/pncp/v1/paises` | `ABW`: 0; `BRA`: transporte; `1058`: 0 | Integrar catálogo e resolver identidade exigida pela busca |
+| `portes_fornecedor` | `/api/pncp/v1/portes-empresa` | `1`: 965 | Integrar catálogo e confirmar predicado |
+| `naturezas_juridicas` | `/api/pncp/v1/naturezas-juridicas` | `0000`: 258 | Integrar catálogo, preservar zeros e distinguir opções inativas |
+| `tipos_margens_preferencia` | `/filters`, duas opções | `1`: transporte | Controle de seleção única e validação do domínio, não texto livre |
+
+As cinco tentativas de `/suggest` usaram os campos acima, tamanho 20 e textos como `Ministério`, `unidade`, `tecnologia` e `São Paulo`. Todas falharam no transporte; nenhuma forneceu uma resposta vazia que pudesse provar falta de suporte.
+
+## Nove filtros fora do escopo de edital
+
+| Filtro | Contexto do catálogo | Motivo para não habilitar agora |
+| --- | --- | --- |
+| `tipos_contrato` | Contrato | Espécie de contrato, não instrumento convocatório |
+| `possui_nfe` | Contrato | Condição de contrato, distinta de `tem_nfe_contrato` |
+| `fornecedores_subcontratados` | Contrato | Fornecedor subcontratado do contrato |
+| `data_inicio_vigencia_inicio` | Contrato | Início de vigência do contrato |
+| `data_inicio_vigencia_fim` | Contrato | Limite sobre início de vigência, não publicação |
+| `data_assinatura_inicio` | Contrato | Data de assinatura do contrato |
+| `data_assinatura_fim` | Contrato | Data de assinatura do contrato |
+| `valor_global_min` | Contrato | Valor global, não estimativa da contratação |
+| `valor_global_max` | Contrato | Valor global, não estimativa da contratação |
+
+Adicionar esses nomes a `PNCP_VALIDATED_FILTERS` não os habilita para edital: o schema também exige compatibilidade documental. Implementá-los implica habilitar consultas de contratos, com projeção, validação, status, interface e testes próprios. Isso é expansão de escopo e não deve ocorrer implicitamente.
+
+## Lacunas concretas da aplicação
+
+1. **Estado de capacidade genérico:** todos os pendentes, inclusive os nove de contrato, recebem o mesmo sufixo e motivo de validação para edital. A UI deveria separar incompatibilidade documental de pendência de validação.
+2. **Municípios de fornecedores:** `municipios_fornecedor` não está em `partial_domains`; a UI tentaria selecionar um domínio ausente, em vez de oferecer sugestões.
+3. **Catálogos auxiliares:** países, portes e naturezas jurídicas têm endpoints reais, mas nenhum provedor conectado à UI atual.
+4. **Países:** a validação genérica de listas exige dígitos para `paises_fornecedor`, enquanto o catálogo oferece IDs como `BRA`. Antes de alterar essa regra, é preciso confirmar se a busca espera o ID ou o código BCB; não há justificativa para trocar um pelo outro por suposição.
+5. **Margem de preferência:** `format="ID único"` é inferido como texto sem domínio. A UI atual permitiria valor arbitrário, embora `/filters` forneça duas opções.
+6. **Normalização:** `normalizeOptions()` reconhece array ou `.items`, usa `id` e tem uma exceção específica para anos. Qualquer outra identidade/estrutura precisa de adaptação comprovada, preservando zeros e códigos textuais.
+7. **Dependência legal:** domínios recebem `normativos_base`, mas a mudança dessa seleção não reconcilia os amparos já escolhidos.
+8. **Validação desigual:** o serviço confirma pertencimento para apenas seis das 19 listas pendentes aplicáveis a edital. As demais precisam de estratégia conforme domínio fechado ou sugestões parciais.
+9. **Usabilidade:** os novos filtros precisam de rótulos e explicações por nível — contratação, item, resultado e fornecedor — e exemplos adequados para quantidade, moeda e percentual. Atualmente, a maior parte aparece apenas pelo nome técnico.
+10. **Demo:** a fonte sintética não implementa toda a semântica dos filtros atuais, muito menos dos novos. Os ensaios reais desta análise não usaram demo; sua ampliação precisa de fixtures e testes próprios.
+
+## Critério de habilitação e plano recomendado
+
+### 1. Corrigir o catálogo e os controles sem mudar a arquitetura
+
+Separar os nove exclusivos de contrato, integrar os catálogos comprovados, ajustar seleção singular da margem, encaminhar municípios de fornecedores para sugestões e reconciliar amparos legais. Manter filtros não comprovados desabilitados.
+
+### 2. Validar progressivamente filtros documentais e domínios
+
+Priorizar `srp`, `codigo_ibge`, fontes, instrumentos convocatórios, normativos/amparos e modos de disputa. Obter casos conhecidos positivos e negativos, valores únicos/múltiplos e booleanos omitido/true/false. Normalizar e conferir domínios conforme suas respostas reais.
+
+### 3. Validar filtros de itens e resultados
+
+Exigir evidência sobre correspondência no mesmo item/resultado, existência de registros filhos, campos ausentes, unidade de quantidade, datas e escala de percentual. Uma contratação pode conter itens diferentes que satisfaçam condições separadamente: não prometer correlação sem ensaio.
+
+A tabela e o CSV continuam representando contratações. Os itens dos detalhes não são automaticamente filtrados para conter apenas os registros filhos correspondentes.
+
+### 4. Liberar somente subconjuntos comprovados
+
+Para cada filtro, demonstrar a cadeia **controle de UI → valor correto → validação → serialização → efeito remoto**. Registrar exemplos e regressões sintéticas, além da evidência de integração real. `PNCP_VALIDATED_FILTERS` serve para declarar uma validação já feita, não para realizar essa validação.
+
+Não acrescentar banco, cache de resultados, presets, refinamento local ou consulta automática de itens durante a pesquisa. A arquitetura de consultas nativas permanece válida para essa ampliação.
+
+## Verificação desta análise
+
+Foram feitas leituras, inventário programático e sondagens reais descritas acima. A única alteração é este relatório; não houve alteração de código ou configuração de filtros, nem execução de build ou da suíte de testes nesta tarefa. As respostas de busca não foram persistidas como dados da aplicação.
