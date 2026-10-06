@@ -1,3 +1,5 @@
+> Referência histórica. Desde 06/10/2026, a aplicação usa somente consultas diretas ao PNCP; consultas prontas e refinamento local foram removidos. O comportamento atual está em [consultas-pncp.md](consultas-pncp.md).
+
 # Correção da validação da busca PNCP
 
 Data: 2 de outubro de 2026.

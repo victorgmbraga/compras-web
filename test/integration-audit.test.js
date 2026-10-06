@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parse } from 'lossless-json';
-import { project, safeLink } from '../src/adapter.js';
-import { applyRules, itemPresetState } from '../src/rules.js';
+import { project, safeLink, itemSituation } from '../src/adapter.js';
 import { validateQuery } from '../src/validation.js';
 import { config, document, query, service, json } from './helpers.js';
 import http from 'node:http';
@@ -25,39 +24,27 @@ test('AUDIT-02: caminho da busca /compras abre /app/editais e mantém validaçã
   }
 });
 
-test('AUDIT-03: situação real situacaoCompraItem confirma serviço no mesmo item', async () => {
+test('AUDIT-03: situação real situacaoCompraItem é preservada nos detalhes', async () => {
   const items=parse('[{"numeroItem":1,"materialOuServico":"S","situacaoCompraItem":2,"situacaoCompraItemNome":"Homologado"}]');
-  assert.equal(itemPresetState(items,'oracle','').state,'match');
-  const real=service([document(1,{description:'Oracle'})],{items:(_,page)=>page===1?[{numeroItem:1,materialOuServico:'S',situacaoCompraItem:2}]:[]});
-  const result=await real.service.execute(query({mode:'refined',preset:'oracle'}));
-  assert.equal(result.total,1);assert.equal(result.unverifiable_documents,0);
-  assert.deepEqual(result.data[0].matching_item_numbers,['1']);
+  assert.equal(itemSituation(items[0]),'2');
+  const real=service([],{items:()=>[{numeroItem:1,materialOuServico:'S',situacaoCompraItem:2}]});
+  const result=await real.service.details({cnpj:'00000000000000',ano:'2026',sequencial:'1'},1,100);
+  assert.equal(result.total_items,1);assert.equal(String(result.data[0].situacaoCompraItem),'2');
 });
 
-test('AUDIT-04: alias documentado permanece aceito; conflitos e tipos inválidos são erros', () => {
-  const base={numeroItem:1,materialOuServico:'S'};
-  assert.equal(itemPresetState([{...base,situacaoCompraItemId:1}],'oracle','').state,'match');
-  assert.equal(itemPresetState([{...base,situacaoCompraItem:1,situacaoCompraItemId:'1'}],'oracle','').state,'match');
-  assert.throws(()=>itemPresetState([{...base,situacaoCompraItem:1,situacaoCompraItemId:2}],'oracle',''),e=>e.code==='INVALID_UPSTREAM');
-  assert.throws(()=>itemPresetState([{...base,situacaoCompraItem:{id:1},situacaoCompraItemId:1}],'oracle',''),e=>e.code==='INVALID_UPSTREAM');
+test('AUDIT-04: alias de situação permanece aceito; conflitos e tipos inválidos são erros', () => {
+  assert.equal(itemSituation({situacaoCompraItemId:1}),'1');
+  assert.equal(itemSituation({situacaoCompraItem:1,situacaoCompraItemId:'1'}),'1');
+  assert.throws(()=>itemSituation({situacaoCompraItem:1,situacaoCompraItemId:2}),e=>e.code==='INVALID_UPSTREAM');
+  assert.throws(()=>itemSituation({situacaoCompraItem:{id:1},situacaoCompraItemId:1}),e=>e.code==='INVALID_UPSTREAM');
 });
 
-test('AUDIT-05: identidade de itens ausente conta como não verificável, sem chamada inventada', async () => {
-  const s=service([document(1,{description:'Oracle',orgao_cnpj:null})]);
-  const q=query({mode:'refined',preset:'oracle'});
-  const result=await s.service.execute(q);
-  assert.equal(result.total,0);assert.equal(result.unverifiable_documents,1);assert.equal(result.complete_for_rule,false);
-  assert.equal(s.requests.filter(u=>u.pathname.endsWith('/itens')).length,0);
-  await assert.rejects(s.service.export(q,'all'),e=>e.code==='INCOMPLETE_RULE_COVERAGE');
-  const exported=await s.service.export(q,'confirmed_only');
-  assert.equal(exported.metadata.unverifiable_documents,1);assert.equal(exported.metadata.data.length,0);
-});
-
-test('AUDIT-06: ordenação de datas conserva nanossegundos e equivalência de formatos', () => {
-  const sort=values=>applyRules(values.map((date,i)=>project(document(i+1,{data_publicacao_pncp:date}))),validateQuery(query({mode:'refined',sorters:[{field:'data_publicacao_pncp',dir:'asc'}]}),config())).documents.map(d=>d.id);
-  assert.deepEqual(sort(['2026-10-02T09:08:26.123000002Z','2026-10-02T06:08:26.123000001-03:00']),['2','1']);
-  assert.deepEqual(sort(['2026-10-02T09:08:26.10','2026-10-02T09:08:26.1']),['1','2']);
-  assert.deepEqual(sort(['2026-10-02T00:00:00','2026-10-02']),['1','2']);
+test('AUDIT-05: ausência de identificação para itens não exclui a contratação da pesquisa ou CSV', async () => {
+  const s=service([document(1,{orgao_cnpj:null})]);
+  const result=await s.service.execute(query());
+  assert.equal(result.total,1);assert.equal(result.data.length,1);assert.equal(result.data[0]._purchase,null);
+  assert(!s.requests.some(u=>u.pathname.includes('/itens')));
+  const exported=await s.service.export(query());assert.equal(exported.metadata.data.length,1);
 });
 
 test('AUDIT-07: detalhes rejeitam situações conflitantes, catálogo ou descrição incompatível', async () => {

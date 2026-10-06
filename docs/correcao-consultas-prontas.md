@@ -1,3 +1,5 @@
+> Referência histórica. Desde 06/10/2026, a aplicação usa somente consultas diretas ao PNCP; consultas prontas e refinamento local foram removidos. O comportamento atual está em [consultas-pncp.md](consultas-pncp.md).
+
 # Consultas prontas — correção 2.0.2
 
 Data: 02/10/2026. Mensagem relatada: `Delimite datas, UF ou órgão para consultar integralmente os resultados. [QUERY_TOO_BROAD]`.

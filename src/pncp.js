@@ -165,19 +165,5 @@ export class PncpClient {
     }
     return items;
   }
-  async allItems(purchase, op) {
-    if (!purchase) fail('DETAILS_UNAVAILABLE', 'Identificação original da contratação insuficiente para consultar itens.', 409);
-    const items = [], seen = new Set();
-    // End only on an explicit empty page/204, never on a short page.
-    for (let page=1;;page++) {
-      op.check(); const batch = await this.itemPage(purchase,page,100,op);
-      if (!batch.length) return items;
-      for (const item of batch) {
-        const key = scalarText(item.numeroItem);
-        assert(/^\d+$/.test(key || '') && BigInt(key)>0n && !seen.has(key), 'SOURCE_CHANGED', 'Itens repetidos ou sem número válido durante a coleta. Repita a consulta.', 409, {}, true);
-        seen.add(key); items.push(item);
-      }
-    }
-  }
   async close() { await this.dispatcher?.close(); }
 }

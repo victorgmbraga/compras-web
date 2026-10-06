@@ -57,6 +57,6 @@ export function project(raw) {
     return [key,scalarText(value)];
   }));
   if(raw.tem_resultado!==undefined && raw.tem_resultado!==null && typeof raw.tem_resultado!=='boolean')fail('INVALID_UPSTREAM','tem_resultado não é booleano no PNCP.',502);
-  Object.assign(result, { valor_total_estimado: decimalText(raw.valor_total_estimado), valor_total_homologado: decimalText(raw.valor_total_homologado), tem_resultado: typeof raw.tem_resultado === 'boolean' ? raw.tem_resultado : null, link_sistema_origem: safeLink(raw.link_sistema_origem), url_pncp: safeLink(raw.item_url, true), categorizacao: '', _identity: identity(raw), _purchase: purchaseIdentity(raw), _raw: plain(raw), matching_item_numbers: [] });
+  Object.assign(result, { valor_total_estimado: decimalText(raw.valor_total_estimado), valor_total_homologado: decimalText(raw.valor_total_homologado), tem_resultado: typeof raw.tem_resultado === 'boolean' ? raw.tem_resultado : null, link_sistema_origem: safeLink(raw.link_sistema_origem), url_pncp: safeLink(raw.item_url, true), _identity: identity(raw), _purchase: purchaseIdentity(raw), _raw: plain(raw) });
   return result;
 }

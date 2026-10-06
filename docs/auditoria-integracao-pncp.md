@@ -1,3 +1,5 @@
+> Referência histórica. Desde 06/10/2026, a aplicação usa somente consultas diretas ao PNCP; consultas prontas e refinamento local foram removidos. O comportamento atual está em [consultas-pncp.md](consultas-pncp.md).
+
 # Auditoria de integração — Compras Web 2.0.1
 
 Data: 02/10/2026. Backend Node.js, frontend Tabulator 6.3.1. Contrato da API do aplicativo mantido em 2.0.

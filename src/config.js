@@ -8,12 +8,10 @@ const defaults = {
   PNCP_OPERATION_TIMEOUT_SECONDS: 120, PNCP_MAX_RETRIES: 2,
   PNCP_MAX_CONCURRENT_REQUESTS: 2, PNCP_REQUESTS_PER_SECOND: 2,
   PNCP_MAX_CONCURRENT_OPERATIONS: 4, PNCP_PAGE_SIZE: 50,
-  PNCP_MAX_REFINEMENT_CANDIDATES: 500, PNCP_MAX_DETAIL_ITEMS: 20000,
+  PNCP_MAX_DETAIL_ITEMS: 20000,
   PNCP_MAX_EXPORT_DOCUMENTS: 10000, PNCP_MAX_EXPORT_BYTES: 50 * 1024 * 1024,
   PNCP_MAX_OPERATION_BYTES: 100 * 1024 * 1024,
-  PNCP_MAX_REQUESTS_PER_OPERATION: 1000, REGEX_TIMEOUT_MS: 1500,
-  PNCP_PRESET_CATALOG_ID: '', PNCP_VALIDATED_FILTERS: '',
-  PNCP_VALIDATED_PRESET_OPTIMIZATIONS: 'situacoes,tipos_item,situacoes_item,esferas,modalidades', DEMO_MODE: false,
+  PNCP_MAX_REQUESTS_PER_OPERATION: 1000, PNCP_VALIDATED_FILTERS: '', DEMO_MODE: false,
 };
 export function loadConfig(env = process.env) {
   const config = { ...defaults };
@@ -33,7 +31,7 @@ export function loadConfig(env = process.env) {
     assert(url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash, 'INVALID_CONFIG', `${key} exige URL base HTTPS sem credenciais, query ou fragmento.`);
     config[key] = url.href.replace(/\/$/, '');
   }
-  assert(config.PNCP_MAX_REFINEMENT_CANDIDATES <= 10000 && config.PNCP_MAX_EXPORT_DOCUMENTS <= 10000, 'INVALID_CONFIG', 'Limites de documentos não podem exceder a janela de 10000.');
+  assert(config.PNCP_MAX_EXPORT_DOCUMENTS <= 10000, 'INVALID_CONFIG', 'Limite de exportação não pode exceder a janela de 10000.');
   assert([10, 25, 50, 100].includes(config.PNCP_PAGE_SIZE), 'INVALID_CONFIG', 'PNCP_PAGE_SIZE deve ser 10, 25, 50 ou 100.');
   for (const key of Object.keys(config).filter(k => /MAX_|_PORT$|^PORT$|TIMEOUT_MS|PAGE_SIZE/.test(k))) {
     assert(Number.isInteger(config[key]), 'INVALID_CONFIG', `${key} deve ser inteiro.`);

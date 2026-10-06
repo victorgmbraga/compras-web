@@ -45,10 +45,10 @@ export function createApplication(config,{fetcher,logger=()=>{},liveReload=false
         activeOperations++;counted=true;
         if(url.pathname==='/api/query' && req.method==='POST'){getParams(url,[]);return json(res,200,await service.execute(await readJson(req),controller.signal,id));}
         if(url.pathname==='/api/export' && req.method==='POST') {
-          getParams(url,[]);const body=await readJson(req);checkKeys(body,['query','scope'],'export');assert(body.query && typeof body.query==='object' && !Array.isArray(body.query),'INVALID_TYPE','query deve ser um objeto.');
-          const {csv,metadata}=await service.export(body.query,body.scope ?? 'all',controller.signal,id);
+          getParams(url,[]);const body=await readJson(req);checkKeys(body,['query'],'export');assert(body.query && typeof body.query==='object' && !Array.isArray(body.query),'INVALID_TYPE','query deve ser um objeto.');
+          const {csv,metadata}=await service.export(body.query,controller.signal,id);
           const stamp=metadata.finished_at.replace(/[-:]/g,'').replace(/\.\d+Z$/,'Z');
-          res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="compras-${config.DEMO_MODE?'demo':'pncp'}-${stamp}.csv"`,'X-PNCP-Started-At':metadata.started_at,'X-PNCP-Finished-At':metadata.finished_at,'X-PNCP-Source-Total':String(metadata.source_total),'X-Exported-Rows':String(metadata.data.length),'X-Unverifiable-Documents':String(metadata.unverifiable_documents ?? 0),'X-Snapshot-Guaranteed':'false','Content-Length':csv.byteLength});return res.end(csv);
+          res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="compras-${config.DEMO_MODE?'demo':'pncp'}-${stamp}.csv"`,'X-PNCP-Started-At':metadata.started_at,'X-PNCP-Finished-At':metadata.finished_at,'X-PNCP-Source-Total':String(metadata.source_total),'X-Exported-Rows':String(metadata.data.length),'X-Snapshot-Guaranteed':'false','Content-Length':csv.byteLength});return res.end(csv);
         }
         if(url.pathname==='/api/pncp/filters' && req.method==='GET') {
           getParams(url,['tipos_documento','normativos_base']);const norm=url.searchParams.get('normativos_base');

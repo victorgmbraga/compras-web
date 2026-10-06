@@ -24,4 +24,4 @@ export function service(documents,options={},extra={}) {
   const fake=fixture(documents,options),cfg=config(extra),client=new PncpClient(cfg,{fetcher:fake.fetcher});
   return {...fake,config:cfg,client,service:new QueryService(cfg,client)};
 }
-export const query = extra=>({api_version:'2.0',mode:'native',preset:'all',size:10,...extra});
+export const query = extra=>({api_version:'2.0',size:10,...extra});

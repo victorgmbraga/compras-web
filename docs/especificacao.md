@@ -1,3 +1,5 @@
+> Referência histórica. Desde 06/10/2026, a aplicação usa somente consultas diretas ao PNCP; consultas prontas e refinamento local foram removidos. O comportamento atual está em [consultas-pncp.md](consultas-pncp.md).
+
 # Compras Web — especificação funcional e técnica com consulta ao PNCP
 
 **Versão:** 2.0.0  

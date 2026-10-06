@@ -38,13 +38,13 @@ Pushes para a branch conectada publicam o código. Ao alterar `.railway/railway.
 | `NODE_ENV` | `production`, definida no arquivo Railway |
 | `DEMO_MODE` | `false`, definida no arquivo Railway |
 | `PORT` | Fornecida pelo Railway; não copie a porta da `.env` local |
-| `PNCP_*` e `REGEX_TIMEOUT_MS` | Opcionais; os padrões estão em `src/config.js` e `.env.example` |
+| `PNCP_*` | Opcionais; os padrões estão em `src/config.js` e `.env.example` |
 
-Para personalizar limites, timeouts ou presets, acrescente as variáveis necessárias em `env` no arquivo Railway e reaplique a configuração. `PNCP_PRESET_CATALOG_ID`, `PNCP_VALIDATED_FILTERS` e `PNCP_VALIDATED_PRESET_OPTIMIZATIONS` só devem receber valores após a verificação oficial descrita no README.
+Para personalizar limites, timeouts ou filtros, acrescente as variáveis necessárias em `env` no arquivo Railway e reaplique a configuração. `PNCP_VALIDATED_FILTERS` habilita argumentos adicionais após a verificação descrita no README.
 
 A `.env` local não é incluída na imagem Docker. Não importe variáveis de proxy usadas somente na sua rede local. O serviço precisa de saída HTTPS para `pncp.gov.br`.
 
-Mantenha uma réplica: os limites de chamadas ao PNCP são por processo. Dimensione a memória com folga sobre os 512 MiB do heap principal, pois buffers e workers têm consumo adicional. O heap não limita o consumo total do contêiner.
+Mantenha uma réplica: os limites de chamadas ao PNCP são por processo. Dimensione a memória com folga sobre os 512 MiB do heap principal, pois buffers têm consumo adicional. O heap não limita o consumo total do contêiner.
 
 ## Conferir a publicação
 

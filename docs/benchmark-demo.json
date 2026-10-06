@@ -1,41 +1,38 @@
 {
-  "measured_at": "2026-10-01T18:15:23.534Z",
+  "measured_at": "2026-10-06T13:54:40.159Z",
   "source": "synthetic_demo",
   "rate_limiter_for_benchmark": 100000,
   "note": "Mede o processamento local com HTTP sintético; não representa latência ou capacidade do PNCP.",
   "measurements": [
     {
-      "operation": "native",
-      "elapsed_ms": 113,
+      "operation": "search",
+      "elapsed_ms": 19,
       "source_total": 6,
-      "matched_documents": null,
       "rows": 6,
       "upstream_requests": 1,
       "csv_bytes": null,
-      "rss_before_bytes": 51818496,
-      "rss_after_bytes": 58122240
+      "rss_before_bytes": 76554240,
+      "rss_after_bytes": 77586432
     },
     {
-      "operation": "refined",
-      "elapsed_ms": 196,
+      "operation": "pagination",
+      "elapsed_ms": 4,
       "source_total": 64,
-      "matched_documents": 6,
-      "rows": 6,
-      "upstream_requests": 14,
+      "rows": 10,
+      "upstream_requests": 1,
       "csv_bytes": null,
-      "rss_before_bytes": 58122240,
-      "rss_after_bytes": 83378176
+      "rss_before_bytes": 77586432,
+      "rss_after_bytes": 78995456
     },
     {
       "operation": "export",
-      "elapsed_ms": 9,
+      "elapsed_ms": 33,
       "source_total": 64,
-      "matched_documents": null,
       "rows": 64,
       "upstream_requests": 2,
-      "csv_bytes": 29654,
-      "rss_before_bytes": 83378176,
-      "rss_after_bytes": 80236544
+      "csv_bytes": 28185,
+      "rss_before_bytes": 78995456,
+      "rss_after_bytes": 83079168
     }
   ]
 }

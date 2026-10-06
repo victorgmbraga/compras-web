@@ -3,17 +3,17 @@ import assert from 'node:assert/strict';
 import { identity, project } from '../src/adapter.js';
 import { document, service, query, json } from './helpers.js';
 
-test('SEARCH-01: resposta com _doc e document_type=edital funciona em busca, refinamento e CSV', async () => {
+test('SEARCH-01: resposta com _doc e document_type=edital funciona em busca e CSV', async () => {
   const s=service([document(1)]);
-  for(const mode of ['native','refined']) {
-    const result=await s.service.execute(query({mode}));
+  {
+    const result=await s.service.execute(query());
     assert.equal(result.total,1);
     assert.equal(result.data[0].tipo_documento,'edital');
     assert.equal(result.data[0]._identity,'edital:test-1');
     assert.equal(result.data[0]._raw.doc_type,'_doc');
     assert.equal(result.data[0]._raw.document_type,'edital');
   }
-  const {csv}=await s.service.export(query(),'all');
+  const {csv}=await s.service.export(query());
   assert.match(csv.toString('utf8'),/\r\n"1","edital","test-1"/);
   assert(s.requests.every(url=>url.searchParams.get('tipos_documento')==='edital'));
 });

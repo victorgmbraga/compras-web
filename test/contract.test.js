@@ -7,9 +7,10 @@ import { project, safeLink } from '../src/adapter.js';
 import { parse } from 'lossless-json';
 import { config,document,service,query,json } from './helpers.js';
 
-test('LIVE-01/OLD-01: esquema completo sem banco, importação ou rede',()=>{
-  const s=schema(config());assert.equal(s.capabilities.length,87);assert.equal(s.categories.length,18);assert.equal(s.presets.length,11);assert.equal(s.source,'pncp');assert.equal(s.live,true);assert(!('database' in s));
-  assert.equal(s.presets.find(p=>p.id==='desenvolvimento').available,false);
+test('LIVE-01/OLD-01: esquema contém apenas recursos de consulta PNCP',()=>{
+  const s=schema(config());assert.equal(s.capabilities.length,87);assert.equal(s.source,'pncp');assert.equal(s.live,true);
+  for(const key of ['database','categories','presets','regex'])assert(!Object.hasOwn(s,key));
+  assert(!s.columns.some(c=>c.field==='categorizacao'));
 });
 test('HTTP-01: pipe codificado uma vez; false e zero preservados',()=>{
   const cfg=config({PNCP_VALIDATED_FILTERS:'srp,item_quantidade_min,ordem_classificacao_min'});
@@ -45,7 +46,7 @@ test('LIVE-02/MEM-01: consultas iguais fazem novas chamadas e recebem novas resp
 test('PAGE-01: janela de 10000 separada do total PNCP',async()=>{
   const s=service([],{handler:()=>json({items:Array.from({length:10},(_,i)=>document(i+1)),total:12500})});
   const r=await s.service.execute(query());assert.equal(r.total,12500);assert.equal(r.accessible_total,10000);assert.equal(r.last_page,1000);assert.equal(r.last_row,10000);assert(r.window_limited);assert.equal(r.collection_complete,false);
-  await assert.rejects(s.service.export(query(),'all'),e=>e.code==='EXPORT_TOO_BROAD');
+  await assert.rejects(s.service.export(query()),e=>e.code==='EXPORT_TOO_BROAD');
 });
 test('PAGE-02/PAGE-03: zero e página fora do intervalo',async()=>{
   const s=service([]),r=await s.service.execute(query());assert.equal(r.last_page,1);assert.equal(r.last_row,0);assert.equal(r.total,0);
@@ -63,9 +64,11 @@ test('HTTP-04: falha transitória respeita tentativa limitada',async()=>{
 test('HTTP-04: redirecionamento para outra origem rejeitado',async()=>{
   const s=service([],{handler:()=>new Response(null,{status:302,headers:{Location:'https://example.com/private'}})});await assert.rejects(s.service.execute(query()),e=>e.code==='UNSAFE_REDIRECT');assert.equal(s.requests.length,1);
 });
-test('UI-01/MEM-01: cancelamento impede chamadas futuras',async()=>{
-  const s=service(Array.from({length:20},(_,i)=>document(i+1)),{}, {PNCP_REQUESTS_PER_SECOND:2});const controller=new AbortController();
-  const promise=s.service.execute(query({mode:'refined'}),controller.signal);setTimeout(()=>controller.abort(new Error('cancelado')),30);await assert.rejects(promise,/cancelado/);assert.equal(s.requests.length,1);assert.equal(s.client.active,0);
+test('UI-01/MEM-01: cancelamento interrompe a requisição PNCP em andamento',async()=>{
+  const s=service([],{handler:(url,n,init)=>new Promise((resolve,reject)=>init.signal.addEventListener('abort',()=>reject(init.signal.reason),{once:true}))});
+  const controller=new AbortController(),promise=s.service.execute(query(),controller.signal);
+  setTimeout(()=>controller.abort(new Error('cancelado')),30);
+  await assert.rejects(promise,/cancelado/);assert.equal(s.requests.length,1);assert.equal(s.client.active,0);
 });
 test('HTTP-04: orçamento global interrompe espera',async()=>{
   const s=service([],{handler:async(url,n,init)=>new Promise((resolve,reject)=>init.signal.addEventListener('abort',()=>reject(init.signal.reason),{once:true}))},{PNCP_OPERATION_TIMEOUT_SECONDS:0.1});await assert.rejects(s.service.execute(query()),e=>e.code==='OPERATION_TIMEOUT');
