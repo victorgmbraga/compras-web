@@ -1,54 +1,64 @@
-# Compras Web — consulta direta ao PNCP
+# Compras Web
 
-Aplicação Node.js com Tabulator para pesquisar contratações diretamente na API do PNCP. Texto, filtros, ordenação e paginação são enviados à fonte; cada página faz uma nova consulta. A interface inicia automaticamente uma pesquisa sem filtros e exibe 100 contratações por página.
+Aplicação para pesquisar contratações públicas diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A interface usa Tabulator, e o servidor Node.js entrega tanto a página quanto a API da aplicação.
 
-## Executar
+Texto, filtros, ordenação e paginação são enviados ao PNCP. Cada pesquisa consulta novamente a fonte. Os resultados ficam em memória durante o uso; a aplicação não requer banco de dados nem volume persistente.
 
-Requer Node.js 22.9 ou superior; recomendado Node.js 24.
+## Executar localmente
+
+Requer **Node.js 22.9 ou superior**, com Node.js 24 recomendado, e npm. Para consultas reais, o servidor precisa de acesso HTTPS a `pncp.gov.br`; a API pública utilizada não exige credenciais.
 
 ```sh
 npm ci
 npm start
 ```
 
-Abra http://localhost:8000. Para configurar porta, limites e timeouts, copie `.env.example` para `.env` e ajuste os valores.
+No computador em que o servidor estiver rodando, abra `http://localhost:8000`. Para ajustar porta, endereço de escuta, timeouts ou limites, copie [`.env.example`](.env.example) para `.env` e consulte o [guia de configuração](docs/configuracao.md).
+
+Para usar a aplicação sem acesso ao PNCP:
 
 ```sh
-npm run dev
-npm test
-npm run build
+npm run demo
 ```
 
-O desenvolvimento observa alterações em `public/`, `src/` e `.env`, reinicia o servidor quando necessário e recarrega a página aberta. A recarga automática fica restrita a `npm run dev`.
+A demonstração é identificada na interface e usa 64 contratações fictícias. Ela é uma fonte simplificada para desenvolvimento; não reproduz todos os filtros e critérios de ordenação do PNCP. Falhas na fonte real são apresentadas como erros, sem ativar a demonstração automaticamente.
 
-O build recria `dist/`, removendo arquivos antigos da distribuição. Nessa pasta, execute `npm ci --omit=dev` e `npm start`. As opções de execução, demonstração, testes e build estão em [`.zed/tasks.json`](.zed/tasks.json).
+## Usar a interface
 
-Para desenvolvimento sem acesso ao PNCP, `npm run demo` e `npm run dev -- --demo` usam respostas sintéticas identificadas na interface. Não existe fallback automático para dados de demonstração. `npm run benchmark:demo` mede o processamento com essa fonte sintética.
+1. A página inicia uma pesquisa sem filtros e mostra até 100 contratações por página. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
+2. Abra **Filtros** para definir status, período de publicação, UF, órgão, unidade, município, esfera, poder, modalidade, situação, ano, valores e filtros de itens habilitados. Órgãos e unidades são selecionados pelos IDs fornecidos pelo PNCP.
+3. Use a paginação para consultar outras páginas. **Atualizar** repete os últimos critérios concluídos na página atual; novos critérios começam na primeira página. **Cancelar** interrompe a pesquisa em andamento. Uma falha mantém e identifica o resultado anterior.
+4. Clique em uma contratação para ver seus dados, links e itens. Os itens são carregados automaticamente quando a fonte fornece CNPJ, ano e sequencial válidos, com quantidade, situação e valores estimados.
+5. Use **Colunas** para escolher os campos visíveis. O menu de cada coluna oferece as ações de filtro e ordenação nativas disponíveis.
+6. **Exportar CSV** faz uma nova coleta com os últimos critérios concluídos e inicia o download. O arquivo contém todas as colunas documentais, independentemente da seleção visual.
 
-## Utilização
+O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 10.000 documentos; acima desse valor, a interface exibe um aviso. A exportação exige que o total caiba no limite configurado: delimite a pesquisa quando necessário. Alterações na fonte entre chamadas podem fazer o CSV diferir da tabela.
 
-- Pesquise pelo texto indexado pelo PNCP e abra **Filtros** para selecionar status, período de publicação, UF, órgão, unidade, município, esfera, poder, modalidade, situação, ano, valores e filtros de itens habilitados. Órgãos e unidades usam IDs e sugestões fornecidos pelo PNCP.
-- Ordene por mais recentes, mais antigas ou relevância com texto de pesquisa. O menu das colunas oferece apenas filtros e ordenações que têm equivalente na API.
-- A tabela mostra o total informado pelo PNCP. Acima de 10.000 resultados, o ícone de alerta explica a janela acessível ao passar o mouse. Outros avisos e erros aparecem acima da tabela.
-- Consulta, atualização e paginação exibem o loader. **Cancelar** interrompe a requisição; uma falha preserva e identifica o resultado anterior.
-- Clique em uma contratação para consultar os detalhes e itens. A paginação usa a quantidade informada pelo PNCP; os itens mostram quantidade, valor unitário estimado e valor total estimado.
-- **Exportar CSV** inicia a geração e o download diretamente, sem confirmação. Consulta novamente todas as páginas dos últimos critérios concluídos, respeitando o limite configurado e a janela de 10.000 documentos; os dados podem diferir da tabela. A exportação falha se houver mudança de total, duplicação ou páginas incompletas durante a coleta.
+## Desenvolver e validar
 
-Consultas prontas, refinamento local, regex, categorias, agrupamento e ordenação local foram removidos. Os resultados preservam a ordem e a seleção retornadas pelo PNCP.
+| Comando | Finalidade |
+| --- | --- |
+| `npm run dev` | Servidor com reinício e recarga automática ao alterar a aplicação |
+| `npm run dev -- --demo` | Desenvolvimento com dados fictícios |
+| `npm test` | Suíte automatizada com o runner nativo do Node.js |
+| `npm run build` | Recria a distribuição em `dist/` |
+| `npm run benchmark:demo` | Mede pesquisa, paginação e exportação com fonte sintética |
 
-## API da aplicação
+O modo de desenvolvimento observa `src/`, `public/`, `.env`, `package.json` e `package-lock.json`. As tarefas do editor Zed estão em [`.zed/tasks.json`](.zed/tasks.json). O [guia de validação](docs/validacao.md) descreve a cobertura, a verificação HTTP e o teste opcional em navegador, incluindo suas limitações atuais.
+
+## API
 
 | Método | Rota | Finalidade |
 | --- | --- | --- |
-| GET | `/api/schema` | Colunas, capacidades e limites |
-| POST | `/api/query` | Pesquisa de uma página no PNCP |
-| GET | `/api/pncp/filters?tipos_documento=edital` | Domínios de filtros |
-| GET | `/api/pncp/suggest` | Sugestões de órgão, unidade e município |
+| GET | `/api/schema` | Colunas, filtros disponíveis, ordenações e limites |
+| POST | `/api/query` | Consulta de uma página |
+| GET | `/api/pncp/filters` | Opções dos domínios de filtros |
+| GET | `/api/pncp/suggest` | Sugestões para filtros de lista habilitados |
 | GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/itens` | Quantidade e página de itens |
-| POST | `/api/export` | Recebe `{query}` e devolve CSV após nova coleta |
-| GET | `/api/health` | Estado do processo e última chamada |
+| POST | `/api/export` | Nova coleta e download CSV |
+| GET | `/api/health` | Estado do processo e dados da última chamada ao PNCP |
 
-Exemplo de corpo para `POST /api/query`:
+Exemplo de corpo JSON para `POST /api/query`:
 
 ```json
 {
@@ -63,23 +73,38 @@ Exemplo de corpo para `POST /api/query`:
 }
 ```
 
-O contrato aceita apenas esses oito campos. Parâmetros antigos de consulta local são rejeitados com `UNKNOWN_FIELD`. A exportação recebe o mesmo objeto no campo `query`, sem `scope` ou opção de resultados confirmados. Veja [consultas-pncp.md](docs/consultas-pncp.md).
+O contrato completo, os tipos dos filtros e os formatos das respostas estão em [Consultas ao PNCP](docs/consultas-pncp.md). `/api/health` verifica o processo; para confirmar o acesso ao PNCP, execute também uma pesquisa.
 
-O registro de capacidades contém 87 argumentos. Apenas os habilitados para `edital` são aceitos; argumentos pendentes geram erro explícito. Para habilitar outro filtro após verificar seu domínio, formato e efeito no PNCP, configure `PNCP_VALIDATED_FILTERS`. Os padrões e limites estão em [`.env.example`](.env.example).
+## Distribuir e publicar
 
-Todos os dados usam `Cache-Control: no-store`. Não há banco, importação, histórico de resultados, localStorage ou cache persistente de contratações. As rotas antigas de importação retornam HTTP 410.
+Para executar a distribuição Node.js:
 
-Decimais são preservados como strings, inclusive os valores dos itens. O CSV usa UTF-8 com BOM, todas as colunas documentais e escape de aspas e quebras. Dados da fonte podem mudar entre páginas; `snapshot_guaranteed` permanece `false`.
+```sh
+npm run build
+cd dist
+npm ci --omit=dev
+npm start
+```
 
-## Implantação
+O build remove o conteúdo anterior de `dist/`. A `.env` local não é copiada: configure as variáveis no destino ou crie ali a configuração necessária.
 
-O [guia Railway](docs/railway.md) explica a configuração [`.railway/railway.ts`](.railway/railway.ts). Frontend e backend ficam no mesmo serviço, sem banco ou volume. Também há um Dockerfile:
+O [Dockerfile](Dockerfile) usa Node.js 24 e executa a aplicação com usuário sem privilégios:
 
 ```sh
 docker build -t compras-web-pncp .
-docker run --rm -p 8000:8000 --env-file .env compras-web-pncp
+docker run --rm -p 8000:8000 compras-web-pncp
 ```
 
-Configure `HOST=0.0.0.0` na hospedagem. Os limites de concorrência e chamadas por segundo são por processo; use uma réplica ou coordene esses limites externamente. Os scripts limitam o heap a 512 MiB, e buffers consomem memória adicional.
+Para personalizar o contêiner, use `-e NOME=valor` ou `--env-file .env`; ao reutilizar a configuração local, acrescente `-e HOST=0.0.0.0` para aceitar conexões externas ao contêiner.
 
-A aplicação usa `node:http`, Tabulator, `lossless-json` e Undici. A licença do Tabulator e dos ícones está em [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). O [relatório de validação](docs/validacao.md) descreve os testes atuais; a especificação e auditorias anteriores em `docs/` são referências históricas.
+O [guia Railway](docs/railway.md) explica como publicar o serviço e obter um domínio HTTPS. Os limites de chamadas são por processo; a configuração fornecida usa uma réplica. Os comandos de execução limitam o heap a 512 MiB, e o consumo total inclui buffers e outras alocações.
+
+## Documentação
+
+- [Arquitetura e organização do código](docs/arquitetura.md)
+- [Configuração, rede e limites](docs/configuracao.md)
+- [Contrato da API e consultas ao PNCP](docs/consultas-pncp.md)
+- [Testes e validação](docs/validacao.md)
+- [Publicação no Railway](docs/railway.md)
+
+Os avisos de licença do Tabulator e dos ícones usados na interface estão em [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

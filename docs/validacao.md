@@ -1,38 +1,88 @@
-# Validação — consultas diretas ao PNCP
+# Testes e validação
 
-Data: 6 de outubro de 2026. Ambiente: Windows, Node.js 24.21.0 e Tabulator 6.3.1.
+Execute os comandos na raiz do repositório com Node.js 22.9 ou superior e as dependências instaladas por `npm ci`. Node.js 24 é recomendado.
 
-## Testes automatizados
+## Suíte automatizada
 
-`npm test` concluiu **64 testes, sem falhas**. A saída completa está em [test-results.txt](test-results.txt).
+```sh
+npm test
+```
 
-A suíte cobre o contrato de consulta nativa, serialização e validação dos filtros, cancelamento, timeouts, novas chamadas a cada pesquisa, paginação remota, janela de 10.000 documentos, consistência da exportação, precisão decimal, detalhes e quantidade de itens, loader, tratamento de erro e hot reload.
+O comando usa `node --test --test-concurrency=1 test/*.test.js`. A suíte cobre:
 
-As regressões de consulta direta verificam que:
+- Contrato HTTP, capacidades, tipos, datas, intervalos e serialização dos filtros.
+- Identificadores, projeção documental, precisão numérica e normalização de links.
+- Paginação remota, totais, janela de resultados e consistência da exportação.
+- Quantidade, paginação, campos e falhas dos itens.
+- Cancelamento, timeouts, tentativas e orçamentos de recursos.
+- Handlers da interface com DOM mínimo, controle de respostas atrasadas e recuperação de erros.
+- Reinício e recarga automática no desenvolvimento.
 
-- Cada página solicitada faz apenas uma chamada de busca, mesmo com 2.500 resultados e objetos repetidos.
-- A ordem e os documentos da fonte são preservados, sem filtragem ou agrupamento local.
-- Texto, status, datas, UF e filtros de itens são enviados como parâmetros nativos.
-- Pesquisas não consultam itens automaticamente; eles são carregados nos detalhes.
-- Parâmetros antigos de regras, presets, modos locais, agrupamento e ordenação local são rejeitados antes da rede.
-- A exportação percorre as páginas remotas e falha diante de mudanças, duplicatas ou páginas incompletas, sem CSV parcial.
+As respostas externas são sintéticas. A suíte verifica o comportamento da aplicação, mas não comprova disponibilidade do PNCP nem a renderização completa em navegador. O script `test/ui-smoke.mjs` é uma verificação separada.
 
-Os testes usam respostas sintéticas e handlers reais do frontend com DOM mínimo. Eles não certificam cada filtro catalogado no PNCP nem a disponibilidade contínua da fonte.
+## Verificação HTTP
 
-## Integração real
+Inicie `npm run demo` para validar o fluxo local com a fonte sintética ou `npm start` para validar o acesso real. Em outro terminal:
 
-Foi realizada uma consulta por `POST /api/query` através do servidor da aplicação, com `q=firewall`, `status=todos`, `order=-data`, `page=1` e `size=10`. A API real do PNCP respondeu **HTTP 200**, com 10 documentos, total de 3.477 e uma chamada de busca. Esse total representa apenas o momento do ensaio.
+```sh
+curl --fail-with-body -sS http://localhost:8000/api/health
+curl --fail-with-body -sS http://localhost:8000/api/schema
+curl --fail-with-body -sS http://localhost:8000/api/query \
+  -H 'Content-Type: application/json' \
+  -d '{"api_version":"2.0","q":"firewall","size":10}'
+```
+
+Confira HTTP 200, `status: "ok"` no healthcheck e `source` correspondente ao modo escolhido. Na pesquisa, confira `data`, totais e paginação. Em demonstração, a pesquisa por `firewall` retorna seis documentos; a pesquisa sem texto retorna total 64. Com a fonte real, os resultados e totais variam.
+
+Pela interface, verifique pesquisa inicial, filtros, paginação, abertura de itens, cancelamento e CSV. Confira também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de sugestões e exportação.
+
+## Build e distribuição
+
+```sh
+npm run build
+cd dist
+npm ci --omit=dev
+npm run demo
+```
+
+O build recria `dist/` e copia código, documentação e arquivos de execução. Ele não compila o frontend nem executa testes. Pare o servidor anterior ou use outra porta antes de iniciar a distribuição. Repita as verificações HTTP a partir do processo distribuído, incluindo o carregamento de `/` e `/vendor/tabulator.min.js`.
 
 ## Navegador
 
-A interface foi verificada em Chrome headless com uma fonte sintética explícita. Dez verificações passaram, sem exceções JavaScript: consulta inicial, remoção dos controles locais, filtros de UF, texto e período, detalhes com valores dos itens, paginação remota, tooltip da janela, dimensões da paginação, modal em celular e erro personalizado.
+O teste opcional [`test/ui-smoke.mjs`](../test/ui-smoke.mjs) requer Playwright e Chromium. Ele cria seu próprio servidor temporário com fonte sintética. Para preparar as ferramentas sem mudar as dependências do projeto, em um terminal POSIX:
 
-Foram conferidas larguras de 320, 390, 768, 1.057 e 1.440 pixels, sem overflow da página. A grade do modal foi ajustada para manter os filtros dentro da largura disponível em celular. Capturas foram usadas para inspeção visual, sem substituir as imagens históricas do repositório.
+```sh
+QA_DIR="$(mktemp -d)"
+npm install --prefix "$QA_DIR" --no-package-lock playwright@1.58.2
+"$QA_DIR/node_modules/.bin/playwright" install chromium
+COMPRAS_QA_PLAYWRIGHT_MODULE="$QA_DIR/node_modules/playwright/index.mjs" \
+  node test/ui-smoke.mjs
+```
 
-## Distribuição e medição
+O sistema operacional também precisa das bibliotecas exigidas pelo navegador. `COMPRAS_QA_PLAYWRIGHT_MODULE` aceita o caminho do módulo Playwright instalado fora do projeto. Para um binário gerenciado pelo ambiente, o script oferece `COMPRAS_QA_CHROMIUM_MODULE` (módulo cujo export padrão fornece `executablePath()`) e `COMPRAS_QA_CHROMIUM_EXECUTABLE` (caminho explícito, usado junto desse módulo). Quando o módulo de Chromium é usado, o script adiciona os argumentos de execução para ambiente isolado. `COMPRAS_QA_SCREENSHOT_DIR` permite salvar capturas em um diretório existente.
 
-`npm run build` recria `dist/`; a distribuição é conferida para excluir módulos antigos de regras, workers e dados de presets. O servidor distribuído é iniciado e suas rotas de esquema e consulta são verificadas com fonte sintética.
+O script verifica pesquisa, paginação, detalhes, CSV, filtros e outros cenários de interface. Considere a execução aprovada apenas quando ele concluir com código zero e emitir o resumo final. Verificações posteriores a uma falha não foram executadas.
 
-O [benchmark-demo.json](benchmark-demo.json) foi atualizado para pesquisa, paginação e exportação. Ele mede processamento com HTTP sintético e não representa latência ou capacidade do PNCP.
+## Medição local
 
-A especificação e as auditorias anteriores foram identificadas como referências históricas. O contrato atual está em [consultas-pncp.md](consultas-pncp.md).
+```sh
+npm run benchmark:demo
+```
+
+O comando escreve um JSON na saída com duração, quantidade de linhas, chamadas, tamanho do CSV e memória RSS para pesquisa, paginação e exportação. Ele usa fonte sintética e ritmo de chamadas elevado para medir processamento local. Não representa latência ou capacidade do PNCP. Guarde saídas e capturas fora dos arquivos versionados de documentação.
+
+## Situação verificada e limitações abertas
+
+Revisão atual: 6 de outubro de 2026, Linux, Node.js 24.19.0.
+
+| Verificação | Resultado |
+| --- | --- |
+| `npm test` | 70 testes passaram, sem falhas ou testes ignorados |
+| Build e distribuição em demonstração | Build concluído; saúde, esquema, arquivos estáticos, pesquisa, filtros, sugestões, itens e CSV verificados |
+| Pesquisa real por `firewall`, tamanho 10 | HTTP 200, fonte `pncp` e dez documentos |
+| Benchmark de demonstração | Pesquisa, paginação e exportação concluídas |
+| Teste de navegador com Playwright 1.58.2 e Chromium do ambiente | 16 verificações passaram; execução interrompida por seletor ambíguo |
+
+O teste de navegador usa `#filters-dialog .close-dialog`, que encontra os botões **Fechar** e **Cancelar**. O clique falha por ambiguidade em modo estrito. Isso é uma pendência do teste; os cenários seguintes, incluindo o bloco de responsividade, não foram validados nessa execução.
+
+Há também uma limitação no diagnóstico de transporte em [`src/pncp.js`](../src/pncp.js): o tratamento de exceções chama `.includes()` em `error.cause.code` sem conferir se é string. Códigos numéricos, como os observados em uma recusa CONNECT do proxy, podem resultar em `INTERNAL_ERROR` HTTP 500 e ocultar o erro de transporte original. Para investigar, use `request_id` e os eventos `upstream` e `operation_error`; um healthcheck positivo não descarta essa falha.
