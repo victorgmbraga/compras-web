@@ -2,15 +2,40 @@
 
 Data: 6 de outubro de 2026.
 
+## Situação da implementação
+
+O primeiro grupo está implementado: `srp`, `codigo_ibge`, `tipos`, `normativos_base`, `amparos_legais` e `fontes_orcamentarias`. A configuração padrão passa a ter **23 filtros habilitados**, **48 pendentes para edital**, **nove exclusivos de contratos** e sete argumentos reservados. Os testes exercitam a interface, a validação, a serialização, a consulta e o CSV; a demonstração também aplica esses seis filtros.
+
+Os domínios fechados são conferidos antes da busca e da exportação. A interface agrupa os campos por nível, apresenta rótulos e exemplos, distingue contratos indisponíveis e reconcilia os amparos quando os normativos mudam. A conferência mantém amparos compatíveis, remove os incompatíveis com aviso e bloqueia a aplicação se a verificação falhar.
+
+Os catálogos de países, portes e naturezas jurídicas estão conectados por `GET /api/pncp/filters?campo=...`, preservando IDs e estado ativo. Seus filtros continuam pendentes. A identidade de país aceita pela busca ainda não foi definida; não houve conversão automática para o código BCB nem flexibilização dessa validação. Municípios de fornecedores estão preparados para sugestões; margem de preferência possui seleção singular com validação de domínio. Esses controles também não significam liberação automática dos filtros.
+
+### Evidência do primeiro grupo
+
+As consultas abaixo usaram `q=firewall`, tipo `edital`, status `todos`, ordem `-data` e tamanho 10 no cliente HTTPS real. Foram comparados os campos de **todos os dez documentos de cada resposta válida**, em vez de concluir apenas pela variação dos totais:
+
+| Filtro | Valores com resposta válida | Campo conferido nos registros |
+| --- | --- | --- |
+| `srp` | `true` e `false` | `srp` com o mesmo booleano |
+| `codigo_ibge` | `5300108` | `codigo_ibge` com o mesmo código |
+| `tipos` | `1`; lista `2\|3` | `tipo_id` pertencente à seleção |
+| `normativos_base` | `1` | `normativo_base_id` contendo o ID |
+| `amparos_legais` | `19` | `amparo_legal_id` contendo o ID |
+| `fontes_orcamentarias` | `4` | `fonte_orcamentaria_id` contendo o ID |
+
+Também houve acesso real aos três catálogos pela API da aplicação: 248 países, seis portes e 96 naturezas jurídicas na consulta efetuada. Nas verificações posteriores pela API, SRP retornou HTTP 200 com registros correspondentes, enquanto outras tentativas receberam erros de indisponibilidade ou timeout. Mesmo consultas mais restritas apresentaram falhas. Isso limita a confirmação de disponibilidade contínua e de todas as combinações de listas; não invalida as respostas correspondentes obtidas nas sondagens anteriores.
+
+Os próximos grupos continuam sujeitos às verificações de predicados de itens, resultados e fornecedores descritas abaixo. Leia o [contrato atualizado](consultas-pncp.md) para os controles e formatos já implementados.
+
 ## Conclusão e escopo
 
 É viável ampliar os filtros nativos sem restaurar consultas prontas ou refinamento local. Não há evidência suficiente para habilitar todos indiscriminadamente.
 
-O catálogo atual contém 87 argumentos: 7 reservados, 17 filtros habilitados e **63 filtros pendentes**. A configuração local carregada com `--env-file-if-exists=.env` também apresentou 63 pendentes. Desses, **54 têm contexto `edital`** e **9 são exclusivos de `contrato`**, tipo documental ainda desabilitado.
+O levantamento inicial identificou 87 argumentos: 7 reservados, 17 filtros habilitados e **63 filtros pendentes**. A configuração local carregada com `--env-file-if-exists=.env` também apresentou 63 pendentes. Desses, **54 tinham contexto `edital`** e **9 eram exclusivos de `contrato`**, tipo documental ainda desabilitado. O estado após a primeira implementação está na seção anterior.
 
 Entre os 54 candidatos a edital há 34 escalares, 19 listas e uma enumeração singular. O transporte genérico já atende boa parte deles, mas configuração de habilitação não substitui validação de domínio e efeito remoto.
 
-Nenhum filtro ou configuração foi habilitado nesta análise. O contrato vigente permanece em [consultas-pncp.md](consultas-pncp.md).
+A análise de viabilidade não habilitou filtros; a implementação posterior liberou o grupo descrito acima. O contrato vigente está em [consultas-pncp.md](consultas-pncp.md).
 
 ## Método e alcance dos ensaios
 
@@ -149,18 +174,18 @@ As cinco tentativas de `/suggest` usaram os campos acima, tamanho 20 e textos co
 
 Adicionar esses nomes a `PNCP_VALIDATED_FILTERS` não os habilita para edital: o schema também exige compatibilidade documental. Implementá-los implica habilitar consultas de contratos, com projeção, validação, status, interface e testes próprios. Isso é expansão de escopo e não deve ocorrer implicitamente.
 
-## Lacunas concretas da aplicação
+## Lacunas identificadas e andamento
 
-1. **Estado de capacidade genérico:** todos os pendentes, inclusive os nove de contrato, recebem o mesmo sufixo e motivo de validação para edital. A UI deveria separar incompatibilidade documental de pendência de validação.
-2. **Municípios de fornecedores:** `municipios_fornecedor` não está em `partial_domains`; a UI tentaria selecionar um domínio ausente, em vez de oferecer sugestões.
-3. **Catálogos auxiliares:** países, portes e naturezas jurídicas têm endpoints reais, mas nenhum provedor conectado à UI atual.
+1. **Estado de capacidade:** implementada a distinção entre `pending_validation` e `unsupported_document`, também apresentada na UI.
+2. **Municípios de fornecedores:** incluídos em `partial_domains` e no encaminhamento de sugestões; o predicado continua pendente.
+3. **Catálogos auxiliares:** conectados à API de domínios e aos controles da UI, com filtros ainda pendentes por padrão.
 4. **Países:** a validação genérica de listas exige dígitos para `paises_fornecedor`, enquanto o catálogo oferece IDs como `BRA`. Antes de alterar essa regra, é preciso confirmar se a busca espera o ID ou o código BCB; não há justificativa para trocar um pelo outro por suposição.
-5. **Margem de preferência:** `format="ID único"` é inferido como texto sem domínio. A UI atual permitiria valor arbitrário, embora `/filters` forneça duas opções.
-6. **Normalização:** `normalizeOptions()` reconhece array ou `.items`, usa `id` e tem uma exceção específica para anos. Qualquer outra identidade/estrutura precisa de adaptação comprovada, preservando zeros e códigos textuais.
-7. **Dependência legal:** domínios recebem `normativos_base`, mas a mudança dessa seleção não reconcilia os amparos já escolhidos.
-8. **Validação desigual:** o serviço confirma pertencimento para apenas seis das 19 listas pendentes aplicáveis a edital. As demais precisam de estratégia conforme domínio fechado ou sugestões parciais.
-9. **Usabilidade:** os novos filtros precisam de rótulos e explicações por nível — contratação, item, resultado e fornecedor — e exemplos adequados para quantidade, moeda e percentual. Atualmente, a maior parte aparece apenas pelo nome técnico.
-10. **Demo:** a fonte sintética não implementa toda a semântica dos filtros atuais, muito menos dos novos. Os ensaios reais desta análise não usaram demo; sua ampliação precisa de fixtures e testes próprios.
+5. **Margem de preferência:** implementada como `enum` singular, com controle de seleção e conferência do domínio; a comprovação do predicado segue pendente.
+6. **Normalização:** catálogos auxiliares têm normalizador próprio para arrays com `id`, `nome` e `statusAtivo`, preservando zeros e códigos textuais. Outras estruturas ainda precisam de adaptação comprovada.
+7. **Dependência legal:** implementada a reconciliação, com cancelamento de respostas anteriores, preservação de escolhas compatíveis e recuperação após falha.
+8. **Validação de domínio:** o serviço usa metadados para conferir domínios fechados da busca e catálogos auxiliares; não considera listas parciais exaustivas.
+9. **Usabilidade:** implementados grupos, rótulos, descrições, exemplos de entrada e cardinalidade dos controles.
+10. **Demo:** implementada a semântica dos seis novos filtros documentais, catálogos e dependência legal. A simulação de outros filtros continua parcial; os ensaios reais usam a fonte HTTPS.
 
 ## Critério de habilitação e plano recomendado
 
@@ -184,6 +209,6 @@ Para cada filtro, demonstrar a cadeia **controle de UI → valor correto → val
 
 Não acrescentar banco, cache de resultados, presets, refinamento local ou consulta automática de itens durante a pesquisa. A arquitetura de consultas nativas permanece válida para essa ampliação.
 
-## Verificação desta análise
+## Verificação
 
-Foram feitas leituras, inventário programático e sondagens reais descritas acima. A única alteração é este relatório; não houve alteração de código ou configuração de filtros, nem execução de build ou da suíte de testes nesta tarefa. As respostas de busca não foram persistidas como dados da aplicação.
+O levantamento usou leituras, inventário programático e sondagens reais. A primeira implementação acrescenta testes de controles, domínios, catálogo, rejeição de valores inválidos, dependência legal, cancelamento e exportação. As respostas reais de busca não são persistidas como dados da aplicação. A cobertura e os resultados atuais estão em [Testes e validação](validacao.md).

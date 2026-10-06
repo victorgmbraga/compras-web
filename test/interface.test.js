@@ -17,7 +17,11 @@ async function interfaceFixture(options={}) {
   class Element {
     constructor(tag='div'){this.tagName=tag;this.children=[];this.listeners={};this.dataset={};this.value='';this.hidden=false;this.open=false;this.classList={add(){},toggle(){},contains(){return false;}};all.push(this);}
     set id(value){this._id=value;nodes.set(value,this);}get id(){return this._id;}
-    append(...children){this.children.push(...children);}replaceChildren(...children){this.children=children;}
+    append(...children){this.children.push(...children);}replaceChildren(...children){
+      const detach=node=>{if(!node || typeof node!=='object')return;if(node.id && nodes.get(node.id)===node)nodes.delete(node.id);for(const child of node.children || [])detach(child);};
+      for(const node of this.children)detach(node);this.children=children;
+    }
+    get selectedOptions(){return this.children.filter(n=>n.selected);}
     click(){if(this.tagName==='a')downloads.push({href:this.href,filename:this.download});}remove(){}
     addEventListener(name,fn){(this.listeners[name]??=[]).push(fn);}
     async fire(name){for(const fn of this.listeners[name] || [])await fn({target:this,preventDefault(){}});await settle();await Promise.allSettled(pending);await settle();}
@@ -27,14 +31,18 @@ async function interfaceFixture(options={}) {
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
   for(const match of html.matchAll(/<([a-z]+)[^>]*\bid="([^"]+)"[^>]*>/g)){const node=new Element(match[1]);node.id=match[2];node.hidden=match[0].includes(' hidden');}
   const dom={body:new Element('body'),getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),createTextNode:text=>text,addEventListener(){},querySelectorAll:selector=>selector==='dialog'?all.filter(n=>n.tagName==='dialog'):[],querySelector(){return null;}};
-  const cfg=config({DEMO_MODE:true});
-  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[],exportRequests=[];
-  const queryHandler=options.queryHandler,exportHandler=options.exportHandler;
+  const cfg=config({DEMO_MODE:true,...options.config});
+  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[],exportRequests=[],domainRequests=[],suggestRequests=[];
+  const queryHandler=options.queryHandler,exportHandler=options.exportHandler,domainHandler=options.domainHandler;
   let detailFailures=options.detailFailures || 0;
   const fetcher=async(url,options={})=>{
     try{
       if(url==='/api/schema')return Response.json(schema(cfg));
-      if(url.startsWith('/api/pncp/filters'))return Response.json(await backend.domains('edital'));
+      if(url.startsWith('/api/pncp/filters')){
+        domainRequests.push(url);if(domainHandler)return domainHandler(url,options,backend);
+        const p=new URL(url,'http://localhost').searchParams;return Response.json(await backend.domains('edital',p.get('normativos_base')?.split('|'),options.signal,null,p.get('campo')));
+      }
+      if(url.startsWith('/api/pncp/suggest')){suggestRequests.push(url);const p=new URL(url,'http://localhost').searchParams;return Response.json(await backend.suggest('edital',p.get('campo'),p.get('q'),Number(p.get('tam_pagina')),options.signal));}
       if(url==='/api/query'){const input=JSON.parse(options.body);requests.push(input);if(queryHandler)return await queryHandler(input,options,backend);return Response.json(await backend.execute(input,options.signal));}
       if(url==='/api/export') {
         const input=JSON.parse(options.body);exportRequests.push(input);
@@ -64,7 +72,9 @@ async function interfaceFixture(options={}) {
   const tableColumns=()=>JSON.parse(vm.runInContext('JSON.stringify(state.table.options.columns)',context));
   const request=params=>vm.runInContext('requestTable',context)('/api/query',{},params);
   const footer=()=>vm.runInContext('state.table.options.paginationCounter',context)();
-  return {nodes,all,requests,itemRequests,exportRequests,downloads,state,openDocument,tableColumns,request,footer,buildTable};
+  const draft=()=>JSON.parse(vm.runInContext('JSON.stringify(state.draft)',context));
+  const setFilter=(name,value)=>vm.runInContext('setDraftFilter',context)(name,value);
+  return {nodes,all,requests,itemRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
 
@@ -345,4 +355,65 @@ test('DETAILS-UI-06: quantidade e valores do PNCP preservam precisão, zero e au
     ['—','—','—'],
     ['30','R$ 3.296,01','R$ 98.880,30'],
   ]);
+});
+
+test('FILTERS-UI-04: grupos e motivos distinguem contratos de validação pendente',async()=>{
+  const ui=await interfaceFixture(),groups=ui.nodes.get('native-field').children;
+  assert.deepEqual(groups.map(g=>g.label),['Contratação','Item','Resultado do item','Fornecedor','Contratos (indisponíveis)']);
+  const contracts=groups.at(-1).children;assert.equal(contracts.length,9);assert(contracts.every(o=>o.disabled && o.textContent.endsWith('somente contratos')));
+  const srp=groups[0].children.find(o=>o.value==='srp');assert.equal(srp.disabled,false);assert.equal(srp.textContent,'Sistema de Registro de Preços');
+  const country=groups[3].children.find(o=>o.value==='paises_fornecedor');assert(country.disabled);assert.match(country.title,/Identidade/);
+});
+
+test('FILTERS-UI-05: seleção de Não preserva false na consulta SRP',async()=>{
+  const ui=await interfaceFixture();await ui.nodes.get('filters-button').fire('click');
+  ui.nodes.get('native-field').value='srp';await ui.nodes.get('native-field').fire('change');
+  ui.nodes.get('native-value').value='false';await ui.nodes.get('add-native').fire('click');await ui.nodes.get('apply-filters').fire('click');
+  assert.deepEqual(ui.requests.at(-1).pncp_filters,{srp:false});assert.equal(ui.nodes.get('result-title').textContent,'32 contratações');
+});
+
+test('FILTERS-UI-06: margem singular e catálogo inativo usam controles de seleção',async()=>{
+  const ui=await interfaceFixture({config:{PNCP_VALIDATED_FILTERS:'tipos_margens_preferencia,naturezas_juridicas'}});await ui.nodes.get('filters-button').fire('click');
+  ui.nodes.get('native-field').value='tipos_margens_preferencia';await ui.nodes.get('native-field').fire('change');
+  assert.equal(ui.nodes.get('native-options').multiple,false);assert.equal(ui.nodes.has('native-value'),false);
+  ui.nodes.get('native-options').value='2';await ui.nodes.get('add-native').fire('click');assert.equal(ui.draft().pncp_filters.tipos_margens_preferencia,'2');
+  ui.nodes.get('native-field').value='naturezas_juridicas';await ui.nodes.get('native-field').fire('change');
+  const select=ui.nodes.get('native-options');assert.equal(select.multiple,true);assert.equal(select.children[0].value,'0000');assert.match(select.children[0].textContent,/inativa/);
+  assert(ui.domainRequests.at(-1).includes('campo=naturezas_juridicas'));
+});
+
+test('FILTERS-UI-07: mudar normativo preserva amparos válidos e remove incompatíveis',async()=>{
+  const ui=await interfaceFixture();await ui.nodes.get('filters-button').fire('click');
+  await ui.setFilter('amparos_legais',['1','19','98']);await ui.setFilter('normativos_base',['1']);
+  assert.deepEqual(ui.draft().pncp_filters,{amparos_legais:['1','19'],normativos_base:['1']});
+  assert.equal(ui.nodes.get('apply-filters').disabled,false);assert.equal(ui.nodes.get('legal-error').hidden,false);
+  const request=new URL(ui.domainRequests.at(-1),'http://localhost');assert.equal(request.searchParams.get('campo'),'amparos_legais');assert.equal(request.searchParams.get('normativos_base'),'1');
+  await ui.nodes.get('apply-filters').fire('click');assert.deepEqual(ui.requests.at(-1).pncp_filters,{amparos_legais:['1','19'],normativos_base:['1']});assert.equal(ui.nodes.get('result-title').textContent,'32 contratações');
+});
+
+test('FILTERS-UI-08: falha de reconciliação bloqueia aplicar e permite repetir o mesmo normativo',async()=>{
+  let attempts=0;
+  const ui=await interfaceFixture({domainHandler:async(url,options,backend)=>{
+    const p=new URL(url,'http://localhost').searchParams;
+    if(p.get('campo')==='amparos_legais' && attempts++===0)return Response.json({error:{message:'Indisponível'}},{status:503});
+    return Response.json(await backend.domains('edital',p.get('normativos_base')?.split('|'),options.signal,null,p.get('campo')));
+  }});await ui.nodes.get('filters-button').fire('click');
+  await ui.setFilter('amparos_legais',['19','98']);await ui.setFilter('normativos_base',['1']);
+  assert.equal(ui.nodes.get('apply-filters').disabled,true);const before=ui.requests.length;await ui.nodes.get('apply-filters').fire('click');assert.equal(ui.requests.length,before);
+  await ui.setFilter('normativos_base',['1']);assert.equal(ui.nodes.get('apply-filters').disabled,false);assert.deepEqual(ui.draft().pncp_filters.amparos_legais,['19']);
+});
+
+test('FILTERS-UI-09: resposta tardia de amparos não altera um novo rascunho',async()=>{
+  let resolve;
+  const ui=await interfaceFixture({domainHandler:async(url,options,backend)=>{
+    const p=new URL(url,'http://localhost').searchParams;
+    if(p.get('campo')==='amparos_legais' && p.get('normativos_base')==='1')return new Promise(done=>{resolve=done;});
+    return Response.json(await backend.domains('edital'));
+  }});await ui.nodes.get('filters-button').fire('click');await ui.setFilter('amparos_legais',['19','98']);
+  ui.nodes.get('native-field').value='amparos_legais';await ui.nodes.get('native-field').fire('change');
+  const pending=ui.setFilter('normativos_base',['1']);await settle();assert.equal(ui.nodes.get('apply-filters').disabled,true);assert.equal(ui.nodes.get('add-native').disabled,true);
+  await ui.nodes.get('add-native').fire('click');assert.equal(ui.nodes.get('apply-filters').disabled,true);
+  ui.nodes.get('filters-dialog').close();await ui.nodes.get('filters-button').fire('click');
+  resolve(Response.json({filters:{amparos_legais:[{id:'19',label:'Amparo'}]}}));await pending;
+  assert.deepEqual(ui.draft().pncp_filters,{});assert.equal(ui.nodes.get('apply-filters').disabled,false);
 });

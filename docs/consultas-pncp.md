@@ -33,6 +33,11 @@ O servidor serializa os controles como `tipos_documento`, `q`, `status`, `ordena
 | --- | --- |
 | `ufs` | Lista de siglas, por exemplo `["DF", "GO"]` |
 | `orgaos`, `unidades`, `municipios` | Listas de IDs numéricos como strings, obtidos dos domínios ou sugestões |
+| `codigo_ibge` | String com exatamente sete dígitos, por exemplo `"5300108"`; não é o ID de `municipios` |
+| `srp` | Booleano `true` ou `false`; omitir o filtro não restringe por SRP |
+| `tipos` | Lista de IDs de instrumentos convocatórios conferidos no domínio do PNCP |
+| `fontes_orcamentarias` | Lista de IDs conferidos no domínio do PNCP |
+| `normativos_base`, `amparos_legais` | Listas de IDs; os amparos são conferidos no domínio condicionado pelos normativos selecionados |
 | `esferas` | Lista com `F`, `E`, `M`, `D` ou `N` |
 | `poderes` | Lista com `E`, `L`, `J` ou `N` |
 | `modalidades`, `situacoes` | Listas de IDs como strings, conferidos no domínio do PNCP |
@@ -45,7 +50,9 @@ O servidor serializa os controles como `tipos_documento`, `q`, `status`, `ordena
 
 As listas devem conter de 1 a 100 strings; não envie nomes de órgãos no lugar dos IDs nem caracteres `|` dentro dos valores. Os intervalos devem ter início ou mínimo menor ou igual ao fim ou máximo. `status` representa o período de recebimento de propostas; `situacoes` é um filtro separado de situação da contratação.
 
-`GET /api/schema` informa `columns`, `capabilities`, `statuses`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos; a configuração padrão habilita 17 filtros. Um argumento catalogado não implica suporte ativo: confira `state`, `reserved`, `documents`, `type` e `domain`. Para habilitar filtros adicionais após verificar seu efeito real, consulte [PNCP_VALIDATED_FILTERS](configuracao.md#habilitar-filtros-adicionais).
+`GET /api/schema` informa `columns`, `capabilities`, `statuses`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados, 23 filtros habilitados, 48 pendentes de validação para contratações e nove exclusivos de contratos (`unsupported_document`). Um argumento catalogado não implica suporte ativo: confira `state`, `reserved`, `documents`, `type` e `domain`.
+
+Cada capacidade também informa `label`, `group`, `input_hint`, `cardinality`, `domain_source` e `domain_kind`. O tipo `enum` é singular: `tipos_item` e `tipos_margens_preferencia` usam uma string escolhida no domínio, não uma lista nem texto livre. O segundo continua pendente por padrão. Para habilitar filtros adicionais após verificar seu efeito real, consulte [PNCP_VALIDATED_FILTERS](configuracao.md#habilitar-filtros-adicionais).
 
 ### Resposta da pesquisa
 
@@ -71,7 +78,21 @@ Os campos documentais são definidos em [`src/schema.js`](../src/schema.js). Cad
 
 ## Domínios e sugestões
 
-`GET /api/pncp/filters` aceita `tipos_documento=edital` e, opcionalmente, `normativos_base` com IDs separados por pipe. Retorna `filters`, `warnings`, `raw`, `partial_domains`, `request_id` e `queried_at`. As opções são normalizadas para `{id, label}`. Opções de ano fora de `AAAA` são omitidas da lista normalizada com aviso; a resposta original fica em `raw`.
+`GET /api/pncp/filters` aceita `tipos_documento=edital`, `normativos_base` com IDs separados por pipe e `campo` com o nome de um filtro que possui domínio. Campos desconhecidos ou exclusivos de contratos são rejeitados. Retorna `filters`, `warnings`, `raw`, `partial_domains`, `request_id` e `queried_at`. As opções são normalizadas para `{id, label}`. Opções de ano fora de `AAAA` são omitidas da lista normalizada com aviso; a resposta original fica em `raw`.
+
+Sem `campo`, ou com um filtro da busca, a origem é `/api/search/filters`. Para os campos abaixo, apenas o catálogo solicitado é consultado:
+
+| `campo` | Endpoint PNCP | Identidade preservada |
+| --- | --- | --- |
+| `paises_fornecedor` | `/api/pncp/v1/paises` | ID textual, como `BRA`; não é convertido para `codigoPaisBcb` |
+| `portes_fornecedor` | `/api/pncp/v1/portes-empresa` | ID como string |
+| `naturezas_juridicas` | `/api/pncp/v1/naturezas-juridicas` | ID com zeros à esquerda, como `0000` |
+
+Opções desses catálogos podem incluir `active: false`; a interface distingue opções inativas sem descartar registros históricos. Conectar o catálogo não habilita o filtro: os três campos continuam pendentes de validação do predicado. Para países, a identidade aceita pela busca ainda precisa ser comprovada; a validação de listas de IDs numéricos não foi relaxada para presumir que o ID alfabético é aceito.
+
+Domínios fechados são conferidos pelo backend antes da pesquisa e da exportação, incluindo os filtros ativados por `PNCP_VALIDATED_FILTERS`. Domínios parciais utilizam sugestões e não são tratados como listas exaustivas. `municipios_fornecedor` está preparado para esse encaminhamento, mas permanece pendente por padrão.
+
+Ao adicionar ou remover normativos, a interface consulta novamente os amparos, preserva os válidos e remove os incompatíveis com aviso. Enquanto essa conferência está em andamento, **Aplicar e pesquisar** fica desabilitado. Em caso de falha, remova o filtro de amparo ou adicione novamente o normativo para repetir a conferência.
 
 `GET /api/pncp/suggest` recebe:
 
@@ -139,7 +160,7 @@ As respostas usam `Cache-Control: no-store` e `X-Request-ID`. Falhas seguem este
 | HTTP | Exemplos | Ação |
 | --- | --- | --- |
 | 400 | `UNKNOWN_FIELD`, `INVALID_DOMAIN`, `INVALID_SIZE` | Corrigir a requisição |
-| 409 | `CAPABILITY_PENDING`, `DOMAIN_UNAVAILABLE`, `SOURCE_CHANGED` | Conferir a capacidade ou repetir a consulta quando os dados mudarem |
+| 409 | `CAPABILITY_PENDING`, `DOCUMENT_FILTER_UNAVAILABLE`, `DOMAIN_UNAVAILABLE`, `SOURCE_CHANGED` | Conferir o tipo documental e a capacidade ou repetir a consulta quando os dados mudarem |
 | 413 | `BODY_TOO_LARGE` | Reduzir o corpo enviado |
 | 422 | `PAGE_OUT_OF_RANGE`, `EXPORT_TOO_BROAD`, limites de recursos | Ajustar a página ou delimitar a pesquisa |
 | 429 | `CONCURRENCY_LIMIT` | Aguardar e repetir; observar `Retry-After` |

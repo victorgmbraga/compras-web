@@ -32,8 +32,8 @@ function money(value) {
   if(!match)return String(value);
   return `${match[1]}R$ ${match[2].replace(/\B(?=(\d{3})+(?!\d))/g,'.')},${(match[3] || '').padEnd(2,'0')}`;
 }
-const nativeLabels={ufs:'UF',orgaos:'Órgão',unidades:'Unidade',municipios:'Município',esferas:'Esfera',poderes:'Poder',modalidades:'Modalidade',situacoes:'Situação administrativa',anos:'Ano',data_publicacao_inicio:'Publicação a partir de',data_publicacao_fim:'Publicação até',valor_total_estimado_min:'Valor estimado mínimo',valor_total_estimado_max:'Valor estimado máximo',valor_total_homologado_min:'Valor homologado mínimo',valor_total_homologado_max:'Valor homologado máximo',tipos_item:'Tipo de item',situacoes_item:'Situação dos itens',srp:'Sistema de Registro de Preços'};
-const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
+const filterLabel=name=>state.schema.capabilities.find(c=>c.name===name)?.label || name;
+const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,legalAbort:null,legalSeq:0,legalPending:false,legalError:false,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
 function notice(message,kind='') { $('notice').textContent=message;$('notice').className='notice '+kind;$('notice').hidden=!message; }
 function hideWindowTooltip() { $('window-warning-tooltip').hidden=true; }
 function showWindowTooltip() {
@@ -90,7 +90,7 @@ function updateCriteria() {
   for(const [key,value]of Object.entries(q.pncp_filters)) {
     const cap=state.schema.capabilities.find(c=>c.name===key),options=state.domains?.filters[cap?.domain] || [];
     const label=Array.isArray(value)?value.map(id=>options.find(o=>o.id===id)?.label || id).join(', '):String(value);
-    $('native-chips').append(el('span',`${nativeLabels[key] || key}: ${label}`,'filter-chip'));
+    $('native-chips').append(el('span',`${filterLabel(key)}: ${label}`,'filter-chip'));
   }
 }
 function colFormatter(column) {
@@ -172,11 +172,45 @@ function renderDraftLists() {
   $('draft-publication-end').value=q.pncp_filters.data_publicacao_fim || '';
   $('native-filter-list').replaceChildren();
   for(const [key,value]of Object.entries(q.pncp_filters)) {
-    const row=el('div',undefined,'active-filter');row.append(el('span',`${nativeLabels[key] || key}: ${Array.isArray(value)?value.join(', '):String(value)}`));
-    const button=el('button','Remover','text-button');button.addEventListener('click',()=>{delete q.pncp_filters[key];renderDraftLists();});row.append(button);$('native-filter-list').append(row);
+    const row=el('div',undefined,'active-filter');row.append(el('span',`${filterLabel(key)}: ${Array.isArray(value)?value.join(', '):typeof value==='boolean'?(value?'Sim':'Não'):String(value)}`));
+    const button=el('button','Remover','text-button');button.addEventListener('click',()=>setDraftFilter(key,undefined));row.append(button);$('native-filter-list').append(row);
   }
 }
+async function setDraftFilter(name,value) {
+  const draft=state.draft,previous=JSON.stringify(draft.pncp_filters[name]);
+  if(value===undefined)delete draft.pncp_filters[name];else draft.pncp_filters[name]=value;
+  renderDraftLists();
+  if(name==='amparos_legais') {
+    state.legalAbort?.abort();state.legalSeq++;state.legalPending=false;state.legalError=false;$('apply-filters').disabled=false;$('legal-error').hidden=true;
+    return;
+  }
+  if(name!=='normativos_base' || (previous===JSON.stringify(value) && !state.legalError))return;
+  state.legalAbort?.abort();const seq=++state.legalSeq;
+  state.legalPending=false;state.legalError=false;$('apply-filters').disabled=false;$('legal-error').hidden=true;
+  if(draft.pncp_filters.amparos_legais?.length) {
+    const controller=new AbortController();state.legalAbort=controller;state.legalPending=true;$('apply-filters').disabled=true;
+    if($('native-field').value==='amparos_legais')$('add-native').disabled=true;
+    $('legal-error').textContent='Conferindo os amparos do normativo selecionado…';$('legal-error').hidden=false;
+    try {
+      const domains=await getDomains(controller.signal,'amparos_legais');
+      if(seq!==state.legalSeq || draft!==state.draft)return;
+      const options=domains.filters.amparos_legais;
+      if(!Array.isArray(options))throw new Error('O PNCP não forneceu os amparos deste normativo.');
+      const ids=new Set(options.map(o=>o.id)),before=draft.pncp_filters.amparos_legais;
+      const valid=before.filter(id=>ids.has(id));
+      if(valid.length)draft.pncp_filters.amparos_legais=valid;else delete draft.pncp_filters.amparos_legais;
+      renderDraftLists();
+      $('legal-error').hidden=valid.length===before.length;
+      $('legal-error').textContent='Amparos incompatíveis foram removidos. Confira a seleção antes de pesquisar.';
+    }catch(error){if(seq===state.legalSeq && error.name!=='AbortError'){
+      state.legalError=true;$('legal-error').textContent='Não foi possível conferir os amparos. Remova o filtro de amparo ou selecione novamente o normativo para tentar outra vez.';$('legal-error').hidden=false;
+    }}finally{if(seq===state.legalSeq){state.legalPending=false;$('apply-filters').disabled=state.legalError;}}
+  }
+  if(seq===state.legalSeq && $('native-field').value==='amparos_legais')await renderNativeValue();
+}
 async function openFilters(column=null) {
+  state.legalAbort?.abort();state.legalSeq++;state.legalPending=false;state.legalError=false;$('apply-filters').disabled=false;
+  $('legal-error').hidden=true;
   state.draft=clone(state.query);state.draft.q=$('search').value;
   $('draft-search').value=state.draft.q;$('draft-status').value=state.draft.status;
   $('domain-error').hidden=true;renderDraftLists();openDialog('filters-dialog');
@@ -184,26 +218,29 @@ async function openFilters(column=null) {
   else if(column?.native_range){$('native-field').value=column.native_range[0];}
   await renderNativeValue();
 }
-async function getDomains(signal) {
+async function getDomains(signal,field=$('native-field').value) {
   const params=new URLSearchParams({tipos_documento:'edital'});
+  if(field)params.set('campo',field);
   const normatives=state.draft?.pncp_filters.normativos_base;
   if(normatives?.length)params.set('normativos_base',normatives.join('|'));
-  const response=await api(`/api/pncp/filters?${params}`,{signal});state.domains=await response.json();return state.domains;
+  const response=await api(`/api/pncp/filters?${params}`,{signal});return response.json();
 }
 async function renderNativeValue() {
   state.domainAbort?.abort();state.suggestAbort?.abort();clearTimeout(state.suggestTimer);
   const seq=++state.domainSeq;state.suggestSeq++;state.selected=[];
   const cap=state.schema.capabilities.find(c=>c.name===$('native-field').value),area=$('native-value-area');area.replaceChildren();$('domain-error').hidden=true;$('add-native').disabled=false;
   if(!cap)return;
-  if(cap.type==='list') {
+  const help=el('p',`${cap.group} · ${cap.description}`,'panel-note');area.append(help);
+  if(cap.state!=='enabled'){$('add-native').disabled=true;area.append(el('p',cap.reason,'panel-note'));return;}
+  if(cap.type==='list' || cap.type==='enum') {
     $('add-native').disabled=true;
     const controller=new AbortController();state.domainAbort=controller;
     const label=el('label','Carregando opções do PNCP…');area.append(label);
     try {
-      const domains=await getDomains(controller.signal);if(seq!==state.domainSeq)return;
+      const domains=await getDomains(controller.signal,cap.name);if(seq!==state.domainSeq)return;state.domains=domains;
       const warning=domains.warnings?.find(w=>w.domain===cap.domain);
       if(warning){$('domain-error').textContent=warning.message;$('domain-error').hidden=false;}
-      label.textContent='Selecione uma ou mais opções';
+      label.textContent=cap.cardinality==='single'?'Selecione uma opção':'Selecione uma ou mais opções';
       const large=domains.partial_domains?.some(name=>name===cap.name || name===cap.domain),options=domains.filters[cap.domain] || [];
       if(large) {
         label.textContent='Pesquisar opções (mínimo de 3 caracteres)';
@@ -211,6 +248,7 @@ async function renderNativeValue() {
         const selected=el('div',undefined,'selected-options');selected.id='selected-native';area.append(selected);
         const suggestions=el('div',undefined,'suggestions');suggestions.id='native-suggestions';suggestions.setAttribute('aria-live','polite');area.append(suggestions);
         showSuggestions(options.slice(0,20));
+        state.selected=(state.draft.pncp_filters[cap.name] || []).map(id=>options.find(o=>o.id===id) || {id,label:id});renderSelectedOptions();
         input.addEventListener('input',()=>{
           clearTimeout(state.suggestTimer);state.suggestAbort?.abort();const token=++state.suggestSeq;
           $('domain-error').hidden=true;
@@ -224,15 +262,16 @@ async function renderNativeValue() {
         });
       } else {
         if(!options.length)throw new Error('O PNCP não forneceu opções para este domínio.');
-        const select=el('select');select.multiple=true;select.id='native-options';select.setAttribute('aria-label','Opções do filtro PNCP');
-        for(const option of options){const opt=el('option',option.label);opt.value=option.id;select.append(opt);}label.append(select);
+        const select=el('select');select.multiple=cap.cardinality==='multiple';select.id='native-options';select.setAttribute('aria-label','Opções do filtro PNCP');
+        const current=state.draft.pncp_filters[cap.name];
+        for(const option of options){const opt=el('option',option.label+(option.active===false?' (inativa)':''));opt.value=option.id;opt.selected=Array.isArray(current)?current.includes(option.id):current===option.id;select.append(opt);}label.append(select);
       }
-      $('add-native').disabled=false;
+      $('add-native').disabled=state.legalPending && cap.name==='amparos_legais';
     }catch(error){if(seq===state.domainSeq && error.name!=='AbortError'){label.textContent='Opções indisponíveis.';$('domain-error').textContent=error.message;$('domain-error').hidden=false;}}
   } else {
     const label=el('label','Valor');let input;
     if(cap.type==='boolean'){input=el('select');for(const [value,label]of [['true','Sim'],['false','Não']]){const o=el('option',label);o.value=value;input.append(o);}}
-    else {input=el('input');input.type=cap.type==='date'?'date':cap.type==='integer'?'number':'text';if(cap.type==='decimal'){input.inputMode='decimal';input.placeholder='Ex.: 100000.00';}if(cap.type==='integer'){input.min='0';input.step='1';}}
+    else {input=el('input');input.type=cap.type==='date'?'date':cap.type==='integer'?'number':'text';if(cap.type==='decimal')input.inputMode='decimal';if(cap.input_hint)input.placeholder=cap.input_hint;if(cap.name==='codigo_ibge'){input.inputMode='numeric';input.maxLength=7;}if(cap.type==='integer'){input.min='0';input.step='1';}}
     input.id='native-value';label.append(input);area.append(label);
   }
 }
@@ -245,11 +284,14 @@ function renderSelectedOptions() {
   const area=$('selected-native');area.replaceChildren();
   for(const option of state.selected){const button=el('button',option.label+' ×','selected-option');button.type='button';button.addEventListener('click',()=>{state.selected=state.selected.filter(o=>o.id!==option.id);renderSelectedOptions();});area.append(button);}
 }
-function addNative() {
+async function addNative() {
   const cap=state.schema.capabilities.find(c=>c.name===$('native-field').value);let value;
+  if(!cap || cap.state!=='enabled' || $('add-native').disabled)return;
+  if(state.legalPending && cap.name==='amparos_legais')return;
   if(cap.type==='list'){value=$('native-options')?[...$('native-options').selectedOptions].map(o=>o.value):state.selected.map(o=>o.id);if(!value.length)return;}
+  else if(cap.type==='enum'){value=$('native-options').value;if(!value)return;}
   else {value=$('native-value').value;if(value==='')return;if(cap.type==='boolean')value=value==='true';if(cap.type==='integer')value=Number(value);}
-  state.draft.pncp_filters[cap.name]=value;renderDraftLists();
+  await setDraftFilter(cap.name,value);
 }
 function safeAnchor(label,value) {
   try{const url=new URL(value);if(!['https:','http:'].includes(url.protocol) || url.username || url.password)return null;const link=el('a',label);link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';return link;}catch{return null;}
@@ -312,8 +354,13 @@ async function init() {
   state.query=defaultQuery();
   $('search').value='';
   $('source-badge').hidden=!state.schema.demo;
-  for(const cap of state.schema.capabilities.filter(c=>!c.reserved)) {
-    const option=el('option',`${nativeLabels[cap.name] || cap.name}${cap.state==='enabled'?'':' · pendente'}`);option.value=cap.name;option.disabled=cap.state!=='enabled';$('native-field').append(option);
+  for(const groupName of ['Contratação','Item','Resultado do item','Fornecedor','Contrato']) {
+    const group=el('optgroup');group.label=groupName==='Contrato'?'Contratos (indisponíveis)':groupName;
+    for(const cap of state.schema.capabilities.filter(c=>!c.reserved && c.group===groupName)) {
+      const suffix=cap.state==='unsupported_document'?' · somente contratos':cap.state==='enabled'?'':' · pendente';
+      const option=el('option',`${cap.label || cap.name}${suffix}`);option.value=cap.name;option.disabled=cap.state!=='enabled';option.title=cap.reason || cap.description;group.append(option);
+    }
+    $('native-field').append(group);
   }
   $('native-field').value='ufs';
   const tableColumns=[state.schema.columns.find(c=>c.field==='titulo'),...state.schema.columns.filter(c=>c.field!=='titulo')];
@@ -346,8 +393,8 @@ async function init() {
   $('clear-button').addEventListener('click',()=>{state.query=defaultQuery();$('search').value='';state.table.clearSort();updateCriteria();execute();});
   $('native-field').addEventListener('change',renderNativeValue);$('add-native').addEventListener('click',addNative);
   for(const [id,field]of [['draft-publication-start','data_publicacao_inicio'],['draft-publication-end','data_publicacao_fim']])$(id).addEventListener('input',()=>{const value=$(id).value;if(value)state.draft.pncp_filters[field]=value;else delete state.draft.pncp_filters[field];renderDraftLists();});
-  $('apply-filters').addEventListener('click',()=>{state.draft.q=$('draft-search').value;state.draft.status=$('draft-status').value;state.query=clone(state.draft);$('search').value=state.query.q;state.table.clearSort();$('filters-dialog').close();updateCriteria();execute();});
-  $('filters-dialog').addEventListener('close',()=>{state.domainAbort?.abort();state.suggestAbort?.abort();clearTimeout(state.suggestTimer);state.domainSeq++;state.suggestSeq++;});
+  $('apply-filters').addEventListener('click',()=>{if(state.legalPending || state.legalError)return;state.draft.q=$('draft-search').value;state.draft.status=$('draft-status').value;state.query=clone(state.draft);$('search').value=state.query.q;state.table.clearSort();$('filters-dialog').close();updateCriteria();execute();});
+  $('filters-dialog').addEventListener('close',()=>{state.domainAbort?.abort();state.suggestAbort?.abort();state.legalAbort?.abort();clearTimeout(state.suggestTimer);state.domainSeq++;state.suggestSeq++;state.legalSeq++;});
   $('details-dialog').addEventListener('close',()=>{state.detailAbort?.abort();state.detailSeq++;});
   $('export-button').addEventListener('click',exportCsv);
   $('window-warning').addEventListener('mouseenter',showWindowTooltip);

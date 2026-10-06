@@ -20,6 +20,7 @@ flowchart LR
 | [`src/server.js`](../src/server.js) | Rotas, arquivos estáticos, cabeçalhos HTTP, limite de operações, cancelamento e logs |
 | [`src/config.js`](../src/config.js) | Padrões e validação das variáveis de configuração |
 | [`src/schema.js`](../src/schema.js) e [`src/pncp-arguments.json`](../src/pncp-arguments.json) | Colunas, catálogo de argumentos, tipos e capacidades habilitadas |
+| [`src/filter-domains.js`](../src/filter-domains.js) | Provedores de domínios, listas parciais, rótulos, grupos e exemplos de entrada |
 | [`src/validation.js`](../src/validation.js) | Validação de consultas, filtros, datas, decimais e intervalos |
 | [`src/query.js`](../src/query.js) | Consulta de página, verificação de domínios, coleta para CSV e paginação dos itens |
 | [`src/pncp.js`](../src/pncp.js) | Cliente HTTPS, filas, ritmo de chamadas, tentativas, timeouts e leitura das respostas |
@@ -37,7 +38,7 @@ O servidor usa `node:http` sem framework web. Undici faz as requisições, `loss
 ## Fluxo de dados
 
 1. A interface carrega `/api/schema`, configura colunas e filtros e inicia a primeira pesquisa.
-2. `/api/query` valida o corpo, os tipos e as capacidades. Alguns filtros exigem uma consulta de domínios antes da busca.
+2. `/api/query` valida o corpo, os tipos e as capacidades. Domínios fechados são conferidos antes da busca, com `/filters` ou catálogos auxiliares; listas parciais são tratadas separadamente.
 3. O cliente limita a concorrência e o ritmo das chamadas, aplica timeouts e lê JSON preservando a precisão numérica.
 4. A busca confere o tipo documental, o total e a quantidade de registros. O adaptador produz as colunas, a identidade e os identificadores de itens.
 5. A interface aplica a resposta se ela ainda corresponder à operação atual. Pesquisa, detalhes e exportação possuem controle de cancelamento; respostas atrasadas não substituem uma consulta mais recente.

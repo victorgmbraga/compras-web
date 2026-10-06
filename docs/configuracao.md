@@ -66,6 +66,8 @@ Os limites numéricos exigem valores de pelo menos 1, exceto `PNCP_MAX_RETRIES`,
 
 A configuração amplia a lista padrão; não desativa filtros já habilitados. Nomes desconhecidos ou reservados são rejeitados. O filtro também precisa ser aplicável a `edital`; a variável não implementa suporte a outros tipos documentais.
 
+A lista padrão inclui SRP, código IBGE, instrumentos convocatórios, fontes orçamentárias, normativos e amparos legais. As capacidades publicam o provedor de domínio e a cardinalidade esperada. A ativação de um filtro com domínio fechado também exige pertencimento às opções retornadas pelo PNCP; não basta fornecer um ID com formato válido. Para países de fornecedores, a identidade utilizada pela busca ainda está em investigação, mesmo com o catálogo conectado.
+
 ## Rede e implantação
 
 Instalar dependências requer acesso ao registro npm. No modo real, o backend precisa alcançar `pncp.gov.br` por HTTPS. O navegador acessa a mesma origem da aplicação para carregar os recursos e consultar a API.

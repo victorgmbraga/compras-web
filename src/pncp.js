@@ -3,6 +3,7 @@ import { parse } from 'lossless-json';
 import { randomUUID } from 'node:crypto';
 import { AppError, assert, fail } from './errors.js';
 import { scalarText, plain, itemSituation } from './adapter.js';
+import { catalogDomains, partialDomains } from './filter-domains.js';
 
 export const delay = (ms, signal) => new Promise((resolve, reject) => {
   if (signal?.aborted) return reject(signal.reason);
@@ -44,6 +45,15 @@ export function normalizeOptions(value, domain = null) {
     }
     const s = scalarText(option); return s === null ? null : { id: s, label: s };
   }).filter(option => option && option.id !== null && option.id !== '' && (domain!=='anos' || /^\d{4}$/.test(option.id)));
+}
+export function normalizeCatalog(value) {
+  assert(Array.isArray(value), 'INVALID_UPSTREAM', 'Catálogo PNCP não retornou uma lista.',502);
+  return value.map(option=>{
+    assert(option && typeof option==='object' && !Array.isArray(option), 'INVALID_UPSTREAM', 'Opção de catálogo PNCP inválida.',502);
+    const id=scalarText(option.id),label=scalarText(option.nome);
+    assert(id && label && (option.statusAtivo===undefined || typeof option.statusAtivo==='boolean'), 'INVALID_UPSTREAM', 'Identidade, nome ou estado da opção PNCP inválido.',502);
+    return {id,label,...(option.statusAtivo===undefined?{}:{active:option.statusAtivo})};
+  });
 }
 export class PncpClient {
   constructor(config, { fetcher, logger = () => {} } = {}) {
@@ -115,7 +125,10 @@ export class PncpClient {
         if (op.signal.aborted) throw op.signal.reason;
         if (error instanceof AppError) throw error;
         if (attempt < this.config.PNCP_MAX_RETRIES) { retryDelay = 500 * 2**attempt + Math.random()*200; }
-        else fail(error.name === 'TimeoutError' || error.cause?.code?.includes('TIMEOUT') ? 'PNCP_TIMEOUT' : 'PNCP_TRANSPORT_ERROR', 'Não foi possível concluir a chamada ao PNCP.', error.name === 'TimeoutError' || error.cause?.code?.includes('TIMEOUT') ? 504 : 503, { origin:'pncp' }, true);
+        else {
+          const timeout=error.name==='TimeoutError' || typeof error.cause?.code==='string' && error.cause.code.includes('TIMEOUT');
+          fail(timeout?'PNCP_TIMEOUT':'PNCP_TRANSPORT_ERROR','Não foi possível concluir a chamada ao PNCP.',timeout?504:503,{origin:'pncp'},true);
+        }
       } finally {
         this.release(); this.lastCall = { at: new Date().toISOString(), status, elapsed_ms: Date.now()-started, endpoint: new URL(url).pathname };
         this.logger({ event:'upstream', request_id:op.id, ...this.lastCall, attempt });
@@ -132,7 +145,11 @@ export class PncpClient {
     assert(result.items.every(v => v.document_type === query.document_type), 'INVALID_UPSTREAM', 'Busca PNCP retornou document_type incompatível com o tipo solicitado.', 502, { field: 'document_type', expected_document_type: query.document_type, received_document_types: [...new Set(result.items.map(v => scalarText(v.document_type)))].slice(0,20) });
     return { items: result.items, total };
   }
-  async domains(type, normatives, op) {
+  async domains(type, normatives, op, field = null) {
+    if(Object.hasOwn(catalogDomains,field)) {
+      const result=await this.get(`${this.config.PNCP_DETAIL_BASE_URL}/${catalogDomains[field]}`,op);
+      return {filters:{[field]:normalizeCatalog(result)},warnings:[],raw:{[field]:plain(result)},partial_domains:[]};
+    }
     const params = new URLSearchParams({ tipos_documento: type }); if (normatives) params.set('normativos_base',normatives.join('|'));
     const result = await this.get(`${this.config.PNCP_SEARCH_BASE_URL}/filters?${params}`,op);
     assert(result?.filters && typeof result.filters === 'object' && !Array.isArray(result.filters), 'INVALID_UPSTREAM', 'PNCP não retornou o objeto filters.', 502);
@@ -140,7 +157,7 @@ export class PncpClient {
     const years=Array.isArray(result.filters.anos) ? result.filters.anos : result.filters.anos?.items;
     const omitted=Array.isArray(years) ? years.length-filters.anos.length : 0;
     const warnings=omitted>0 ? [{code:'INVALID_DOMAIN_OPTIONS',domain:'anos',omitted_options:omitted,message:`${omitted} opção(ões) de ano fornecida(s) pelo PNCP não atende(m) ao formato AAAA e foi(ram) omitida(s).`}] : [];
-    return { filters, warnings, raw: plain(result.filters), partial_domains: ['orgaos','unidades','municipios','fornecedores','fornecedores_subcontratados','orgaos_subrogados','unidades_subrogadas','item_unidades_medida','unidades_medida'] };
+    return { filters, warnings, raw: plain(result.filters), partial_domains: partialDomains };
   }
   async suggest(type, field, q, size, op) {
     const params = new URLSearchParams({ tipos_documento:type, campo:field, q, tam_pagina:String(size) });

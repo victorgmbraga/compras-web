@@ -26,7 +26,7 @@ A demonstração é identificada na interface e usa 64 contratações fictícias
 ## Usar a interface
 
 1. A página inicia uma pesquisa sem filtros e mostra até 100 contratações por página. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
-2. Abra **Filtros** para definir status, período de publicação, UF, órgão, unidade, município, esfera, poder, modalidade, situação, ano, valores e filtros de itens habilitados. Órgãos e unidades são selecionados pelos IDs fornecidos pelo PNCP.
+2. Abra **Filtros** para definir status, período de publicação, UF, órgão, unidade, município, código IBGE, esfera, poder, modalidade, situação, ano, SRP, instrumento convocatório, fonte orçamentária, normativo e amparo legal, valores e filtros de itens habilitados. Órgãos e unidades são selecionados pelos IDs fornecidos pelo PNCP. Os campos são agrupados por contratação, item, resultado e fornecedor; campos exclusivos de contratos têm uma indicação própria de indisponibilidade.
 3. Use a paginação para consultar outras páginas. **Atualizar** repete os últimos critérios concluídos na página atual; novos critérios começam na primeira página. **Cancelar** interrompe a pesquisa em andamento. Uma falha mantém e identifica o resultado anterior.
 4. Clique em uma contratação para ver seus dados, links e itens. Os itens são carregados automaticamente quando a fonte fornece CNPJ, ano e sequencial válidos, com quantidade, situação e valores estimados.
 5. Use **Colunas** para escolher os campos visíveis. O menu de cada coluna oferece as ações de filtro e ordenação nativas disponíveis.
@@ -74,6 +74,8 @@ Exemplo de corpo JSON para `POST /api/query`:
 ```
 
 O contrato completo, os tipos dos filtros e os formatos das respostas estão em [Consultas ao PNCP](docs/consultas-pncp.md). `/api/health` verifica o processo; para confirmar o acesso ao PNCP, execute também uma pesquisa.
+
+A configuração padrão habilita 23 filtros. Outros 48 filtros de contratações dependem de validação do efeito remoto; nove pertencem exclusivamente a contratos. O [planejamento dos filtros](docs/viabilidade-filtros-pncp.md) descreve os critérios de liberação e as próximas etapas. Ao alterar o normativo legal, a interface confere os amparos selecionados e remove os incompatíveis antes de aplicar a pesquisa.
 
 ## Distribuir e publicar
 

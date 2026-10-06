@@ -18,6 +18,7 @@ export function validateFilters(filters, config) {
   for (const [name, value] of Object.entries(filters)) {
     assert(!reserved.includes(name), 'RESERVED_PARAMETER', `${name} é reservado ao adaptador.`);
     const cap = map[name];
+    assert(cap.documents.includes('edital'),'DOCUMENT_FILTER_UNAVAILABLE',`Filtro ${name} não está disponível para contratações.`,409,{field:name,reason:cap.reason});
     assert(cap.state === 'enabled' && cap.documents.includes('edital'), 'CAPABILITY_PENDING', `Filtro ${name} ainda não validado para contratações.`, 409, { field: name, reason: cap.reason });
     if (cap.type === 'list') {
       assert(Array.isArray(value) && value.length >= 1 && value.length <= 100 && value.every(v => typeof v === 'string' && v.length > 0 && v.length <= 256 && !v.includes('|') && !/[\u0000-\u001f]/u.test(v)), 'INVALID_TYPE', `${name} exige lista de strings, sem pipe.`);
@@ -26,6 +27,8 @@ export function validateFilters(filters, config) {
       if (name === 'poderes') assert(value.every(v => ['E','L','J','N'].includes(v)), 'INVALID_DOMAIN', 'Poder inválido.');
       if (name === 'anos') assert(value.every(v => /^\d{4}$/.test(v)), 'INVALID_DOMAIN', 'Ano inválido.');
       if (!['ufs', 'esferas', 'poderes', 'anos', 'unidades_medida'].includes(name)) assert(value.every(v => /^\d+$/.test(v)), 'INVALID_DOMAIN', `${name} exige IDs do domínio, não nomes ou códigos administrativos.`);
+    } else if (cap.type === 'enum') {
+      assert(typeof value==='string' && (name==='tipos_item' ? ['S','M'].includes(value) : /^\d+$/.test(value)), 'INVALID_DOMAIN', `${name} exige uma única opção do domínio.`);
     } else if (cap.type === 'boolean') assert(typeof value === 'boolean', 'INVALID_TYPE', `${name} exige booleano.`);
     else if (cap.type === 'date') assert(validDate(value), 'INVALID_DATE', `${name} exige data real AAAA-MM-DD.`);
     else if (cap.type === 'decimal') assert(validDecimal(value), 'INVALID_DECIMAL', `${name} exige decimal como string com ponto.`);

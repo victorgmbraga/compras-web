@@ -2,18 +2,20 @@ import { assert } from './errors.js';
 import { validateQuery } from './validation.js';
 import { project, identity, plain } from './adapter.js';
 import { operation } from './pncp.js';
-import { columns, domainAliases } from './schema.js';
+import { columns, capabilities } from './schema.js';
 
 export class QueryService {
   constructor(config, client) { this.config=config; this.client=client; }
   async verifyDomains(query, op) {
-    const short=Object.keys(query.pncp_filters).filter(k=>['modalidades','situacoes','tipos','normativos_base','amparos_legais','situacoes_item','beneficios','categorias_leilao','situacoes_resultado'].includes(k));
+    const short=capabilities(this.config).filter(c=>c.domain_kind==='closed' && Object.hasOwn(query.pncp_filters,c.name));
     if(!short.length)return;
-    const domains=await this.client.domains(query.document_type,query.pncp_filters.normativos_base,op);
-    for(const key of short) {
-      const options=domains.filters[domainAliases[key] || key];
+    const search=short.some(c=>c.domain_source==='search') ? await this.client.domains(query.document_type,query.pncp_filters.normativos_base,op) : null;
+    for(const cap of short) {
+      const key=cap.name,domains=cap.domain_source==='catalog' ? await this.client.domains(query.document_type,null,op,key) : search;
+      const options=domains.filters[cap.domain];
       assert(options?.length,'DOMAIN_UNAVAILABLE',`PNCP não forneceu o domínio necessário para ${key}.`,409);
-      assert(query.pncp_filters[key].every(v=>options.some(o=>o.id===v)),'INVALID_DOMAIN',`ID inválido no domínio ${key}.`);
+      const values=cap.cardinality==='single' ? [query.pncp_filters[key]] : query.pncp_filters[key];
+      assert(values.every(v=>options.some(o=>o.id===v)),'INVALID_DOMAIN',`ID inválido no domínio ${key}.`);
     }
   }
   async collect(query, op) {
@@ -69,7 +71,7 @@ export class QueryService {
       return {csv:Buffer.from(chunks.join(''),'utf8'),metadata:result};
     }finally{op.finish();}
   }
-  async domains(type,normatives,signal,requestId) {const op=operation(this.config,signal,requestId);try{return {...await this.client.domains(type,normatives,op),request_id:op.id,queried_at:new Date().toISOString()};}finally{op.finish();}}
+  async domains(type,normatives,signal,requestId,field=null) {const op=operation(this.config,signal,requestId);try{return {...await this.client.domains(type,normatives,op,field),request_id:op.id,queried_at:new Date().toISOString()};}finally{op.finish();}}
   async suggest(type,field,q,size,signal,requestId) {const op=operation(this.config,signal,requestId);try{return {...await this.client.suggest(type,field,q,size,op),request_id:op.id,queried_at:new Date().toISOString()};}finally{op.finish();}}
   async details(purchase,page,size,signal,requestId) {
     const op=operation(this.config,signal,requestId);

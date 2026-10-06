@@ -51,13 +51,14 @@ export function createApplication(config,{fetcher,logger=()=>{},liveReload=false
           res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="compras-${config.DEMO_MODE?'demo':'pncp'}-${stamp}.csv"`,'X-PNCP-Started-At':metadata.started_at,'X-PNCP-Finished-At':metadata.finished_at,'X-PNCP-Source-Total':String(metadata.source_total),'X-Exported-Rows':String(metadata.data.length),'X-Snapshot-Guaranteed':'false','Content-Length':csv.byteLength});return res.end(csv);
         }
         if(url.pathname==='/api/pncp/filters' && req.method==='GET') {
-          getParams(url,['tipos_documento','normativos_base']);const norm=url.searchParams.get('normativos_base');
+          getParams(url,['tipos_documento','normativos_base','campo']);const norm=url.searchParams.get('normativos_base'),field=url.searchParams.get('campo');
+          assert(!field || capabilities(config).some(c=>!c.reserved && c.name===field && c.domain && c.documents.includes('edital')),'INVALID_DOMAIN_FIELD','Campo de domínio não disponível para contratações.');
           assert(!norm || /^\d+(?:\|\d+)*$/.test(norm),'INVALID_DOMAIN','Normativos devem ser IDs separados por pipe.');
-          return json(res,200,await service.domains(documentType(url),norm?.split('|'),controller.signal,id));
+          return json(res,200,await service.domains(documentType(url),norm?.split('|'),controller.signal,id,field));
         }
         if(url.pathname==='/api/pncp/suggest' && req.method==='GET') {
           getParams(url,['tipos_documento','campo','q','tam_pagina']);const field=url.searchParams.get('campo'),q=url.searchParams.get('q'),size=Number(url.searchParams.get('tam_pagina') ?? 20);
-          assert(capabilities(config).some(c=>!c.reserved && c.name===field && c.state==='enabled' && c.type==='list'),'INVALID_SUGGEST_FIELD','Campo de sugestão não habilitado.');
+          assert(capabilities(config).some(c=>!c.reserved && c.name===field && c.state==='enabled' && c.domain_kind==='suggest'),'INVALID_SUGGEST_FIELD','Campo de sugestão não habilitado.');
           assert(typeof q==='string' && q.length>=3 && q.length<=128 && Number.isSafeInteger(size) && size>=1 && size<=20,'INVALID_SUGGEST','Sugestões exigem 3–128 caracteres e tamanho de 1–20.');
           return json(res,200,await service.suggest(documentType(url),field,q,size,controller.signal,id));
         }

@@ -16,6 +16,7 @@ O comando usa `node --test --test-concurrency=1 test/*.test.js`. A suíte cobre:
 - Quantidade, paginação, campos e falhas dos itens.
 - Cancelamento, timeouts, tentativas e orçamentos de recursos.
 - Handlers da interface com DOM mínimo, controle de respostas atrasadas e recuperação de erros.
+- Filtros documentais, enumerações singulares, catálogos auxiliares, domínios parciais e reconciliação de normativos/amparos.
 - Reinício e recarga automática no desenvolvimento.
 
 As respostas externas são sintéticas. A suíte verifica o comportamento da aplicação, mas não comprova disponibilidade do PNCP nem a renderização completa em navegador. O script `test/ui-smoke.mjs` é uma verificação separada.
@@ -71,18 +72,20 @@ npm run benchmark:demo
 
 O comando escreve um JSON na saída com duração, quantidade de linhas, chamadas, tamanho do CSV e memória RSS para pesquisa, paginação e exportação. Ele usa fonte sintética e ritmo de chamadas elevado para medir processamento local. Não representa latência ou capacidade do PNCP. Guarde saídas e capturas fora dos arquivos versionados de documentação.
 
-## Situação verificada e limitações abertas
+## Situação verificada e alcance
 
 Revisão atual: 6 de outubro de 2026, Linux, Node.js 24.19.0.
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm test` | 70 testes passaram, sem falhas ou testes ignorados |
+| `npm test` | 86 testes passaram, sem falhas ou testes ignorados |
 | Build e distribuição em demonstração | Build concluído; saúde, esquema, arquivos estáticos, pesquisa, filtros, sugestões, itens e CSV verificados |
 | Pesquisa real por `firewall`, tamanho 10 | HTTP 200, fonte `pncp` e dez documentos |
 | Benchmark de demonstração | Pesquisa, paginação e exportação concluídas |
-| Teste de navegador com Playwright 1.58.2 e Chromium do ambiente | 16 verificações passaram; execução interrompida por seletor ambíguo |
+| Teste de navegador com Playwright 1.58.2 e Chromium do ambiente | 27 verificações passaram, incluindo SRP, IBGE, reconciliação legal e responsividade; sem erros JavaScript não tratados |
+| Novos filtros na fonte real | Sondagens válidas conferiram os campos de dez documentos por resposta para os seis novos filtros |
+| Catálogos pela API da aplicação | Países, portes e naturezas jurídicas responderam HTTP 200 |
 
-O teste de navegador usa `#filters-dialog .close-dialog`, que encontra os botões **Fechar** e **Cancelar**. O clique falha por ambiguidade em modo estrito. Isso é uma pendência do teste; os cenários seguintes, incluindo o bloco de responsividade, não foram validados nessa execução.
+Os filtros documentais liberados possuem testes de valores únicos e múltiplos, booleanos, formato IBGE, pertencimento a domínios, consulta e CSV. A dependência legal tem testes de preservação e remoção de amparos, bloqueio durante a conferência, falha, repetição e descarte de respostas atrasadas. Há também testes de códigos de transporte numéricos para que uma falha de proxy seja apresentada como erro de transporte.
 
-Há também uma limitação no diagnóstico de transporte em [`src/pncp.js`](../src/pncp.js): o tratamento de exceções chama `.includes()` em `error.cause.code` sem conferir se é string. Códigos numéricos, como os observados em uma recusa CONNECT do proxy, podem resultar em `INTERNAL_ERROR` HTTP 500 e ocultar o erro de transporte original. Para investigar, use `request_id` e os eventos `upstream` e `operation_error`; um healthcheck positivo não descarta essa falha.
+As respostas do PNCP foram intermitentes: depois das sondagens válidas, várias consultas pela API da aplicação receberam indisponibilidade ou timeout, inclusive com critérios mais restritos. Os testes sintéticos não garantem disponibilidade contínua nem todas as combinações possíveis na fonte. O [planejamento dos filtros](viabilidade-filtros-pncp.md) registra os campos e valores conferidos e o que ainda precisa ser comprovado.
