@@ -46,6 +46,13 @@ function showWindowTooltip() {
   const top=above>=gap?above:Math.min(anchor.bottom+gap,window.innerHeight-box.height-gap);
   tooltip.style.left=`${left}px`;tooltip.style.top=`${Math.max(gap,top)}px`;
 }
+function updateExportButton() {
+  const busy=!!state.exportAbort;
+  $('export-button').disabled=busy || !['success','empty'].includes(state.status);
+  $('export-button').setAttribute('aria-busy',String(busy));
+  $('export-button').title=busy?'Consultando e gerando CSV…':'Exportar CSV';
+  $('export-button').setAttribute('aria-label',busy?'Gerando CSV':'Exportar CSV');
+}
 function status(value,query=state.query) {
   state.status=value;
   const busy=value==='loading';
@@ -56,9 +63,9 @@ function status(value,query=state.query) {
     $('table-loader-title').textContent=query.page>1?`Carregando página ${fmtInt(query.page)}`:state.lastResult?'Atualizando contratações':'Carregando contratações';
     $('table-loader-message').textContent='Consultando o PNCP. Aguarde um instante.';
   }
-  $('cancel-button').hidden=!busy;$('retry-button').hidden=value!=='error';
+  $('search-button').hidden=busy;$('cancel-button').hidden=!busy;$('retry-button').hidden=value!=='error';
   $('refresh-button').disabled=!state.lastQuery || busy;
-  $('export-button').disabled=!['success','empty'].includes(value);
+  updateExportButton();
   $('search-button').disabled=false;
 }
 function openDialog(id) { const dialog=$(id);if(!dialog.open)dialog.showModal(); }
@@ -136,7 +143,7 @@ async function requestTable(url,config,params) {
   if(!state.query)return {data:[],last_page:1,last_row:0};
   const query=clone(state.query);
   query.page=Number(params.page || 1);query.size=TABLE_PAGE_SIZE;
-  state.abort?.abort();state.exportAbort?.abort();state.exportSeq++;
+  state.abort?.abort();state.exportAbort?.abort();state.exportSeq++;state.exportAbort=null;
   const seq=++state.seq;const controller=new AbortController();state.abort=controller;status('loading',query);
   notice('');
   try {
@@ -288,17 +295,17 @@ async function openDetails(doc) {
   if(doc._purchase)await itemPage(1);
 }
 async function exportCsv() {
-  if(!state.lastQuery || !['success','empty'].includes(state.status))return;
+  if(!state.lastQuery || state.exportAbort || !['success','empty'].includes(state.status))return;
   const query=clone(state.lastQuery);
-  const seq=++state.exportSeq;state.exportAbort?.abort();const controller=new AbortController();state.exportAbort=controller;
-  $('download-csv').disabled=true;$('download-csv').textContent='Consultando e gerando…';$('export-error').hidden=true;
+  const seq=++state.exportSeq;const controller=new AbortController();state.exportAbort=controller;
+  updateExportButton();notice('Consultando o PNCP e gerando CSV dos últimos critérios concluídos. Os dados podem diferir da tabela.');
   try {
     const response=await api('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query}),signal:controller.signal});
     const blob=await response.blob();if(seq!==state.exportSeq)return;
     const href=URL.createObjectURL(blob),link=el('a');link.href=href;link.download=response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || 'compras-pncp.csv';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(href),10000);
-    $('export-dialog').close();notice(`${response.headers.get('x-exported-rows')} linhas exportadas. Nova coleta de ${time(response.headers.get('x-pncp-started-at'))} a ${time(response.headers.get('x-pncp-finished-at'))}.`);
-  }catch(error){if(seq===state.exportSeq && error.name!=='AbortError'){$('export-error').textContent=error.message;$('export-error').hidden=false;}}
-  finally{if(seq===state.exportSeq){$('download-csv').disabled=false;$('download-csv').textContent='Gerar CSV completo';state.exportAbort=null;}}
+    notice(`${response.headers.get('x-exported-rows')} linhas exportadas. Nova coleta de ${time(response.headers.get('x-pncp-started-at'))} a ${time(response.headers.get('x-pncp-finished-at'))}.`);
+  }catch(error){if(seq===state.exportSeq && error.name!=='AbortError')notice(`Falha ao exportar CSV: ${error.message}${error.code?' ['+error.code+']':''}`,'error');}
+  finally{if(seq===state.exportSeq){state.exportAbort=null;updateExportButton();}}
 }
 async function init() {
   state.schema=await (await api('/api/schema')).json();
@@ -342,9 +349,7 @@ async function init() {
   $('apply-filters').addEventListener('click',()=>{state.draft.q=$('draft-search').value;state.draft.status=$('draft-status').value;state.query=clone(state.draft);$('search').value=state.query.q;state.table.clearSort();$('filters-dialog').close();updateCriteria();execute();});
   $('filters-dialog').addEventListener('close',()=>{state.domainAbort?.abort();state.suggestAbort?.abort();clearTimeout(state.suggestTimer);state.domainSeq++;state.suggestSeq++;});
   $('details-dialog').addEventListener('close',()=>{state.detailAbort?.abort();state.detailSeq++;});
-  $('export-dialog').addEventListener('close',()=>{state.exportAbort?.abort();state.exportSeq++;});
-  $('export-button').addEventListener('click',()=>{if(!state.lastQuery)return;$('export-error').hidden=true;$('download-csv').disabled=false;$('download-csv').textContent='Gerar CSV completo';openDialog('export-dialog');});
-  $('download-csv').addEventListener('click',exportCsv);
+  $('export-button').addEventListener('click',exportCsv);
   $('window-warning').addEventListener('mouseenter',showWindowTooltip);
   $('window-warning').addEventListener('mouseleave',hideWindowTooltip);
   $('window-warning').addEventListener('focus',showWindowTooltip);

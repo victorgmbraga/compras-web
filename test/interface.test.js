@@ -13,11 +13,12 @@ import { project } from '../src/adapter.js';
 // Execute the actual app handlers with a minimal DOM and Tabulator adapter.
 // These tests verify query state and requests, not browser rendering.
 async function interfaceFixture(options={}) {
-  const nodes=new Map(),all=[],pending=[];
+  const nodes=new Map(),all=[],pending=[],downloads=[];
   class Element {
     constructor(tag='div'){this.tagName=tag;this.children=[];this.listeners={};this.dataset={};this.value='';this.hidden=false;this.open=false;this.classList={add(){},toggle(){},contains(){return false;}};all.push(this);}
     set id(value){this._id=value;nodes.set(value,this);}get id(){return this._id;}
     append(...children){this.children.push(...children);}replaceChildren(...children){this.children=children;}
+    click(){if(this.tagName==='a')downloads.push({href:this.href,filename:this.download});}remove(){}
     addEventListener(name,fn){(this.listeners[name]??=[]).push(fn);}
     async fire(name){for(const fn of this.listeners[name] || [])await fn({target:this,preventDefault(){}});await settle();await Promise.allSettled(pending);await settle();}
     setAttribute(name,value){(this.attributes??={})[name]=String(value);}getAttribute(name){return this.attributes?.[name] ?? null;}querySelectorAll(){return [];}showModal(){this.open=true;}
@@ -25,16 +26,22 @@ async function interfaceFixture(options={}) {
   }
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
   for(const match of html.matchAll(/<([a-z]+)[^>]*\bid="([^"]+)"[^>]*>/g)){const node=new Element(match[1]);node.id=match[2];node.hidden=match[0].includes(' hidden');}
-  const dom={getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),createTextNode:text=>text,addEventListener(){},querySelectorAll:selector=>selector==='dialog'?all.filter(n=>n.tagName==='dialog'):[],querySelector(){return null;}};
+  const dom={body:new Element('body'),getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),createTextNode:text=>text,addEventListener(){},querySelectorAll:selector=>selector==='dialog'?all.filter(n=>n.tagName==='dialog'):[],querySelector(){return null;}};
   const cfg=config({DEMO_MODE:true});
-  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[];
-  const queryHandler=options.queryHandler;
+  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[],exportRequests=[];
+  const queryHandler=options.queryHandler,exportHandler=options.exportHandler;
   let detailFailures=options.detailFailures || 0;
   const fetcher=async(url,options={})=>{
     try{
       if(url==='/api/schema')return Response.json(schema(cfg));
       if(url.startsWith('/api/pncp/filters'))return Response.json(await backend.domains('edital'));
       if(url==='/api/query'){const input=JSON.parse(options.body);requests.push(input);if(queryHandler)return await queryHandler(input,options,backend);return Response.json(await backend.execute(input,options.signal));}
+      if(url==='/api/export') {
+        const input=JSON.parse(options.body);exportRequests.push(input);
+        if(exportHandler)return await exportHandler(input,options,backend);
+        const result=await backend.export(input.query,options.signal);
+        return new Response(result.csv,{headers:{'Content-Type':'text/csv','Content-Disposition':'attachment; filename="compras-demo.csv"','X-Exported-Rows':String(result.metadata.data.length),'X-PNCP-Started-At':result.metadata.started_at,'X-PNCP-Finished-At':result.metadata.finished_at}});
+      }
       if(url.startsWith('/api/contratacoes/')){
         itemRequests.push(url);if(detailFailures-->0)return Response.json({error:{code:'PNCP_HTTP_ERROR',message:'Falha temporária dos itens.'}},{status:503});
         const [,cnpj,ano,sequencial]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/itens/),params=new URL(url,'http://localhost').searchParams;
@@ -57,7 +64,7 @@ async function interfaceFixture(options={}) {
   const tableColumns=()=>JSON.parse(vm.runInContext('JSON.stringify(state.table.options.columns)',context));
   const request=params=>vm.runInContext('requestTable',context)('/api/query',{},params);
   const footer=()=>vm.runInContext('state.table.options.paginationCounter',context)();
-  return {nodes,all,requests,itemRequests,state,openDocument,tableColumns,request,footer,buildTable};
+  return {nodes,all,requests,itemRequests,exportRequests,downloads,state,openDocument,tableColumns,request,footer,buildTable};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
 
@@ -65,6 +72,7 @@ test('HEADER-UI-01: ordenação e todas as ações dos resultados ficam no cabe�
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
   const header=html.match(/<header\b[^>]*id="app-header"[^>]*>([\s\S]*?)<\/header>/)?.[1];
   assert.ok(header);assert.match(header,/class="header-toolbar"/);
+  assert.match(header,/id="search-button">Pesquisar<\/button>\s*<button type="button" class="button danger search-action" id="cancel-button" hidden>Cancelar<\/button>/);
   assert.doesNotMatch(html,/class="result-toolbar"/);
   assert.match(header, /id="filters-button"[\s\S]*?<\/button>\s*<button type="button" class="button" id="clear-button" hidden>Limpar filtros<\/button>/);
   for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button']) {
@@ -82,6 +90,49 @@ test('HEADER-UI-02: atualizar, colunas e exportar usam somente ícones com nomes
     assert.match(button[2],/^<svg\b[^>]*aria-hidden="true"[^>]*>[\s\S]*<\/svg>$/);
     assert.equal(button[2].replace(/<[^>]+>/g,''),'');
   }
+});
+
+test('EXPORT-UI-01: um clique baixa o CSV dos últimos critérios concluídos sem modal',async()=>{
+  const ui=await interfaceFixture();ui.nodes.get('search').value='firewall';await ui.nodes.get('search-form').fire('submit');
+  const completed=ui.state();ui.nodes.get('search').value='texto ainda não pesquisado';
+  await ui.nodes.get('export-button').fire('click');
+  assert.equal(ui.nodes.has('export-dialog'),false);assert.equal(ui.nodes.has('download-csv'),false);
+  assert.equal(ui.exportRequests.length,1);assert.deepEqual(ui.exportRequests[0],{query:completed});
+  assert.equal(ui.downloads.length,1);assert.equal(ui.downloads[0].filename,'compras-demo.csv');
+  assert.match(ui.nodes.get('notice').textContent,/6 linhas exportadas/);
+  assert.equal(ui.nodes.get('export-button').disabled,false);assert.equal(ui.nodes.get('export-button').getAttribute('aria-busy'),'false');
+});
+
+test('EXPORT-UI-02: geração desabilita o botão e impede exportações duplicadas',async()=>{
+  let finish;
+  const ui=await interfaceFixture({exportHandler:(input,options,backend)=>new Promise(resolve=>{finish=async()=>{
+    const result=await backend.export(input.query,options.signal);
+    resolve(new Response(result.csv,{headers:{'X-Exported-Rows':'64','X-PNCP-Started-At':result.metadata.started_at,'X-PNCP-Finished-At':result.metadata.finished_at}}));
+  };})});
+  const exporting=ui.nodes.get('export-button').fire('click');await settle();
+  assert.equal(ui.nodes.get('export-button').disabled,true);assert.equal(ui.nodes.get('export-button').getAttribute('aria-busy'),'true');
+  assert.match(ui.nodes.get('notice').textContent,/gerando CSV/);
+  await ui.nodes.get('export-button').fire('click');assert.equal(ui.exportRequests.length,1);
+  await finish();await exporting;assert.equal(ui.downloads.length,1);assert.equal(ui.nodes.get('export-button').disabled,false);
+  assert.equal(ui.nodes.get('export-button').title,'Exportar CSV');
+});
+
+test('EXPORT-UI-03: falha é exibida acima da tabela e permite tentar exportar novamente',async()=>{
+  const ui=await interfaceFixture({exportHandler:()=>Response.json({error:{code:'EXPORT_TOO_BROAD',message:'Delimite a pesquisa.'}},{status:422})});
+  await ui.nodes.get('export-button').fire('click');
+  assert.equal(ui.downloads.length,0);assert.equal(ui.nodes.get('notice').className,'notice error');
+  assert.match(ui.nodes.get('notice').textContent,/Falha ao exportar CSV: Delimite a pesquisa/);
+  assert.equal(ui.nodes.get('export-button').disabled,false);assert.equal(ui.nodes.get('export-button').getAttribute('aria-busy'),'false');
+  await ui.nodes.get('export-button').fire('click');assert.equal(ui.exportRequests.length,2);
+});
+
+test('EXPORT-UI-04: uma nova consulta cancela a exportação e descarta seu download tardio',async()=>{
+  let finish,signal;
+  const ui=await interfaceFixture({exportHandler:(input,options)=>{signal=options.signal;return new Promise(resolve=>{finish=()=>resolve(new Response('csv antigo'));});}});
+  const exporting=ui.nodes.get('export-button').fire('click');await settle();
+  await ui.request({page:1});assert.equal(signal.aborted,true);assert.equal(ui.nodes.get('export-button').disabled,false);
+  finish();await exporting;assert.equal(ui.downloads.length,0);assert.equal(ui.nodes.get('notice').hidden,true);
+  assert.equal(ui.nodes.get('export-button').getAttribute('aria-busy'),'false');
 });
 
 test('STARTUP-UI-01: abrir a aplicação consulta a primeira página sem texto ou filtros',async()=>{
@@ -158,7 +209,7 @@ test('TABLE-LOADER-01: consulta, atualização e paginação mostram loader; suc
     waiting.push({finish:async()=>{signal.removeEventListener('abort',abort);resolve(Response.json(await source.service.execute(input)));},fail:()=>{signal.removeEventListener('abort',abort);resolve(Response.json({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}},{status:503}));}});
   })});
   const loader=ui.nodes.get('table-loader'),table=ui.nodes.get('results-table'),title=ui.nodes.get('table-loader-title');
-  const busy=value=>{assert.equal(loader.hidden,!value);assert.equal(table.inert,value);assert.equal(table.getAttribute('aria-busy'),String(value));};
+  const busy=value=>{assert.equal(loader.hidden,!value);assert.equal(table.inert,value);assert.equal(table.getAttribute('aria-busy'),String(value));assert.equal(ui.nodes.get('search-button').hidden,value);assert.equal(ui.nodes.get('cancel-button').hidden,!value);};
   busy(false);
   const initial=ui.buildTable();await settle();busy(true);assert.equal(title.textContent,'Carregando contratações');assert.equal(ui.nodes.get('cancel-button').hidden,false);
   await waiting[0].finish();await initial;busy(false);
@@ -182,8 +233,10 @@ test('TABLE-LOADER-02: resposta antiga não oculta o loader da consulta mais rec
   const latest=ui.request({page:1});await settle();
   await waiting[0]();assert.equal((await first).name,'AbortError');
   assert.equal(ui.nodes.get('table-loader').hidden,false);assert.equal(ui.nodes.get('results-table').inert,true);
+  assert.equal(ui.nodes.get('search-button').hidden,true);assert.equal(ui.nodes.get('cancel-button').hidden,false);
   await waiting[1]();await latest;
   assert.equal(ui.nodes.get('table-loader').hidden,true);assert.equal(ui.nodes.get('results-table').inert,false);
+  assert.equal(ui.nodes.get('search-button').hidden,false);assert.equal(ui.nodes.get('cancel-button').hidden,true);
 });
 
 test('FILTERS-UI-01: aplicar texto, período e status envia apenas critérios nativos',async()=>{

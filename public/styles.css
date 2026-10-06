@@ -41,6 +41,7 @@ p{line-height:1.55}
 .topbar .button{min-height:36px;padding:7px 12px;font-size:.8125rem;border-radius:6px;flex-shrink:0}
 .topbar .button.icon-only{width:36px;height:36px;padding:0}
 .search-row .button.primary{padding-left:16px;padding-right:16px}
+.search-row .search-action{width:100px}
 .search-row .button svg{width:18px;height:18px}
 .search-field{display:flex;align-items:center;background:white;border:1px solid #c7d5e4;border-radius:6px;flex:1;min-width:0;padding:0 10px;gap:8px;box-shadow:0 1px 2px #133d6807}
 .search-field:focus-within{border-color:var(--focus);box-shadow:0 0 0 2px #137db515}
@@ -190,6 +191,7 @@ pre{background:#f2f6fa;color:#3c5871;border:1px solid #d9e4ef;border-radius:6px;
   .topbar .button{min-height:34px;padding:6px 9px;font-size:.75rem}
   .topbar .button.icon-only{width:34px;height:34px}
   .search-row .button.primary{padding-left:12px;padding-right:12px}
+  .search-row .search-action{width:88px}
   .criteria-row{gap:9px;min-height:34px}
   .criteria-row select{min-height:34px;max-width:135px}
   .filter-chip{max-width:260px}

@@ -32,7 +32,7 @@ Para desenvolvimento sem acesso ao PNCP, `npm run demo` e `npm run dev -- --demo
 - A tabela mostra o total informado pelo PNCP. Acima de 10.000 resultados, o ícone de alerta explica a janela acessível ao passar o mouse. Outros avisos e erros aparecem acima da tabela.
 - Consulta, atualização e paginação exibem o loader. **Cancelar** interrompe a requisição; uma falha preserva e identifica o resultado anterior.
 - Clique em uma contratação para consultar os detalhes e itens. A paginação usa a quantidade informada pelo PNCP; os itens mostram quantidade, valor unitário estimado e valor total estimado.
-- **Exportar CSV** consulta novamente todas as páginas dos últimos critérios concluídos, respeitando o limite configurado e a janela de 10.000 documentos. A exportação falha se houver mudança de total, duplicação ou páginas incompletas durante a coleta.
+- **Exportar CSV** inicia a geração e o download diretamente, sem confirmação. Consulta novamente todas as páginas dos últimos critérios concluídos, respeitando o limite configurado e a janela de 10.000 documentos; os dados podem diferir da tabela. A exportação falha se houver mudança de total, duplicação ou páginas incompletas durante a coleta.
 
 Consultas prontas, refinamento local, regex, categorias, agrupamento e ordenação local foram removidos. Os resultados preservam a ordem e a seleção retornadas pelo PNCP.
 
