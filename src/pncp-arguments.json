@@ -1,0 +1,524 @@
+[
+  {
+    "name": "tipos_documento",
+    "format": "texto ou lista",
+    "context": "Geral",
+    "description": "Tipos de documento: edital, ata, contrato, pcaorgao e irp. Combine tipos com o separador |."
+  },
+  {
+    "name": "q",
+    "format": "texto",
+    "context": "Geral",
+    "description": "Expressão de busca textual. Não se limita ao objeto; consulte a seção 4.4 desta especificação."
+  },
+  {
+    "name": "status",
+    "format": "texto",
+    "context": "E C A I",
+    "description": "Estado temporal da publicação. Use todos para não restringir por esse estado; outros valores dependem do tipo de documento."
+  },
+  {
+    "name": "ordenacao",
+    "format": "texto",
+    "context": "Geral",
+    "description": "Critério de ordenação. Valores oferecidos pelo portal estão na tabela de ordenação."
+  },
+  {
+    "name": "pagina",
+    "format": "inteiro",
+    "context": "Geral",
+    "description": "Página de resultados, iniciando em 1. Sem o parâmetro, a consulta começa na primeira página."
+  },
+  {
+    "name": "tam_pagina",
+    "format": "inteiro",
+    "context": "Geral",
+    "description": "Quantidade solicitada de registros por página. Padrão observado: 10. pagina × tam_pagina não pode exceder 10000."
+  },
+  {
+    "name": "total",
+    "format": "booleano",
+    "context": "Geral",
+    "description": "Modo de agregação por tipo. Com true, a resposta inclui types e top_hits e pode devolver items vazio. Não é um total informado pelo cliente."
+  },
+  {
+    "name": "anos",
+    "format": "lista",
+    "context": "Geral",
+    "description": "Anos dos documentos ou planos, por exemplo 2025|2026. Não substitui os filtros de data de publicação."
+  },
+  {
+    "name": "orgaos",
+    "format": "lista de IDs",
+    "context": "Geral",
+    "description": "IDs dos órgãos contratantes retornados em filters ou suggest. O valor enviado é o id, não o CNPJ."
+  },
+  {
+    "name": "unidades",
+    "format": "lista de IDs",
+    "context": "E C A",
+    "description": "IDs das unidades administrativas. Use id, não codigo, UASG ou nome."
+  },
+  {
+    "name": "esferas",
+    "format": "lista",
+    "context": "Geral",
+    "description": "Esferas administrativas: F, E, M, D e N. Veja os significados nos domínios."
+  },
+  {
+    "name": "poderes",
+    "format": "lista",
+    "context": "Geral",
+    "description": "Poderes: E, L, J e N. Veja os significados nos domínios."
+  },
+  {
+    "name": "ufs",
+    "format": "lista",
+    "context": "E C A",
+    "description": "Siglas das unidades da Federação, por exemplo DF|GO."
+  },
+  {
+    "name": "municipios",
+    "format": "lista de IDs",
+    "context": "E C A",
+    "description": "IDs municipais retornados pelo serviço para o tipo consultado. Foram observados IDs internos e códigos IBGE em diferentes tipos; não presuma equivalência."
+  },
+  {
+    "name": "codigo_ibge",
+    "format": "texto de 7 dígitos",
+    "context": "E C",
+    "description": "Código IBGE do município como filtro explícito, por exemplo 5300108. É diferente da seleção por municipios."
+  },
+  {
+    "name": "orgaos_subrogados",
+    "format": "lista de IDs",
+    "context": "E C",
+    "description": "IDs dos órgãos envolvidos em sub-rogação, obtidos no domínio ou nas sugestões do tipo consultado."
+  },
+  {
+    "name": "unidades_subrogadas",
+    "format": "lista de IDs",
+    "context": "E C",
+    "description": "IDs das unidades sub-rogadas. Não enviar o código da unidade em lugar do id."
+  },
+  {
+    "name": "fontes",
+    "format": "lista de IDs",
+    "context": "E C",
+    "description": "IDs dos sistemas ou plataformas que enviaram a publicação ao PNCP. Exemplo observado: 3 para Compras.gov.br."
+  },
+  {
+    "name": "fontes_orcamentarias",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Origem dos recursos orçamentários. Não confundir com a plataforma de origem selecionada em fontes."
+  },
+  {
+    "name": "modalidades",
+    "format": "lista de IDs",
+    "context": "E C A",
+    "description": "Modalidades de contratação. Exemplo: 6 para Pregão Eletrônico e 8 para Dispensa."
+  },
+  {
+    "name": "tipos",
+    "format": "lista de IDs",
+    "context": "E C A",
+    "description": "Instrumentos convocatórios da contratação. Não confundir com tipos_documento ou tipos_contrato."
+  },
+  {
+    "name": "tipos_contrato",
+    "format": "lista de IDs",
+    "context": "C",
+    "description": "Espécies de contrato ou instrumento equivalente. Exemplos observados: 1 Contrato termo inicial e 7 Empenho."
+  },
+  {
+    "name": "normativos_base",
+    "format": "lista de IDs",
+    "context": "E C",
+    "description": "IDs dos normativos que fundamentam a contratação. Exemplo observado: 1 para Lei 14.133/2021."
+  },
+  {
+    "name": "amparos_legais",
+    "format": "lista de IDs",
+    "context": "E C",
+    "description": "IDs dos dispositivos legais específicos. O catálogo pode ser restringido por normativos_base em /filters."
+  },
+  {
+    "name": "situacoes",
+    "format": "lista de IDs",
+    "context": "E C",
+    "description": "Situação administrativa da contratação vinculada: 1 Divulgada, 2 Revogada, 3 Anulada, 4 Suspensa. Não é o parâmetro status."
+  },
+  {
+    "name": "modos_disputa",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "IDs dos modos de disputa. Consultar o domínio para os nomes de cada código."
+  },
+  {
+    "name": "criterios_julgamento",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "IDs dos critérios de julgamento dos itens. Consultar os valores retornados em filters."
+  },
+  {
+    "name": "srp",
+    "format": "booleano",
+    "context": "E",
+    "description": "Indica contratação pelo Sistema de Registro de Preços."
+  },
+  {
+    "name": "indicador_orcamento_sigiloso",
+    "format": "booleano",
+    "context": "E",
+    "description": "Indica a existência de orçamento sigiloso na contratação."
+  },
+  {
+    "name": "tem_ata_registro_preco",
+    "format": "booleano",
+    "context": "E",
+    "description": "Indica contratação com ata de registro de preços vinculada."
+  },
+  {
+    "name": "tem_contrato_empenho",
+    "format": "booleano",
+    "context": "E",
+    "description": "Indica contratação com contrato ou empenho vinculado."
+  },
+  {
+    "name": "tem_nfe_contrato",
+    "format": "booleano",
+    "context": "E",
+    "description": "Indica contratação com nota fiscal eletrônica vinculada ao contrato. O formulário de editais usa este argumento."
+  },
+  {
+    "name": "possui_nfe",
+    "format": "booleano",
+    "context": "C",
+    "description": "Indica contrato ou empenho com nota fiscal eletrônica. O formulário de contratos usa este argumento."
+  },
+  {
+    "name": "exigencia_conteudo_nacional",
+    "format": "booleano",
+    "context": "E C",
+    "description": "Exigência de conteúdo nacional no registro pesquisado."
+  },
+  {
+    "name": "possui_emenda_parlamentar",
+    "format": "booleano",
+    "context": "E C",
+    "description": "Existência de emenda parlamentar vinculada ao registro pesquisado."
+  },
+  {
+    "name": "permite_adesao",
+    "format": "booleano",
+    "context": "E C",
+    "description": "Indicação de permissão de adesão informada no registro."
+  },
+  {
+    "name": "tipos_margens_preferencia",
+    "format": "ID único",
+    "context": "E C",
+    "description": "Tipo de margem de preferência. O portal oferece seleção única: 1 Resolução CIIA-PAC ou 2 Resolução CICS."
+  },
+  {
+    "name": "fornecedores",
+    "format": "lista de IDs",
+    "context": "E C",
+    "description": "IDs de fornecedores ou arrematantes. Em editais, a busca pode alcançar fornecedores de resultados; em contratos, fornecedores contratados."
+  },
+  {
+    "name": "fornecedores_subcontratados",
+    "format": "lista de IDs",
+    "context": "C",
+    "description": "IDs dos fornecedores subcontratados associados aos contratos."
+  },
+  {
+    "name": "municipios_fornecedor",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Municípios dos fornecedores nos resultados dos itens. Obter IDs nas sugestões para este campo."
+  },
+  {
+    "name": "paises_fornecedor",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Países dos fornecedores dos resultados. Obter os códigos em /api/pncp/v1/paises."
+  },
+  {
+    "name": "portes_fornecedor",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Portes dos fornecedores dos resultados. Obter os códigos em /api/pncp/v1/portes-empresa."
+  },
+  {
+    "name": "naturezas_juridicas",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Naturezas jurídicas dos fornecedores dos resultados. Obter os códigos em /api/pncp/v1/naturezas-juridicas."
+  },
+  {
+    "name": "indicador_subcontratacao",
+    "format": "booleano",
+    "context": "E",
+    "description": "Indicação de subcontratação no resultado do item."
+  },
+  {
+    "name": "data_publicacao_inicio",
+    "format": "data",
+    "context": "E C",
+    "description": "Limite inicial da data de publicação no PNCP."
+  },
+  {
+    "name": "data_publicacao_fim",
+    "format": "data",
+    "context": "E C",
+    "description": "Limite final da data de publicação no PNCP."
+  },
+  {
+    "name": "data_inicio_vigencia_inicio",
+    "format": "data",
+    "context": "C",
+    "description": "Limite inicial aplicado à data de início da vigência do contrato."
+  },
+  {
+    "name": "data_inicio_vigencia_fim",
+    "format": "data",
+    "context": "C",
+    "description": "Limite final aplicado à data de início da vigência. Não filtra a data final da vigência."
+  },
+  {
+    "name": "data_assinatura_inicio",
+    "format": "data",
+    "context": "C",
+    "description": "Limite inicial da data de assinatura do contrato."
+  },
+  {
+    "name": "data_assinatura_fim",
+    "format": "data",
+    "context": "C",
+    "description": "Limite final da data de assinatura do contrato."
+  },
+  {
+    "name": "data_homologacao_inicio",
+    "format": "data",
+    "context": "E",
+    "description": "Limite inicial da data de homologação do resultado do item."
+  },
+  {
+    "name": "data_homologacao_fim",
+    "format": "data",
+    "context": "E",
+    "description": "Limite final da data de homologação do resultado do item."
+  },
+  {
+    "name": "valor_global_min",
+    "format": "decimal",
+    "context": "C",
+    "description": "Valor global mínimo do contrato ou empenho."
+  },
+  {
+    "name": "valor_global_max",
+    "format": "decimal",
+    "context": "C",
+    "description": "Valor global máximo do contrato ou empenho."
+  },
+  {
+    "name": "valor_total_estimado_min",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor total estimado mínimo da contratação, em reais."
+  },
+  {
+    "name": "valor_total_estimado_max",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor total estimado máximo da contratação, em reais."
+  },
+  {
+    "name": "valor_total_homologado_min",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor total homologado mínimo da contratação, em reais."
+  },
+  {
+    "name": "valor_total_homologado_max",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor total homologado máximo da contratação, em reais."
+  },
+  {
+    "name": "situacoes_item",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Situações dos itens, incluindo em andamento, homologado, cancelado, deserto e fracassado. O domínio de /filters usa a chave item_situacoes."
+  },
+  {
+    "name": "tipos_item",
+    "format": "texto único",
+    "context": "E",
+    "description": "Tipo do item: M para material ou S para serviço. O portal oferece seleção única."
+  },
+  {
+    "name": "categorias_leilao",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Categorias dos itens de leilão: 1 Bens Imóveis, 2 Bens Móveis, 3 Não se aplica."
+  },
+  {
+    "name": "beneficios",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Benefícios aplicáveis aos itens, como participação exclusiva ou cota reservada para ME/EPP."
+  },
+  {
+    "name": "unidades_medida",
+    "format": "lista de textos",
+    "context": "E",
+    "description": "Unidades de medida exatamente como indexadas. Existem variações de caixa, abreviaturas e espaços; consultar suggest."
+  },
+  {
+    "name": "incentivo_produtivo_basico",
+    "format": "booleano",
+    "context": "E",
+    "description": "Indicação de incentivo produtivo básico no item."
+  },
+  {
+    "name": "aplicabilidade_margem_preferencia_normal",
+    "format": "booleano",
+    "context": "E",
+    "description": "Aplicabilidade de margem de preferência normal no item."
+  },
+  {
+    "name": "aplicabilidade_margem_preferencia_adicional",
+    "format": "booleano",
+    "context": "E",
+    "description": "Aplicabilidade de margem de preferência adicional no item."
+  },
+  {
+    "name": "item_quantidade_min",
+    "format": "decimal",
+    "context": "E",
+    "description": "Quantidade estimada mínima de um item."
+  },
+  {
+    "name": "item_quantidade_max",
+    "format": "decimal",
+    "context": "E",
+    "description": "Quantidade estimada máxima de um item."
+  },
+  {
+    "name": "item_valor_unitario_estimado_min",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor unitário estimado mínimo de um item, em reais."
+  },
+  {
+    "name": "item_valor_unitario_estimado_max",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor unitário estimado máximo de um item, em reais."
+  },
+  {
+    "name": "item_valor_total_estimado_min",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor total estimado mínimo de um item, em reais."
+  },
+  {
+    "name": "item_valor_total_estimado_max",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor total estimado máximo de um item, em reais."
+  },
+  {
+    "name": "situacoes_resultado",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Situação do resultado do item. O domínio de /filters usa a chave resultado_item_situacoes."
+  },
+  {
+    "name": "ordem_classificacao_min",
+    "format": "inteiro",
+    "context": "E",
+    "description": "Menor ordem de classificação do fornecedor ou arrematante no resultado."
+  },
+  {
+    "name": "ordem_classificacao_max",
+    "format": "inteiro",
+    "context": "E",
+    "description": "Maior ordem de classificação no resultado."
+  },
+  {
+    "name": "reservas_remanescentes",
+    "format": "lista de IDs",
+    "context": "E",
+    "description": "Categoria do resultado: 1 Não se aplica, 2 Remanescente, 3 Cadastro de reserva."
+  },
+  {
+    "name": "indicador_aplicacao_margem_preferencia",
+    "format": "booleano",
+    "context": "E",
+    "description": "Aplicação de margem de preferência no resultado do item."
+  },
+  {
+    "name": "indicador_aplicacao_beneficio_me_epp",
+    "format": "booleano",
+    "context": "E",
+    "description": "Aplicação de benefício para ME/EPP no resultado do item."
+  },
+  {
+    "name": "indicador_aplicacao_criterio_desempate",
+    "format": "booleano",
+    "context": "E",
+    "description": "Aplicação de critério de desempate no resultado do item."
+  },
+  {
+    "name": "resultado_quantidade_homologado_min",
+    "format": "decimal",
+    "context": "E",
+    "description": "Quantidade homologada mínima no resultado do item."
+  },
+  {
+    "name": "resultado_quantidade_homologado_max",
+    "format": "decimal",
+    "context": "E",
+    "description": "Quantidade homologada máxima no resultado do item."
+  },
+  {
+    "name": "resultado_valor_unitario_homologado_min",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor unitário homologado mínimo no resultado, em reais."
+  },
+  {
+    "name": "resultado_valor_unitario_homologado_max",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor unitário homologado máximo no resultado, em reais."
+  },
+  {
+    "name": "resultado_valor_total_homologado_min",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor total homologado mínimo no resultado de um item, em reais."
+  },
+  {
+    "name": "resultado_valor_total_homologado_max",
+    "format": "decimal",
+    "context": "E",
+    "description": "Valor total homologado máximo no resultado de um item, em reais."
+  },
+  {
+    "name": "resultado_percentual_desconto_min",
+    "format": "decimal",
+    "context": "E",
+    "description": "Percentual mínimo de desconto do resultado. Enviar o número sem o símbolo de porcentagem."
+  },
+  {
+    "name": "resultado_percentual_desconto_max",
+    "format": "decimal",
+    "context": "E",
+    "description": "Percentual máximo de desconto do resultado. Enviar o número sem o símbolo de porcentagem."
+  }
+]
