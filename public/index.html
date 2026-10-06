@@ -15,16 +15,17 @@
       <label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="sr-only">Busca textual no PNCP</span><input id="search" type="search" maxlength="128" placeholder="Busque por objeto, órgão ou palavras-chave" autocomplete="off"></label>
       <button type="submit" class="button primary" id="search-button">Pesquisar</button>
       <button type="button" class="button" id="filters-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10m-7 5h4"/></svg><span>Filtros</span><span id="filter-count" class="count-badge" hidden></span></button>
+      <button type="button" class="button" id="clear-button" hidden>Limpar filtros</button>
     </form>
     <span id="source-badge" class="source-badge demo" title="Demonstração · dados fictícios" hidden><span id="source-label">Demonstração · dados fictícios</span><span id="source-label-compact">Dados fictícios</span></span>
+    <div class="header-toolbar" role="group" aria-label="Ordenação e ações dos resultados">
+        <div class="criteria-row"><label class="order-label"><select id="order" aria-label="Ordenação PNCP"><option value="-data">Mais recentes</option><option value="data">Mais antigas</option><option value="relevancia">Relevância</option></select></label></div>
+        <div class="result-actions"><button id="cancel-button" class="button danger" hidden>Cancelar</button><button id="retry-button" class="button" hidden>Tentar novamente</button><button id="refresh-button" class="button icon-only" disabled aria-label="Atualizar resultados" title="Atualizar resultados"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 0 1 15.36-6.36L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.36 6.36L3 16M8 16H3v5"/></svg></button><button id="columns-button" class="button icon-only" aria-label="Selecionar colunas" title="Selecionar colunas"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg></button><button id="export-button" class="button dark icon-only" disabled aria-label="Exportar CSV" title="Exportar CSV"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg></button></div>
+    </div>
   </header>
   <main class="workspace">
     <h1 class="sr-only">Pesquisar contratações</h1>
     <section id="results-area" class="result-surface" aria-label="Resultados">
-      <div class="result-toolbar">
-        <div class="criteria-row"><label class="order-label">Ordenar <select id="order" aria-label="Ordenação PNCP"><option value="-data">Mais recentes</option><option value="data">Mais antigas</option><option value="relevancia">Relevância</option></select></label><button id="clear-button" class="text-button" hidden>Limpar critérios</button></div>
-        <div class="result-actions"><button id="cancel-button" class="button danger" hidden>Cancelar</button><button id="retry-button" class="button" hidden>Tentar novamente</button><button id="refresh-button" class="button" disabled aria-label="Atualizar resultados" title="Atualizar resultados"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M5.5 8a7 7 0 0 1 11.6-2L20 9M4 15l2.9 3A7 7 0 0 0 18.5 16"/></svg><span>Atualizar</span></button><button id="columns-button" class="button" aria-label="Selecionar colunas" title="Selecionar colunas"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg><span>Colunas</span></button><button id="export-button" class="button dark" disabled aria-label="Exportar CSV" title="Exportar CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg><span>Exportar CSV</span></button></div>
-      </div>
       <div id="native-chips" class="chip-row" aria-label="Critérios ativos"></div>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
       <div class="table-shell">

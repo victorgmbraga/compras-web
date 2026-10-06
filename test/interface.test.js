@@ -61,6 +61,29 @@ async function interfaceFixture(options={}) {
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
 
+test('HEADER-UI-01: ordenação e todas as ações dos resultados ficam no cabeçalho',async()=>{
+  const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
+  const header=html.match(/<header\b[^>]*id="app-header"[^>]*>([\s\S]*?)<\/header>/)?.[1];
+  assert.ok(header);assert.match(header,/class="header-toolbar"/);
+  assert.doesNotMatch(html,/class="result-toolbar"/);
+  assert.match(header, /id="filters-button"[\s\S]*?<\/button>\s*<button type="button" class="button" id="clear-button" hidden>Limpar filtros<\/button>/);
+  for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button']) {
+    assert.match(header,new RegExp(`id="${id}"`));
+    assert.equal([...html.matchAll(new RegExp(`id="${id}"`,'g'))].length,1);
+  }
+});
+
+test('HEADER-UI-02: atualizar, colunas e exportar usam somente ícones com nomes acessíveis',async()=>{
+  const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
+  for(const [id,label]of [['refresh-button','Atualizar resultados'],['columns-button','Selecionar colunas'],['export-button','Exportar CSV']]) {
+    const button=html.match(new RegExp(`<button id="${id}"([^>]*)>([\\s\\S]*?)<\\/button>`));
+    assert.ok(button);assert.match(button[1],/class="[^"]*\bicon-only\b/);
+    assert.match(button[1],new RegExp(`aria-label="${label}"`));assert.match(button[1],new RegExp(`title="${label}"`));
+    assert.match(button[2],/^<svg\b[^>]*aria-hidden="true"[^>]*>[\s\S]*<\/svg>$/);
+    assert.equal(button[2].replace(/<[^>]+>/g,''),'');
+  }
+});
+
 test('STARTUP-UI-01: abrir a aplicação consulta a primeira página sem texto ou filtros',async()=>{
   const ui=await interfaceFixture();assert.equal(ui.requests.length,1);
   assert.deepEqual(ui.requests[0],{

@@ -325,6 +325,7 @@ async function init() {
   for(const column of tableColumns) {
     const label=el('label',undefined,'checkbox-label'),input=el('input');input.type='checkbox';input.checked=!!column.visible;input.addEventListener('change',()=>{input.checked?state.table.showColumn(column.field):state.table.hideColumn(column.field);});label.append(input,document.createTextNode(column.title));$('column-list').append(label);
   }
+  $('app-header').addEventListener('focusin',event=>event.target.scrollIntoView({block:'nearest',inline:'nearest'}));
   $('search-form').addEventListener('submit',event=>{event.preventDefault();execute();});
   $('filters-button').addEventListener('click',()=>openFilters());$('columns-button').addEventListener('click',()=>openDialog('columns-dialog'));
   $('refresh-button').addEventListener('click',async()=>{

@@ -39,9 +39,11 @@ try {
   assert.match(await page.locator('#source-badge').innerText(),/dados fictícios/);check('Demonstração marcada e interface disponível');
   await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');check('Pesquisa inicial sem filtros executada automaticamente');
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
-  assert.equal(await page.locator('.result-toolbar .criteria-row').count(),1);
+  assert.equal(await page.locator('#app-header .header-toolbar .criteria-row').count(),1);
+  for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);
+  assert.equal(await page.locator('.result-toolbar').count(),0);
   assert.equal(await page.locator('.tabulator-footer .result-info').count(),1);
-  assert.equal(await page.locator('.source-footer').count(),0);check('Critérios na barra e informações no rodapé da tabela');
+  assert.equal(await page.locator('.source-footer').count(),0);check('Ordenação e ações no cabeçalho, informações no rodapé da tabela');
   await search('janela-ui');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='4.143.240 contratações');
   assert.match(await page.locator('.tabulator-page-counter').innerText(),/Exibindo 1-100 de\s+4\.143\.240 contratações/);
   assert.equal(await page.locator('#notice').isVisible(),false);assert(await page.locator('#window-warning').isVisible());
@@ -76,7 +78,15 @@ try {
   await search('xss-ui');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='1 contratação');assert.equal(await page.evaluate(()=>window.pwned),undefined);assert.match(await page.locator('.object-text').innerText(),/<img/);check('Marcação da fonte é exibida como texto');
   await search('');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
   if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:process.env.COMPRAS_QA_SCREENSHOT_DIR+'/desktop.png',fullPage:true});
-  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);const fit=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));assert(fit.scroll<=fit.width);await page.locator('#filters-button').click();assert(await page.locator('#filters-dialog').isVisible());await page.locator('#filters-dialog .close-dialog').click();check('Celular: controles e painéis sem overflow da página');
+  for(const width of [320,390,768,1057,1440]) {
+    await page.setViewportSize({width,height:844});await page.waitForTimeout(150);
+    const fit=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,centers:[...document.querySelectorAll('#app-header .brand,#app-header input,#app-header button,#app-header select,#source-badge')].filter(node=>node.getClientRects().length).map(node=>{const rect=node.getBoundingClientRect();return rect.top+rect.height/2;})}));
+    assert(fit.scroll<=fit.width,`Overflow da página em ${width}px`);
+    assert(Math.max(...fit.centers)-Math.min(...fit.centers)<=1,`Cabeçalho quebrou linha em ${width}px`);
+    await page.locator('#export-button').evaluate(node=>node.blur());await page.locator('#export-button').focus();
+    const focused=await page.locator('#export-button').boundingBox();assert(focused.x>=-.5 && focused.x+focused.width<=width+.5,`Exportar não ficou visível com foco em ${width}px`);
+  }
+  await page.setViewportSize({width:390,height:844});await page.locator('#filters-button').click();assert(await page.locator('#filters-dialog').isVisible());await page.locator('#filters-dialog .close-dialog').click();check('Cabeçalho em linha única com rolagem acessível e painéis sem overflow da página');
   if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:process.env.COMPRAS_QA_SCREENSHOT_DIR+'/mobile.png',fullPage:true});
   assert.deepEqual(errors,[]);check('Sem erros JavaScript não tratados');
   console.log(JSON.stringify({checks:checks.length,passed:checks,errors}));
