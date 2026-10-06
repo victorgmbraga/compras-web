@@ -40,6 +40,7 @@ export function filterPresentation(name, documents) {
   const item=name.startsWith('item_') || ['tipos_item','situacoes_item','criterios_julgamento','categorias_leilao','beneficios','unidades_medida','incentivo_produtivo_basico','aplicabilidade_margem_preferencia_normal','aplicabilidade_margem_preferencia_adicional'].includes(name);
   const supplier=['fornecedores','municipios_fornecedor','paises_fornecedor','portes_fornecedor','naturezas_juridicas'].includes(name);
   const group=!documents.includes('edital')?'Contrato':supplier?'Fornecedor':result?'Resultado do item':item?'Item':'Contratação';
-  const input_hint=name==='codigo_ibge'?'Ex.: 5300108':name.includes('percentual')?'Ex.: 5.25 (sem %)':name.includes('quantidade')?'Ex.: 10.5 (na unidade do item)':name.includes('valor')?'Ex.: 1000.50 (reais)':null;
+  const documentaryBoolean=['srp','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'].includes(name);
+  const input_hint=documentaryBoolean?'Não informado não equivale a Não. Remova este filtro para não restringir por esta condição.':name==='codigo_ibge'?'Ex.: 5300108':name.includes('percentual')?'Ex.: 5.25 (sem %)':name.includes('quantidade')?'Ex.: 10.5 (na unidade do item)':name.includes('valor')?'Ex.: 1000.50 (reais)':null;
   return {label,group,input_hint};
 }

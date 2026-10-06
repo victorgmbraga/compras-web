@@ -27,7 +27,8 @@ export const columns = [
 export const reserved = ['tipos_documento', 'q', 'status', 'ordenacao', 'pagina', 'tam_pagina', 'total'];
 // Enabled core filters are grounded in the supplied PNCP reference examples.
 // Other portal arguments are catalogued, but deliberately require verification.
-export const documentaryEnabled=['srp','codigo_ibge','tipos','normativos_base','amparos_legais','fontes_orcamentarias'];
+export const documentaryEnabled=['srp','codigo_ibge','tipos','normativos_base','amparos_legais','fontes_orcamentarias',
+  'fontes','modos_disputa','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'];
 export const initialEnabled = ['ufs', 'orgaos', 'unidades', 'municipios', 'esferas', 'poderes', 'modalidades', 'situacoes', 'situacoes_item', 'tipos_item', 'anos', 'data_publicacao_inicio', 'data_publicacao_fim', 'valor_total_estimado_min', 'valor_total_estimado_max', 'valor_total_homologado_min', 'valor_total_homologado_max',...documentaryEnabled];
 export function capabilities(config) {
   const additional = config.PNCP_VALIDATED_FILTERS.split(',').map(s => s.trim()).filter(Boolean);

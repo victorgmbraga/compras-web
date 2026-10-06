@@ -417,3 +417,41 @@ test('FILTERS-UI-09: resposta tardia de amparos não altera um novo rascunho',as
   resolve(Response.json({filters:{amparos_legais:[{id:'19',label:'Amparo'}]}}));await pending;
   assert.deepEqual(ui.draft().pncp_filters,{});assert.equal(ui.nodes.get('apply-filters').disabled,false);
 });
+
+test('FILTERS-UI-10: sistemas de origem e modos de disputa usam múltiplos IDs por padrão',async()=>{
+  const ui=await interfaceFixture();await ui.nodes.get('filters-button').fire('click');
+  for(const [name,values]of [['fontes',['3','5']],['modos_disputa',['1','2']]]){
+    const option=ui.nodes.get('native-field').children.flatMap(g=>g.children).find(o=>o.value===name);
+    assert.equal(option.disabled,false);assert(!option.textContent.includes('pendente'));
+    ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');
+    const select=ui.nodes.get('native-options');assert.equal(select.multiple,true);
+    for(const option of select.children)option.selected=values.includes(option.value);
+    await ui.nodes.get('add-native').fire('click');
+  }
+  await ui.nodes.get('apply-filters').fire('click');assert.deepEqual(ui.requests.at(-1).pncp_filters,{fontes:['3','5'],modos_disputa:['1','2']});
+  assert.equal(ui.nodes.get('result-title').textContent,'43 contratações');
+});
+
+test('FILTERS-UI-11: condições documentais preservam Não ao editar e remover filtros',async()=>{
+  const ui=await interfaceFixture(),names=['indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'];
+  await ui.nodes.get('filters-button').fire('click');
+  for(const name of names){
+    ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');
+    assert(ui.nodes.get('native-value-area').children.some(n=>n.textContent?.includes('Não informado não equivale a Não')));
+    ui.nodes.get('native-value').value='false';await ui.nodes.get('add-native').fire('click');
+    await ui.nodes.get('native-field').fire('change');assert.equal(ui.nodes.get('native-value').value,'false');
+  }
+  await ui.nodes.get('apply-filters').fire('click');assert(names.every(name=>ui.requests.at(-1).pncp_filters[name]===false));
+  assert.equal(ui.nodes.get('result-title').textContent,'16 contratações');
+  assert(ui.nodes.get('native-chips').children.every(n=>n.textContent.endsWith(': Não')));
+  await ui.nodes.get('filters-button').fire('click');assert.equal(ui.nodes.get('native-value').value,'false');
+  for(const name of names)await ui.setFilter(name,undefined);
+  await ui.nodes.get('apply-filters').fire('click');assert.deepEqual(ui.requests.at(-1).pncp_filters,{});assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');
+});
+
+test('FILTERS-UI-12: domínio indisponível impede adicionar opções de origem',async()=>{
+  const ui=await interfaceFixture({domainHandler:async()=>Response.json({error:{message:'Origem indisponível'}},{status:503})});
+  await ui.nodes.get('filters-button').fire('click');ui.nodes.get('native-field').value='fontes';await ui.nodes.get('native-field').fire('change');
+  assert.equal(ui.nodes.get('add-native').disabled,true);assert.equal(ui.nodes.get('domain-error').hidden,false);
+  await ui.nodes.get('add-native').fire('click');assert.deepEqual(ui.draft().pncp_filters,{});
+});

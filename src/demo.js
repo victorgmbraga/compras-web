@@ -21,6 +21,13 @@ export const demoDocuments = Array.from({length:64},(_,i)=>({
   esfera_id:'F',poder_id:i%4===2?'J':'E',uf:['DF','GO','DF','RJ'][i%4],municipio_nome:['Brasília','Goiânia','Brasília','Rio de Janeiro'][i%4],municipio_id:String(i%4+1),
   codigo_ibge:['5300108','5208707','5300108','3304557'][i%4],srp:i%2===0,tipo_id:i%2===0?'1':'3',
   normativo_base_id:[i%2===0?'1':'5'],amparo_legal_id:[i%2===0?(i%3===0?'19':'1'):'98'],fonte_orcamentaria_id:[i%2===0?'4':'2'],
+  usuario_id:['3','5','13'][i%3],usuario_nome:['Compras.gov.br','BLL Compras','Sistema sintético 13'][i%3],
+  modo_disputa_id:['1','2','3'][i%3],modo_disputa_nome:['Aberto','Fechado','Aberto-Fechado'][i%3],
+  indicador_orcamento_sigiloso:i%4===0?true:i%4===1?false:null,
+  tem_ata_registro_preco:i%4===0?true:i%4===1?false:null,
+  tem_contrato_empenho:i%4===0?true:i%4===1?false:null,
+  tem_nfe_contrato:i%4===0?true:i%4===1?false:null,
+  exigencia_conteudo_nacional:i%4===0?true:i%4===1?false:null,
   modalidade_licitacao_nome:'Pregão - Eletrônico',modalidade_licitacao_id:'6',situacao_id:'1',situacao_nome:'Divulgada no PNCP',
   data_publicacao_pncp:`2026-09-${String(30-i%28).padStart(2,'0')}T10:00:00`,data_atualizacao_pncp:'2026-10-01T09:00:00',
   valor_total_estimado:`${120000+i*47813}.25`,valor_total_homologado:i%3===0?`${108000+i*45342}.50`:null,
@@ -35,6 +42,8 @@ const filters={
   situacoes:options([['1','Divulgada no PNCP'],['2','Revogada'],['3','Anulada'],['4','Suspensa']]),anos:[{ano:'2026',total:64}],
   item_situacoes:options([['1','Em andamento'],['2','Homologado']]),item_tipos:options([['S','Serviço'],['M','Material']]),
   tipos:options([['1','Edital'],['3','Ato que autoriza a Contratação Direta']]),fontes_orcamentarias:options([['2','Municipal'],['4','Fonte sintética 4']]),
+  fontes:options([['3','Compras.gov.br'],['5','BLL Compras'],['13','Sistema sintético 13']]),
+  modos_disputa:options([['1','Aberto'],['2','Fechado'],['3','Aberto-Fechado'],['4','Dispensa Com Disputa'],['5','Não se aplica'],['6','Fechado-Aberto']]),
   normativos_base:options([['1','Lei 14.133/2021'],['5','Normativo sintético 5']]),
   amparos_legais:[{id:'1',nome:'Amparo sintético 1',normativo:'1'},{id:'19',nome:'Lei 14.133/2021, Art. 75, II',normativo:'1'},{id:'98',nome:'Amparo sintético 98',normativo:'5'}],
   tipos_margens_preferencia:options([['1','Resolução CIIA-PAC'],['2','Resolução CICS']]),
@@ -56,10 +65,10 @@ export function demoFetch(url) {
     result=p.get('pagina')==='1'?[{numeroItem:1,descricao:objects[index%objects.length],materialOuServico:'S',situacaoCompraItem:2,situacaoCompraItemNome:'Homologado',catalogoCodigoItem:'25852',catalogo:{id:1,nome:'Catálogo sintético de demonstração'},quantidade:'1',valorUnitarioEstimado:'120000.25',valorTotal:'120000.25',temResultado:true}]:[];
   } else {
     let docs=demoDocuments;
-    const fieldMap={ufs:'uf',orgaos:'orgao_id',unidades:'unidade_id',municipios:'municipio_id',esferas:'esfera_id',poderes:'poder_id',modalidades:'modalidade_licitacao_id',situacoes:'situacao_id',anos:'ano',tipos:'tipo_id',codigo_ibge:'codigo_ibge'};
+    const fieldMap={ufs:'uf',orgaos:'orgao_id',unidades:'unidade_id',municipios:'municipio_id',esferas:'esfera_id',poderes:'poder_id',modalidades:'modalidade_licitacao_id',situacoes:'situacao_id',anos:'ano',tipos:'tipo_id',codigo_ibge:'codigo_ibge',fontes:'usuario_id',modos_disputa:'modo_disputa_id'};
     for(const [key,field]of Object.entries(fieldMap))if(p.has(key))docs=docs.filter(d=>p.get(key).split('|').includes(d[field]));
     for(const [key,field]of Object.entries({normativos_base:'normativo_base_id',amparos_legais:'amparo_legal_id',fontes_orcamentarias:'fonte_orcamentaria_id'}))if(p.has(key))docs=docs.filter(d=>d[field].some(id=>p.get(key).split('|').includes(id)));
-    if(p.has('srp'))docs=docs.filter(d=>d.srp===(p.get('srp')==='true'));
+    for(const key of ['srp','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'])if(p.has(key))docs=docs.filter(d=>d[key]===(p.get(key)==='true'));
     if(p.has('q'))docs=docs.filter(d=>(d.description+' '+d.orgao_nome).toLowerCase().includes(p.get('q').toLowerCase()));
     if(p.has('data_publicacao_inicio'))docs=docs.filter(d=>d.data_publicacao_pncp.slice(0,10)>=p.get('data_publicacao_inicio'));
     if(p.has('data_publicacao_fim'))docs=docs.filter(d=>d.data_publicacao_pncp.slice(0,10)<=p.get('data_publicacao_fim'));

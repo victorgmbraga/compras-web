@@ -1,5 +1,6 @@
 // Optional UI verification: install Playwright and its Chromium browser first.
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { createApplication } from '../src/server.js';
 import { loadConfig } from '../src/config.js';
@@ -75,6 +76,22 @@ try {
   const srpRequest=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && r.postDataJSON().pncp_filters.srp===false);
   await page.locator('#apply-filters').click();assert.equal((await srpRequest).postDataJSON().pncp_filters.srp,false);
   await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratações');check('Filtro SRP envia false e exibe somente registros correspondentes');
+  await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
+  await page.locator('#filters-button').click();
+  for(const [name,ids]of [['fontes',['3','5']],['modos_disputa',['1','2']]]){
+    await page.locator('#native-field').selectOption(name);await page.locator('#native-options').selectOption(ids);await page.locator('#add-native').click();
+  }
+  const conditions=['indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'];
+  for(const name of conditions){await page.locator('#native-field').selectOption(name);await page.locator('#native-value').selectOption('false');await page.locator('#add-native').click();}
+  const documentaryRequest=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && r.postDataJSON().pncp_filters.fontes?.length===2);
+  await page.locator('#apply-filters').click();const documentaryFilters=(await documentaryRequest).postDataJSON().pncp_filters;
+  assert.deepEqual(documentaryFilters.fontes,['3','5']);assert.deepEqual(documentaryFilters.modos_disputa,['1','2']);assert(conditions.every(name=>documentaryFilters[name]===false));
+  await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='11 contratações');check('Origem, modo de disputa e cinco condições documentais são aplicados juntos');
+  await page.locator('#filters-button').click();
+  for(const name of conditions){await page.locator('#native-field').selectOption(name);assert.equal(await page.locator('#native-value').inputValue(),'false');}
+  await page.locator('#filters-dialog .close-dialog[aria-label="Fechar"]').click();check('Editar filtros documentais preserva Não');
+  const documentaryDownload=page.waitForEvent('download');await page.locator('#export-button').click();const exported=await documentaryDownload;
+  const documentaryCsv=await readFile(await exported.path(),'utf8');assert.equal(documentaryCsv.split('\r\n').length,13);check('CSV usa os mesmos filtros documentais e exporta todas as onze contratações');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
   await page.locator('#filters-button').click();await page.locator('#native-field').selectOption('codigo_ibge');await page.locator('#native-value').fill('5300108');await page.locator('#add-native').click();
   const ibgeRequest=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && r.postDataJSON().pncp_filters.codigo_ibge==='5300108');

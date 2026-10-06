@@ -60,7 +60,7 @@ Os arquivos do frontend e do Tabulator são servidos pelo próprio backend. O se
 - A consulta funcional habilitada é de contratações (`edital`). O catálogo de capacidades distingue filtros ativos e pendentes de verificação.
 - A janela acessível é de 10.000 documentos. O total da fonte pode ser maior; exportações acima do limite são recusadas.
 - O PNCP pode mudar entre páginas. As conferências da exportação detectam algumas inconsistências, mas `snapshot_guaranteed` permanece `false`.
-- A demonstração contém 64 documentos e implementa apenas parte do comportamento da fonte. Status temporal, relevância e filtros de itens não têm simulação equivalente à API real.
+- A demonstração contém 64 documentos e aplica os filtros documentais liberados, incluindo sistemas de origem, modos de disputa e condições booleanas, com `null` distinto de `false`. Status temporal, relevância e filtros de itens não têm simulação equivalente à API real.
 - A suíte principal usa respostas sintéticas e DOM mínimo. A disponibilidade externa e a renderização completa precisam de verificações próprias, descritas em [Validação](validacao.md).
 
 Consulte [o contrato da API](consultas-pncp.md) para formatos de entrada e saída e [o guia Railway](railway.md) para operação em hospedagem.

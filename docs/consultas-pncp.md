@@ -35,6 +35,10 @@ O servidor serializa os controles como `tipos_documento`, `q`, `status`, `ordena
 | `orgaos`, `unidades`, `municipios` | Listas de IDs numéricos como strings, obtidos dos domínios ou sugestões |
 | `codigo_ibge` | String com exatamente sete dígitos, por exemplo `"5300108"`; não é o ID de `municipios` |
 | `srp` | Booleano `true` ou `false`; omitir o filtro não restringe por SRP |
+| `indicador_orcamento_sigiloso`, `exigencia_conteudo_nacional` | Booleanos `true` ou `false` da contratação |
+| `tem_ata_registro_preco`, `tem_contrato_empenho`, `tem_nfe_contrato` | Booleanos de vínculo da contratação com ata, contrato ou empenho e nota fiscal do contrato, respectivamente |
+| `fontes` | Lista de IDs dos sistemas de origem conferidos no domínio do PNCP; corresponde a `usuario_id`, não à fonte orçamentária |
+| `modos_disputa` | Lista de IDs de modos de disputa conferidos no domínio do PNCP |
 | `tipos` | Lista de IDs de instrumentos convocatórios conferidos no domínio do PNCP |
 | `fontes_orcamentarias` | Lista de IDs conferidos no domínio do PNCP |
 | `normativos_base`, `amparos_legais` | Listas de IDs; os amparos são conferidos no domínio condicionado pelos normativos selecionados |
@@ -50,7 +54,13 @@ O servidor serializa os controles como `tipos_documento`, `q`, `status`, `ordena
 
 As listas devem conter de 1 a 100 strings; não envie nomes de órgãos no lugar dos IDs nem caracteres `|` dentro dos valores. Os intervalos devem ter início ou mínimo menor ou igual ao fim ou máximo. `status` representa o período de recebimento de propostas; `situacoes` é um filtro separado de situação da contratação.
 
-`GET /api/schema` informa `columns`, `capabilities`, `statuses`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados, 23 filtros habilitados, 48 pendentes de validação para contratações e nove exclusivos de contratos (`unsupported_document`). Um argumento catalogado não implica suporte ativo: confira `state`, `reserved`, `documents`, `type` e `domain`.
+Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false`, e não descartado. Omitir o argumento não restringe por aquela condição. Ausência de informação não é convertida em `false`; na demonstração, registros com `null` ficam fora tanto de Sim quanto de Não. `tem_nfe_contrato` é um vínculo da contratação; `possui_nfe` continua exclusivo de contratos e indisponível para `edital`. Não há exclusões automáticas de modos de disputa por modalidade: os critérios são enviados juntos à fonte.
+
+```json
+{"api_version":"2.0","document_type":"edital","q":"firewall","pncp_filters":{"fontes":["3","5"],"modos_disputa":["1","3"],"indicador_orcamento_sigiloso":false,"tem_contrato_empenho":true},"page":1,"size":10}
+```
+
+`GET /api/schema` informa `columns`, `capabilities`, `statuses`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados, 30 filtros habilitados, 41 pendentes de validação para contratações e nove exclusivos de contratos (`unsupported_document`). Um argumento catalogado não implica suporte ativo: confira `state`, `reserved`, `documents`, `type` e `domain`.
 
 Cada capacidade também informa `label`, `group`, `input_hint`, `cardinality`, `domain_source` e `domain_kind`. O tipo `enum` é singular: `tipos_item` e `tipos_margens_preferencia` usam uma string escolhida no domínio, não uma lista nem texto livre. O segundo continua pendente por padrão. Para habilitar filtros adicionais após verificar seu efeito real, consulte [PNCP_VALIDATED_FILTERS](configuracao.md#habilitar-filtros-adicionais).
 

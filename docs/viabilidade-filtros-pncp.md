@@ -4,13 +4,15 @@ Data: 6 de outubro de 2026.
 
 ## Situação da implementação
 
-O primeiro grupo está implementado: `srp`, `codigo_ibge`, `tipos`, `normativos_base`, `amparos_legais` e `fontes_orcamentarias`. A configuração padrão passa a ter **23 filtros habilitados**, **48 pendentes para edital**, **nove exclusivos de contratos** e sete argumentos reservados. Os testes exercitam a interface, a validação, a serialização, a consulta e o CSV; a demonstração também aplica esses seis filtros.
+Estão implementados `srp`, `codigo_ibge`, `tipos`, `normativos_base`, `amparos_legais`, `fontes_orcamentarias`, `fontes`, `modos_disputa`, `indicador_orcamento_sigiloso`, `tem_ata_registro_preco`, `tem_contrato_empenho`, `tem_nfe_contrato` e `exigencia_conteudo_nacional`. A configuração padrão possui **30 filtros habilitados**, **41 pendentes para edital**, **nove exclusivos de contratos** e sete argumentos reservados. Os testes exercitam a interface, a validação, a serialização, a consulta e o CSV; a demonstração também aplica esses treze filtros documentais.
 
 Os domínios fechados são conferidos antes da busca e da exportação. A interface agrupa os campos por nível, apresenta rótulos e exemplos, distingue contratos indisponíveis e reconcilia os amparos quando os normativos mudam. A conferência mantém amparos compatíveis, remove os incompatíveis com aviso e bloqueia a aplicação se a verificação falhar.
 
+A origem corresponde a `usuario_id`, distinta de fonte orçamentária. O modo de disputa corresponde a `modo_disputa_id`; os critérios são enviados ao PNCP junto da modalidade, sem deduzir restrições locais. Os booleanos preservam `false` na pesquisa, na exportação e ao reabrir os controles para edição. A demonstração inclui registros com `null`, que não são classificados como Sim ou Não. `tem_nfe_contrato` não habilita `possui_nfe`, exclusivo de contratos.
+
 Os catálogos de países, portes e naturezas jurídicas estão conectados por `GET /api/pncp/filters?campo=...`, preservando IDs e estado ativo. Seus filtros continuam pendentes. A identidade de país aceita pela busca ainda não foi definida; não houve conversão automática para o código BCB nem flexibilização dessa validação. Municípios de fornecedores estão preparados para sugestões; margem de preferência possui seleção singular com validação de domínio. Esses controles também não significam liberação automática dos filtros.
 
-### Evidência do primeiro grupo
+### Evidência de SRP, IBGE e domínios documentais
 
 As consultas abaixo usaram `q=firewall`, tipo `edital`, status `todos`, ordem `-data` e tamanho 10 no cliente HTTPS real. Foram comparados os campos de **todos os dez documentos de cada resposta válida**, em vez de concluir apenas pela variação dos totais:
 
@@ -25,13 +27,29 @@ As consultas abaixo usaram `q=firewall`, tipo `edital`, status `todos`, ordem `-
 
 Também houve acesso real aos três catálogos pela API da aplicação: 248 países, seis portes e 96 naturezas jurídicas na consulta efetuada. Nas verificações posteriores pela API, SRP retornou HTTP 200 com registros correspondentes, enquanto outras tentativas receberam erros de indisponibilidade ou timeout. Mesmo consultas mais restritas apresentaram falhas. Isso limita a confirmação de disponibilidade contínua e de todas as combinações de listas; não invalida as respostas correspondentes obtidas nas sondagens anteriores.
 
-Os próximos grupos continuam sujeitos às verificações de predicados de itens, resultados e fornecedores descritas abaixo. Leia o [contrato atualizado](consultas-pncp.md) para os controles e formatos já implementados.
+### Evidência de origem, disputa e condições documentais
+
+As sondagens válidas conferiram **todos os dez registros de cada página**, exceto exigência de conteúdo nacional com `true`, cuja resposta continha um único registro. Elas usaram tipo `edital` e tamanho 10, com texto `firewall`, `software` ou sem texto, conforme indicado:
+
+| Filtro | Valores conferidos | Campo correspondente | Contexto das respostas válidas |
+| --- | --- | --- | --- |
+| `fontes` | `3`; `3\|4`; `3\|5` | `usuario_id` | Único `3` com `software`, `todos`, `-data`; `3\|4` com `firewall`, `todos`, `-data`; `3\|5` com `firewall`, `propostas_encerradas`, `-data`, contendo registros das duas origens |
+| `modos_disputa` | `1`; `5`; `1\|3` | `modo_disputa_id` | Único `1` com `software`, `todos`, `-data`; `5` e lista com `firewall`, `todos`, `data`; a lista retornou os dois modos |
+| `indicador_orcamento_sigiloso` | `true` e `false` | Mesmo nome e booleano | `firewall`, `todos`, `-data` |
+| `tem_ata_registro_preco` | `true` e `false` | Mesmo nome e booleano | `true` com `firewall`, `todos`, `-data`; `false` com `software`, `todos`, `data`, e também sem texto, `todos`, `-data` |
+| `tem_contrato_empenho` | `true` e `false` | Mesmo nome e booleano | `true` com `software`, `todos`, `-data`; `false` com `firewall`, `todos`, `-data` |
+| `tem_nfe_contrato` | `true` e `false` | Mesmo nome e booleano | `firewall`, `todos`, `-data` |
+| `exigencia_conteudo_nacional` | `true` e `false` | Mesmo nome e booleano | `firewall`, `todos`, `-data`; controle positivo com um registro |
+
+Foram observados registros com campos booleanos ausentes ou `null` nas buscas sem aquele filtro. Não houve conversão desses valores para `false`. Os ensaios confirmam as páginas e os valores acima, sem garantir todas as combinações, estabilidade da indexação ou disponibilidade contínua. Várias tentativas retornaram HTTP 503 ou timeout, incluindo sondagens de domínios; os domínios de origem e disputa já haviam sido observados no levantamento. Pela API real da aplicação, orçamento sigiloso `false`, ata vinculada `false` e modo de disputa `5` retornaram HTTP 200 com os dez registros correspondentes. O modo fez uma consulta de domínio e uma de busca. Sistema de origem `3` recebeu HTTP 503 nessa verificação pela aplicação, embora sua busca direta tenha sido conferida nas sondagens acima.
+
+Os próximos grupos incluem emendas parlamentares e adesão, além dos predicados de itens, resultados e fornecedores descritos abaixo. Leia o [contrato atualizado](consultas-pncp.md) para os controles e formatos já implementados.
 
 ## Conclusão e escopo
 
 É viável ampliar os filtros nativos sem restaurar consultas prontas ou refinamento local. Não há evidência suficiente para habilitar todos indiscriminadamente.
 
-O levantamento inicial identificou 87 argumentos: 7 reservados, 17 filtros habilitados e **63 filtros pendentes**. A configuração local carregada com `--env-file-if-exists=.env` também apresentou 63 pendentes. Desses, **54 tinham contexto `edital`** e **9 eram exclusivos de `contrato`**, tipo documental ainda desabilitado. O estado após a primeira implementação está na seção anterior.
+O levantamento inicial identificou 87 argumentos: 7 reservados, 17 filtros habilitados e **63 filtros pendentes**. A configuração local carregada com `--env-file-if-exists=.env` também apresentou 63 pendentes. Desses, **54 tinham contexto `edital`** e **9 eram exclusivos de `contrato`**, tipo documental ainda desabilitado. O estado vigente está na seção anterior.
 
 Entre os 54 candidatos a edital há 34 escalares, 19 listas e uma enumeração singular. O transporte genérico já atende boa parte deles, mas configuração de habilitação não substitui validação de domínio e efeito remoto.
 
@@ -185,7 +203,8 @@ Adicionar esses nomes a `PNCP_VALIDATED_FILTERS` não os habilita para edital: o
 7. **Dependência legal:** implementada a reconciliação, com cancelamento de respostas anteriores, preservação de escolhas compatíveis e recuperação após falha.
 8. **Validação de domínio:** o serviço usa metadados para conferir domínios fechados da busca e catálogos auxiliares; não considera listas parciais exaustivas.
 9. **Usabilidade:** implementados grupos, rótulos, descrições, exemplos de entrada e cardinalidade dos controles.
-10. **Demo:** implementada a semântica dos seis novos filtros documentais, catálogos e dependência legal. A simulação de outros filtros continua parcial; os ensaios reais usam a fonte HTTPS.
+10. **Demo:** implementada a semântica dos treze filtros documentais liberados, catálogos e dependência legal. A simulação de outros filtros continua parcial; os ensaios reais usam a fonte HTTPS.
+11. **Origem, disputa e booleanos documentais:** liberados os sete filtros da tabela de evidências acima; emendas e adesão seguem pendentes, assim como as condições de itens/resultados que não foram comprovadas.
 
 ## Critério de habilitação e plano recomendado
 
@@ -195,7 +214,7 @@ Separar os nove exclusivos de contrato, integrar os catálogos comprovados, ajus
 
 ### 2. Validar progressivamente filtros documentais e domínios
 
-Priorizar `srp`, `codigo_ibge`, fontes, instrumentos convocatórios, normativos/amparos e modos de disputa. Obter casos conhecidos positivos e negativos, valores únicos/múltiplos e booleanos omitido/true/false. Normalizar e conferir domínios conforme suas respostas reais.
+SRP, IBGE, fontes, instrumentos convocatórios, normativos/amparos, modos de disputa e cinco condições booleanas documentais estão implementados. Para os candidatos restantes, obter casos conhecidos positivos e negativos, valores únicos/múltiplos e booleanos omitido/true/false. Normalizar e conferir domínios conforme suas respostas reais.
 
 ### 3. Validar filtros de itens e resultados
 
@@ -211,4 +230,4 @@ Não acrescentar banco, cache de resultados, presets, refinamento local ou consu
 
 ## Verificação
 
-O levantamento usou leituras, inventário programático e sondagens reais. A primeira implementação acrescenta testes de controles, domínios, catálogo, rejeição de valores inválidos, dependência legal, cancelamento e exportação. As respostas reais de busca não são persistidas como dados da aplicação. A cobertura e os resultados atuais estão em [Testes e validação](validacao.md).
+O levantamento usou leituras, inventário programático e sondagens reais. A implementação inclui testes de controles, domínios, catálogo, rejeição de valores inválidos, dependência legal, cancelamento e exportação. Origem e disputa possuem testes de seleção múltipla; os booleanos têm cobertura de ausência, `true`, `false`, edição, remoção, combinações, paginação e CSV. As respostas reais de busca não são persistidas como dados da aplicação. A cobertura e os resultados atuais estão em [Testes e validação](validacao.md).

@@ -12,10 +12,10 @@ const demo=()=>{const cfg=config({DEMO_MODE:true});return new QueryService(cfg,n
 
 test('FILTER-01: novos documentais habilitados; contratos e pendências têm estados próprios',()=>{
   const s=schema(config()),caps=s.capabilities;
-  assert.equal(caps.filter(c=>!c.reserved&&c.state==='enabled').length,23);
+  assert.equal(caps.filter(c=>!c.reserved&&c.state==='enabled').length,30);
   assert.equal(caps.filter(c=>c.state==='unsupported_document').length,9);
-  assert.equal(caps.filter(c=>c.state==='pending_validation').length,48);
-  for(const name of ['srp','codigo_ibge','tipos','normativos_base','amparos_legais','fontes_orcamentarias'])assert.equal(caps.find(c=>c.name===name).state,'enabled');
+  assert.equal(caps.filter(c=>c.state==='pending_validation').length,41);
+  for(const name of ['srp','codigo_ibge','tipos','normativos_base','amparos_legais','fontes_orcamentarias','fontes','modos_disputa','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'])assert.equal(caps.find(c=>c.name===name).state,'enabled');
   assert.equal(caps.find(c=>c.name==='paises_fornecedor').state,'pending_validation');
   for(const name of ['tipos_item','tipos_margens_preferencia']){const c=caps.find(c=>c.name===name);assert.equal(c.type,'enum');assert.equal(c.cardinality,'single');assert.equal(c.domain_kind,'closed');}
   assert.equal(caps.find(c=>c.name==='municipios_fornecedor').domain_kind,'suggest');

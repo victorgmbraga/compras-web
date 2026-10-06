@@ -78,14 +78,17 @@ Revisão atual: 6 de outubro de 2026, Linux, Node.js 24.19.0.
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm test` | 86 testes passaram, sem falhas ou testes ignorados |
+| `npm test` | 95 testes passaram, sem falhas ou testes ignorados |
 | Build e distribuição em demonstração | Build concluído; saúde, esquema, arquivos estáticos, pesquisa, filtros, sugestões, itens e CSV verificados |
 | Pesquisa real por `firewall`, tamanho 10 | HTTP 200, fonte `pncp` e dez documentos |
 | Benchmark de demonstração | Pesquisa, paginação e exportação concluídas |
-| Teste de navegador com Playwright 1.58.2 e Chromium do ambiente | 27 verificações passaram, incluindo SRP, IBGE, reconciliação legal e responsividade; sem erros JavaScript não tratados |
-| Novos filtros na fonte real | Sondagens válidas conferiram os campos de dez documentos por resposta para os seis novos filtros |
+| Teste de navegador com Playwright 1.58.2 e Chromium do ambiente | 30 verificações passaram, incluindo filtros documentais combinados, edição de Não, CSV, SRP, IBGE, reconciliação legal e responsividade; sem erros JavaScript não tratados |
+| Filtros documentais na fonte real | Sondagens válidas conferiram todos os registros das páginas para os treze filtros liberados; exigência de conteúdo nacional com `true` teve um registro, e as demais páginas tinham dez |
+| Novos filtros pela API real da aplicação | Orçamento sigiloso `false`, ata vinculada `false` e modo de disputa `5` retornaram HTTP 200 com dez registros correspondentes; sistema de origem `3` retornou HTTP 503 nessa verificação |
 | Catálogos pela API da aplicação | Países, portes e naturezas jurídicas responderam HTTP 200 |
 
 Os filtros documentais liberados possuem testes de valores únicos e múltiplos, booleanos, formato IBGE, pertencimento a domínios, consulta e CSV. A dependência legal tem testes de preservação e remoção de amparos, bloqueio durante a conferência, falha, repetição e descarte de respostas atrasadas. Há também testes de códigos de transporte numéricos para que uma falha de proxy seja apresentada como erro de transporte.
+
+Origem e modo de disputa têm testes de união de opções e validação compartilhada dos domínios antes da busca e do CSV. Orçamento sigiloso, ata vinculada, contrato/empenho vinculado, nota fiscal do contrato e conteúdo nacional distinguem omissão, `true`, `false` e `null` na demonstração. A cobertura verifica combinações, segunda página, coleta completa, rejeição de entradas inválidas e edição/remoção pela interface. O teste Chromium confirma a consulta dos sete novos filtros combinados e o download das onze contratações correspondentes.
 
 As respostas do PNCP foram intermitentes: depois das sondagens válidas, várias consultas pela API da aplicação receberam indisponibilidade ou timeout, inclusive com critérios mais restritos. Os testes sintéticos não garantem disponibilidade contínua nem todas as combinações possíveis na fonte. O [planejamento dos filtros](viabilidade-filtros-pncp.md) registra os campos e valores conferidos e o que ainda precisa ser comprovado.

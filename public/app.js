@@ -89,7 +89,7 @@ function updateCriteria() {
   $('native-chips').replaceChildren();
   for(const [key,value]of Object.entries(q.pncp_filters)) {
     const cap=state.schema.capabilities.find(c=>c.name===key),options=state.domains?.filters[cap?.domain] || [];
-    const label=Array.isArray(value)?value.map(id=>options.find(o=>o.id===id)?.label || id).join(', '):String(value);
+    const label=Array.isArray(value)?value.map(id=>options.find(o=>o.id===id)?.label || id).join(', '):typeof value==='boolean'?(value?'Sim':'Não'):String(value);
     $('native-chips').append(el('span',`${filterLabel(key)}: ${label}`,'filter-chip'));
   }
 }
@@ -273,6 +273,9 @@ async function renderNativeValue() {
     if(cap.type==='boolean'){input=el('select');for(const [value,label]of [['true','Sim'],['false','Não']]){const o=el('option',label);o.value=value;input.append(o);}}
     else {input=el('input');input.type=cap.type==='date'?'date':cap.type==='integer'?'number':'text';if(cap.type==='decimal')input.inputMode='decimal';if(cap.input_hint)input.placeholder=cap.input_hint;if(cap.name==='codigo_ibge'){input.inputMode='numeric';input.maxLength=7;}if(cap.type==='integer'){input.min='0';input.step='1';}}
     input.id='native-value';label.append(input);area.append(label);
+    const current=state.draft.pncp_filters[cap.name];
+    if(current!==undefined)input.value=String(current);
+    if(cap.type==='boolean' && cap.input_hint)area.append(el('p',cap.input_hint,'panel-note'));
   }
 }
 function showSuggestions(options) {
