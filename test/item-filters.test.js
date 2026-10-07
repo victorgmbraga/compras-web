@@ -61,11 +61,12 @@ test('ITEM-FILTER-05: aliases validam domínios reais e serializam nomes nativos
   assert(!s.requests.some(u=>u.pathname.includes('/itens')));
 });
 
-test('ITEM-FILTER-06: entradas inválidas e filtros ainda pendentes são rejeitados antes da rede',async()=>{
+test('ITEM-FILTER-06: entradas inválidas e contexto de contratos são rejeitados antes da rede',async()=>{
   const s=service([document(1)]);
   for(const name of [...itemBooleans,'possui_emenda_parlamentar'])for(const value of ['false',null,0,[]])await assert.rejects(s.service.execute(query({pncp_filters:{[name]:value}})),e=>e.code==='INVALID_TYPE');
   for(const name of ['criterios_julgamento','categorias_leilao','beneficios'])for(const value of ['1',[1],['nome'],['1|2'],[]])await assert.rejects(s.service.execute(query({pncp_filters:{[name]:value}})));
-  for(const pncp_filters of [{permite_adesao:true},{item_quantidade_min:'1'},{situacoes_resultado:['1']},{fornecedores:['1']}])await assert.rejects(s.service.execute(query({pncp_filters})),e=>e.code==='CAPABILITY_PENDING');
+  for(const pncp_filters of [{permite_adesao:'true'},{item_quantidade_min:1},{situacoes_resultado:'1'},{fornecedores:[1]}])await assert.rejects(s.service.execute(query({pncp_filters})),e=>e.code==='INVALID_TYPE' || e.code==='INVALID_DECIMAL');
+  await assert.rejects(s.service.execute(query({pncp_filters:{possui_nfe:true}})),e=>e.code==='DOCUMENT_FILTER_UNAVAILABLE');
   assert.equal(s.requests.length,0);
 });
 

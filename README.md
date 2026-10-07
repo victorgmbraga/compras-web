@@ -1,6 +1,6 @@
 # Compras Web
 
-Aplicação para pesquisar contratações públicas diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A interface usa Tabulator, e o servidor Node.js entrega tanto a página quanto a API da aplicação.
+Aplicação para pesquisar contratações e contratos públicos diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A interface usa Tabulator, e o servidor Node.js entrega tanto a página quanto a API da aplicação.
 
 Texto, filtros, ordenação e paginação são enviados ao PNCP. Cada pesquisa consulta novamente a fonte. Os resultados ficam em memória durante o uso; a aplicação não requer banco de dados nem volume persistente.
 
@@ -21,18 +21,18 @@ Para usar a aplicação sem acesso ao PNCP:
 npm run demo
 ```
 
-A demonstração é identificada na interface e usa 64 contratações fictícias. Ela é uma fonte simplificada para desenvolvimento; não reproduz todos os filtros e critérios de ordenação do PNCP. Falhas na fonte real são apresentadas como erros, sem ativar a demonstração automaticamente.
+A demonstração é identificada na interface e usa 64 contratações fictícias, com dois itens e resultados sintéticos por contratação, e 32 contratos fictícios. Ela aplica os filtros do catálogo; status de contratos usam a referência fixa de 7 de outubro de 2026, enquanto status de propostas e relevância não reproduzem a API real. Falhas na fonte real são apresentadas como erros, sem ativar a demonstração automaticamente.
 
 ## Usar a interface
 
-1. A página inicia uma pesquisa sem filtros e mostra até 100 contratações por página. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
-2. Abra **Filtros** para definir status, período de publicação, UF, órgão, unidade, município, código IBGE, esfera, poder, modalidade, modo de disputa, situação, ano, SRP, sistema de origem, instrumento convocatório, fonte orçamentária, normativo e amparo legal e valores. Também há condições de orçamento sigiloso, vínculos com atas, contratos ou empenhos, notas fiscais e emendas parlamentares, e exigência de conteúdo nacional. Nos itens, há critério de julgamento, categoria de leilão, benefício, incentivo produtivo básico e aplicabilidade de margens de preferência normal e adicional. Órgãos e unidades são selecionados pelos IDs fornecidos pelo PNCP. Os campos são agrupados por contratação, item, resultado e fornecedor; campos exclusivos de contratos têm uma indicação própria de indisponibilidade.
+1. A página inicia uma pesquisa de contratações sem filtros e mostra até 100 documentos por página. Escolha **Contratações** ou **Contratos** no cabeçalho. A troca reinicia os critérios e ajusta as colunas. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
+2. Abra **Filtros** para selecionar condições documentais, sub-rogação, itens, resultados e fornecedores. Há intervalos de quantidade, valores, classificação, homologação e desconto; catálogos de países, portes e naturezas jurídicas; e condições de adesão, benefício e preferência. Em contratos, use também tipo, nota fiscal, fornecedor subcontratado, assinatura, início de vigência e valor global. Campos de outro tipo documental ficam indisponíveis nessa seleção. Órgãos, unidades e fornecedores usam os IDs fornecidos pelo PNCP.
 3. Use a paginação para consultar outras páginas. **Atualizar** repete os últimos critérios concluídos na página atual; novos critérios começam na primeira página. **Cancelar** interrompe a pesquisa em andamento. Uma falha mantém e identifica o resultado anterior.
-4. Clique em uma contratação para ver seus dados, links e itens. Os itens são carregados automaticamente quando a fonte fornece CNPJ, ano e sequencial válidos, com quantidade, situação e valores estimados.
+4. Clique em um documento para ver seus dados e links. Em contratações, os itens são carregados automaticamente quando a fonte fornece CNPJ, ano e sequencial válidos. Em contratos, os detalhes mostram fornecedor, valor global, assinatura e vigência.
 5. Use **Colunas** para escolher os campos visíveis. O menu de cada coluna oferece as ações de filtro e ordenação nativas disponíveis.
 6. **Exportar CSV** faz uma nova coleta com os últimos critérios concluídos e inicia o download. O arquivo contém todas as colunas documentais, independentemente da seleção visual.
 
-Os 37 filtros habilitados são publicados em `/api/schema`. Nas condições Sim/Não, informação ausente não equivale a Não; remova o filtro para não restringir por essa condição. Os filtros de itens selecionam contratações, e seus detalhes continuam mostrando todos os itens. Campos que ainda exibem **pendente** continuam aguardando comprovação na fonte.
+Os **80 filtros do catálogo estão implementados**, sem filtros pendentes: 71 aplicáveis a contratações e 32 a contratos, com 23 compartilhados. `/api/schema` publica tipos, contextos, domínios e alcance da validação. Nas condições Sim/Não, informação ausente não equivale a Não. Filtros de itens e resultados selecionam contratações; os detalhes mantêm todos os itens, e condições diferentes podem corresponder a registros filhos diferentes. Tabela e CSV têm uma linha por documento.
 
 O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 10.000 documentos; acima desse valor, a interface exibe um aviso. A exportação exige que o total caiba no limite configurado: delimite a pesquisa quando necessário. Alterações na fonte entre chamadas podem fazer o CSV diferir da tabela.
 
@@ -77,7 +77,7 @@ Exemplo de corpo JSON para `POST /api/query`:
 
 O contrato completo, os tipos dos filtros e os formatos das respostas estão em [Consultas ao PNCP](docs/consultas-pncp.md). `/api/health` verifica o processo; para confirmar o acesso ao PNCP, execute também uma pesquisa.
 
-A configuração padrão habilita 37 filtros. Outros 34 filtros de contratações dependem de validação do efeito remoto; nove pertencem exclusivamente a contratos. O [planejamento dos filtros](docs/viabilidade-filtros-pncp.md) descreve os critérios de liberação e as próximas etapas. Ao alterar o normativo legal, a interface confere os amparos selecionados e remove os incompatíveis antes de aplicar a pesquisa.
+Não é necessário preencher `PNCP_VALIDATED_FILTERS` para usar o catálogo. O [guia dos filtros](docs/viabilidade-filtros-pncp.md) registra a implementação e a evidência disponível. A homologação de todas as combinações na fonte real continua limitada pela disponibilidade do PNCP. Ao alterar o normativo legal, a interface confere os amparos selecionados e remove os incompatíveis antes de aplicar a pesquisa.
 
 ## Distribuir e publicar
 

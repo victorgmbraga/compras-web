@@ -57,10 +57,10 @@ Os arquivos do frontend e do Tabulator são servidos pelo próprio backend. O se
 
 ## Alcance e limitações atuais
 
-- A consulta funcional habilitada é de contratações (`edital`). O catálogo de capacidades distingue filtros ativos e pendentes de verificação.
+- Consultas de contratações (`edital`) e contratos (`contrato`) têm projeção e colunas próprias. Os 80 filtros estão implementados; `documents` controla a compatibilidade e `validation_status` informa a evidência disponível. Atas, IRP e PCA não têm projeção implementada.
 - A janela acessível é de 10.000 documentos. O total da fonte pode ser maior; exportações acima do limite são recusadas.
 - O PNCP pode mudar entre páginas. As conferências da exportação detectam algumas inconsistências, mas `snapshot_guaranteed` permanece `false`.
-- A demonstração contém 64 documentos com dois itens por contratação e aplica os filtros documentais e os seis filtros de itens liberados. Condições booleanas distinguem `null` de `false`; os detalhes preservam os dois itens após a pesquisa. Os critérios sintéticos são independentes por condição e não demonstram correlação do mesmo item na fonte real. Status temporal e relevância continuam sem simulação equivalente à API real.
+- A demonstração contém 64 contratações com dois itens e resultados sintéticos, além de 32 contratos. Aplica todos os filtros com comparações decimais exatas e distingue `null` de `false`. Os detalhes preservam os itens e não usam o sequencial de contrato para consultar uma compra. Critérios sintéticos independentes não demonstram correlação do mesmo item/resultado na fonte real. Status temporal e relevância não têm simulação equivalente à API real.
 - A suíte principal usa respostas sintéticas e DOM mínimo. A disponibilidade externa e a renderização completa precisam de verificações próprias, descritas em [Validação](validacao.md).
 
 Consulte [o contrato da API](consultas-pncp.md) para formatos de entrada e saída e [o guia Railway](railway.md) para operação em hospedagem.

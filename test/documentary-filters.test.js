@@ -45,7 +45,7 @@ test('DOCUMENTARY-04: tipos inválidos e capacidades restantes são recusados an
   const s=service([document(1)]);
   for(const name of booleans)for(const value of ['false',0,null,[false]])await assert.rejects(s.service.execute(query({pncp_filters:{[name]:value}})),e=>e.code==='INVALID_TYPE');
   for(const name of ['fontes','modos_disputa'])for(const value of ['1',[1],['nome'],[]])await assert.rejects(s.service.execute(query({pncp_filters:{[name]:value}})));
-  await assert.rejects(s.service.execute(query({pncp_filters:{permite_adesao:true}})),e=>e.code==='CAPABILITY_PENDING');
+  await assert.rejects(s.service.execute(query({pncp_filters:{permite_adesao:'true'}})),e=>e.code==='INVALID_TYPE');
   await assert.rejects(s.service.execute(query({pncp_filters:{possui_nfe:true}})),e=>e.code==='DOCUMENT_FILTER_UNAVAILABLE');
   assert.equal(s.requests.length,0);
 });

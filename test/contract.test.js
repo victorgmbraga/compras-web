@@ -17,9 +17,9 @@ test('HTTP-01: pipe codificado uma vez; false e zero preservados',()=>{
   const q=validateQuery(query({pncp_filters:{ufs:['DF','GO'],srp:false,item_quantidade_min:'0.00',ordem_classificacao_min:0}}),cfg);
   const params=serializeSearch(q,1,10);assert.equal(params.get('ufs'),'DF|GO');assert(params.toString().includes('DF%7CGO'));assert(!params.toString().includes('%257C'));assert.equal(params.get('srp'),'false');assert.equal(params.get('item_quantidade_min'),'0.00');assert.equal(params.get('ordem_classificacao_min'),'0');assert(!params.has('total'));
 });
-test('HTTP-03: desconhecidos, reservados, pendentes e status rejeitados antes da rede',async()=>{
+test('HTTP-03: desconhecidos, reservados, tipos documentais e status rejeitados antes da rede',async()=>{
   const s=service([]);
-  for(const input of [query({extra:true}),query({status:'vigente'}),query({pncp_filters:{foo:1}}),query({pncp_filters:{total:true}}),query({pncp_filters:{permite_adesao:true}}),query({document_type:'contrato'})])await assert.rejects(s.service.execute(input),error=>error.status===400 || error.status===409);
+  for(const input of [query({extra:true}),query({status:'vigente'}),query({pncp_filters:{foo:1}}),query({pncp_filters:{total:true}}),query({pncp_filters:{permite_adesao:'true'}}),query({document_type:'ata'})])await assert.rejects(s.service.execute(input),error=>error.status===400 || error.status===409);
   assert.equal(s.requests.length,0);
 });
 test('HTTP-02: nomes não são aceitos como IDs e datas reais são verificadas',()=>{

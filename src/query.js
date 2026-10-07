@@ -2,7 +2,7 @@ import { assert } from './errors.js';
 import { validateQuery } from './validation.js';
 import { project, identity, plain } from './adapter.js';
 import { operation } from './pncp.js';
-import { columns, capabilities } from './schema.js';
+import { columnsFor, capabilities } from './schema.js';
 
 export class QueryService {
   constructor(config, client) { this.config=config; this.client=client; }
@@ -11,7 +11,7 @@ export class QueryService {
     if(!short.length)return;
     const search=short.some(c=>c.domain_source==='search') ? await this.client.domains(query.document_type,query.pncp_filters.normativos_base,op) : null;
     for(const cap of short) {
-      const key=cap.name,domains=cap.domain_source==='catalog' ? await this.client.domains(query.document_type,null,op,key) : search;
+      const key=cap.name,domains=cap.domain_source==='search' ? search : await this.client.domains(query.document_type,null,op,key);
       const options=domains.filters[cap.domain];
       assert(options?.length,'DOMAIN_UNAVAILABLE',`PNCP não forneceu o domínio necessário para ${key}.`,409);
       const values=cap.cardinality==='single' ? [query.pncp_filters[key]] : query.pncp_filters[key];
@@ -21,7 +21,7 @@ export class QueryService {
   async collect(query, op) {
     const size=this.config.PNCP_PAGE_SIZE,head=await this.client.search(query,1,size,op),limit=this.config.PNCP_MAX_EXPORT_DOCUMENTS;
     const fmt=n=>new Intl.NumberFormat('pt-BR').format(n);
-    assert(head.total<=limit && head.total<=10000,'EXPORT_TOO_BROAD',`A busca retornou ${fmt(head.total)} contratações; o limite de exportação é ${fmt(limit)}. Delimite a pesquisa por texto, período de publicação, UF ou órgão.`,422,{source_total:head.total,limit});
+    assert(head.total<=limit && head.total<=10000,'EXPORT_TOO_BROAD',`A busca retornou ${fmt(head.total)} ${query.document_type==='contrato'?'contratos':'contratações'}; o limite de exportação é ${fmt(limit)}. Delimite a pesquisa por texto, período de publicação, UF ou órgão.`,422,{source_total:head.total,limit});
     const documents=[],seen=new Set(),pages=Math.max(1,Math.ceil(head.total/size));
     for(let page=1;page<=pages;page++) {
       op.check();const current=page===1?head:await this.client.search(query,page,size,op);
@@ -50,7 +50,7 @@ export class QueryService {
     if(sourceTotal>10000)warnings.push({code:'WINDOW_LIMITED',message:'Refine a pesquisa para acessar todos os resultados. A janela acessível é de 10000 documentos.'});
     if(documents.some(d=>!d._identity))warnings.push({code:'MISSING_IDENTITY',message:'Há documentos sem identidade de negócio na página.'});
     const now=Date.now();
-    return {api_version:'2.0',source:this.config.DEMO_MODE?'demo':'pncp',demo:this.config.DEMO_MODE,request_id:op.id,data:documents,page:query.page,size:query.size,last_page:lastPage,last_row:accessible,source_total:sourceTotal,accessible_total:accessible,total:sourceTotal,window_limited:sourceTotal>10000,collection_complete:allRows,snapshot_guaranteed:false,started_at:op.started_at,finished_at:new Date(now).toISOString(),elapsed_ms:now-op.started,upstream_requests:op.requests,effective_filters:{tipos_documento:query.document_type,status:query.status,...(query.q?{q:query.q}:{}),ordenacao:query.order,...query.pncp_filters},warnings};
+    return {api_version:'2.0',document_type:query.document_type,source:this.config.DEMO_MODE?'demo':'pncp',demo:this.config.DEMO_MODE,request_id:op.id,data:documents,page:query.page,size:query.size,last_page:lastPage,last_row:accessible,source_total:sourceTotal,accessible_total:accessible,total:sourceTotal,window_limited:sourceTotal>10000,collection_complete:allRows,snapshot_guaranteed:false,started_at:op.started_at,finished_at:new Date(now).toISOString(),elapsed_ms:now-op.started,upstream_requests:op.requests,effective_filters:{tipos_documento:query.document_type,status:query.status,...(query.q?{q:query.q}:{}),ordenacao:query.order,...query.pncp_filters},warnings};
   }
   async execute(input,signal,requestId) {
     const query=validateQuery(input,this.config),op=operation(this.config,signal,requestId);
@@ -60,6 +60,7 @@ export class QueryService {
     const query=validateQuery({...input,page:1,size:this.config.PNCP_PAGE_SIZE},this.config),op=operation(this.config,signal,requestId);
     try {
       const result=await this.process(query,op,{allRows:true});
+      const columns=columnsFor(query.document_type);
       const csvCell=value=>'"'+(value===null || value===undefined?'':typeof value==='object'?JSON.stringify(value):String(value)).replace(/"/g,'""')+'"';
       const chunks=['\ufeff'+columns.map(c=>csvCell(c.field)).join(',')+'\r\n'];let bytes=Buffer.byteLength(chunks[0]);
       assert(bytes<=this.config.PNCP_MAX_EXPORT_BYTES,'EXPORT_BYTES_LIMIT','Limite do buffer CSV excedido. Delimite a pesquisa.',422);

@@ -21,7 +21,7 @@ const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application
 function getParams(url, allowed) {
   for(const key of url.searchParams.keys())assert(allowed.includes(key) && url.searchParams.getAll(key).length===1,'UNKNOWN_PARAMETER',`Parâmetro inválido ou repetido: ${key}.`);
 }
-function documentType(url) {const type=url.searchParams.get('tipos_documento') ?? 'edital';assert(type==='edital','DOCUMENT_TYPE_UNAVAILABLE','Somente edital está habilitado.',409);return type;}
+function documentType(url) {const type=url.searchParams.get('tipos_documento') ?? 'edital';assert(['edital','contrato'].includes(type),'DOCUMENT_TYPE_UNAVAILABLE','Escolha edital ou contrato.',409);return type;}
 export function createApplication(config,{fetcher,logger=()=>{},liveReload=false}={}) {
   const devReload=liveReload?createDevReload():null;
   const client=new PncpClient(config,{fetcher:fetcher || (config.DEMO_MODE?demoFetch:undefined),logger});
@@ -52,15 +52,17 @@ export function createApplication(config,{fetcher,logger=()=>{},liveReload=false
         }
         if(url.pathname==='/api/pncp/filters' && req.method==='GET') {
           getParams(url,['tipos_documento','normativos_base','campo']);const norm=url.searchParams.get('normativos_base'),field=url.searchParams.get('campo');
-          assert(!field || capabilities(config).some(c=>!c.reserved && c.name===field && c.domain && c.documents.includes('edital')),'INVALID_DOMAIN_FIELD','Campo de domínio não disponível para contratações.');
+          const type=documentType(url);
+          assert(!field || capabilities(config).some(c=>!c.reserved && c.name===field && c.domain && c.documents.includes(type)),'INVALID_DOMAIN_FIELD','Campo de domínio não disponível para o tipo documental.');
           assert(!norm || /^\d+(?:\|\d+)*$/.test(norm),'INVALID_DOMAIN','Normativos devem ser IDs separados por pipe.');
-          return json(res,200,await service.domains(documentType(url),norm?.split('|'),controller.signal,id,field));
+          return json(res,200,await service.domains(type,norm?.split('|'),controller.signal,id,field));
         }
         if(url.pathname==='/api/pncp/suggest' && req.method==='GET') {
           getParams(url,['tipos_documento','campo','q','tam_pagina']);const field=url.searchParams.get('campo'),q=url.searchParams.get('q'),size=Number(url.searchParams.get('tam_pagina') ?? 20);
-          assert(capabilities(config).some(c=>!c.reserved && c.name===field && c.state==='enabled' && c.domain_kind==='suggest'),'INVALID_SUGGEST_FIELD','Campo de sugestão não habilitado.');
+          const type=documentType(url);
+          assert(capabilities(config).some(c=>!c.reserved && c.name===field && c.state==='enabled' && c.domain_kind==='suggest' && c.documents.includes(type)),'INVALID_SUGGEST_FIELD','Campo de sugestão não habilitado para o tipo documental.');
           assert(typeof q==='string' && q.length>=3 && q.length<=128 && Number.isSafeInteger(size) && size>=1 && size<=20,'INVALID_SUGGEST','Sugestões exigem 3–128 caracteres e tamanho de 1–20.');
-          return json(res,200,await service.suggest(documentType(url),field,q,size,controller.signal,id));
+          return json(res,200,await service.suggest(type,field,q,size,controller.signal,id));
         }
         const detail=url.pathname.match(/^\/api\/contratacoes\/(\d{14})\/(\d{4})\/(\d+)\/itens$/);
         if(detail && req.method==='GET') {

@@ -1,6 +1,6 @@
 # Contrato da API e consultas ao PNCP
 
-A API da aplicação usa a versão `2.0` e habilita o tipo documental `edital` (contratações). O servidor consulta `https://pncp.gov.br/api/search/` para pesquisas e `https://pncp.gov.br/api/pncp/v1` para itens. Os endereços são configuráveis conforme o [guia de configuração](configuracao.md).
+A API da aplicação usa a versão `2.0` e habilita `edital` (contratações) e `contrato`. O servidor consulta `https://pncp.gov.br/api/search/` para pesquisas e `https://pncp.gov.br/api/pncp/v1` para itens e catálogos. Os endereços são configuráveis conforme o [guia de configuração](configuracao.md).
 
 ## Pesquisa
 
@@ -9,9 +9,9 @@ A API da aplicação usa a versão `2.0` e habilita o tipo documental `edital` (
 | Campo | Padrão | Valores aceitos |
 | --- | --- | --- |
 | `api_version` | `"2.0"` | `"2.0"` |
-| `document_type` | `"edital"` | `"edital"` |
+| `document_type` | `"edital"` | `"edital"` ou `"contrato"` |
 | `q` | `""` | Texto de até 128 caracteres |
-| `status` | `"todos"` | `"todos"`, `"recebendo_proposta"`, `"propostas_encerradas"` |
+| `status` | `"todos"` | Em edital: `"todos"`, `"recebendo_proposta"`, `"propostas_encerradas"`; em contrato: `"todos"`, `"vigente"`, `"nao_vigente"` |
 | `pncp_filters` | `{}` | Objeto de filtros habilitados |
 | `order` | `"-data"` | `"-data"` (mais recentes), `"data"` (mais antigas), `"relevancia"` (exige texto não vazio) |
 | `page` | `1` | Inteiro positivo; `page × size` não pode superar 10.000 |
@@ -58,6 +58,33 @@ O servidor serializa os controles como `tipos_documento`, `q`, `status`, `ordena
 | `valor_total_estimado_min`, `valor_total_estimado_max` | Decimais não negativos como strings com ponto, por exemplo `"1000.50"` |
 | `valor_total_homologado_min`, `valor_total_homologado_max` | Mesmo formato decimal |
 
+Todos os filtros restantes também estão implementados. A notação `min/max` e `inicio/fim` abaixo representa parâmetros separados:
+
+| Filtros | Formato e domínio |
+| --- | --- |
+| `orgaos_subrogados`, `unidades_subrogadas`, `fornecedores` | Listas de IDs numéricos em strings, obtidos por opções parciais ou sugestões; edital e contrato |
+| `permite_adesao` | Booleano; edital e contrato |
+| `tipos_margens_preferencia` | ID único em string, conferido no domínio; edital e contrato |
+| `unidades_medida` | Lista de textos em `item_unidades_medida`, preservando caixa e espaços |
+| `item_quantidade_min/max`, `item_valor_unitario_estimado_min/max`, `item_valor_total_estimado_min/max` | Decimais não negativos em strings |
+| `situacoes_resultado` | Lista de IDs conferidos em `resultado_item_situacoes` |
+| `reservas_remanescentes` | Lista de IDs: `"1"` Não se aplica, `"2"` Remanescente, `"3"` Cadastro de reserva |
+| `ordem_classificacao_min/max` | Inteiros JSON não negativos e seguros; zero é preservado |
+| `indicador_subcontratacao`, `indicador_aplicacao_margem_preferencia`, `indicador_aplicacao_beneficio_me_epp`, `indicador_aplicacao_criterio_desempate` | Booleanos do resultado, distintos das condições de aplicabilidade do item |
+| `data_homologacao_inicio/fim` | Datas reais `AAAA-MM-DD`, referentes ao resultado |
+| `resultado_quantidade_homologado_min/max`, `resultado_valor_unitario_homologado_min/max`, `resultado_valor_total_homologado_min/max` | Decimais não negativos em strings |
+| `resultado_percentual_desconto_min/max` | Decimais em strings entre `"0"` e `"100"`, sem `%` |
+| `municipios_fornecedor` | Lista de IDs numéricos em strings, fornecidos por sugestões |
+| `paises_fornecedor` | Lista de IDs alfabéticos de três letras do catálogo, como `"BRA"`; não enviar códigos BCB |
+| `portes_fornecedor`, `naturezas_juridicas` | Listas de IDs numéricos em strings, conferidas nos catálogos; zeros à esquerda são preservados |
+| `tipos_contrato` | Lista de IDs conferidos no domínio de contratos; exclusivo de contrato |
+| `possui_nfe` | Booleano exclusivo de contrato |
+| `fornecedores_subcontratados` | Lista de IDs numéricos em strings obtidos por opções parciais ou sugestões; exclusivo de contrato |
+| `data_assinatura_inicio/fim`, `data_inicio_vigencia_inicio/fim` | Datas reais `AAAA-MM-DD`; exclusivo de contrato; o segundo intervalo restringe a data de início da vigência |
+| `valor_global_min/max` | Decimais não negativos em strings; exclusivo de contrato |
+
+Filtros de itens, resultados e características de fornecedores nessa tabela são exclusivos de edital, exceto onde indicado. Confira `documents` no esquema para a compatibilidade dos demais campos. Intervalos invertidos são rejeitados antes da rede; decimais são comparados sem conversão para ponto flutuante.
+
 As listas devem conter de 1 a 100 strings; não envie nomes de órgãos no lugar dos IDs nem caracteres `|` dentro dos valores. Os intervalos devem ter início ou mínimo menor ou igual ao fim ou máximo. `status` representa o período de recebimento de propostas; `situacoes` é um filtro separado de situação da contratação.
 
 Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false`, e não descartado. Omitir o argumento não restringe por aquela condição. Ausência de informação não é convertida em `false`; na demonstração, registros com `null` ficam fora tanto de Sim quanto de Não. `tem_nfe_contrato` é um vínculo da contratação; `possui_nfe` continua exclusivo de contratos e indisponível para `edital`. Não há exclusões automáticas de modos de disputa por modalidade: os critérios são enviados juntos à fonte.
@@ -68,15 +95,16 @@ Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false
 
 Filtros de itens selecionam **contratações** na busca nativa. Tabela e CSV continuam contendo uma linha por contratação. Os detalhes exibem todos os itens, inclusive os que não satisfazem os critérios. Uma condição verdadeira na busca pode coexistir com itens que a informam como falsa nos detalhes. Não há garantia de que condições diferentes incidam sobre o mesmo item; a aplicação não aplica um refinamento local para impor essa correlação. Os nomes enviados à busca continuam sendo `categorias_leilao` e `beneficios`, embora os domínios usem aliases.
 
-`GET /api/schema` informa `columns`, `capabilities`, `statuses`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados, 37 filtros habilitados, 34 pendentes de validação para contratações e nove exclusivos de contratos (`unsupported_document`). Um argumento catalogado não implica suporte ativo: confira `state`, `reserved`, `documents`, `type` e `domain`.
+`GET /api/schema` informa `columns`, `columns_by_document`, `capabilities`, `statuses`, `statuses_by_document`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados ao adaptador e 80 filtros implementados, sem pendências. São 71 de edital e 32 de contrato, com 23 compartilhados. `columns` e `statuses` mantêm os padrões de edital; os mapas por documento fornecem os valores próprios de contrato. A compatibilidade de filtros é definida por `documents`.
 
-Cada capacidade também informa `label`, `group`, `input_hint`, `cardinality`, `domain_source` e `domain_kind`. O tipo `enum` é singular: `tipos_item` e `tipos_margens_preferencia` usam uma string escolhida no domínio, não uma lista nem texto livre. O segundo continua pendente por padrão. Para habilitar filtros adicionais após verificar seu efeito real, consulte [PNCP_VALIDATED_FILTERS](configuracao.md#habilitar-filtros-adicionais).
+Cada capacidade também informa `label`, `group`, `input_hint`, `cardinality`, `domain_source`, `domain_kind`, `evidence` e `validation_status`. O tipo `enum` é singular: `tipos_item` e `tipos_margens_preferencia` usam uma string escolhida no domínio. `sampled_live` registra filtros com controles reais documentados; `integration_tested` registra cobertura da aplicação, sem homologação integral da fonte; `operator_declared` declara conferência externa via [PNCP_VALIDATED_FILTERS](configuracao.md#habilitar-filtros-adicionais).
 
 ### Resposta da pesquisa
 
 | Campo | Significado |
 | --- | --- |
 | `data` | Documentos da página, na ordem retornada pelo PNCP |
+| `document_type` | Tipo documental solicitado |
 | `page`, `size`, `last_page` | Paginação solicitada e última página acessível |
 | `total`, `source_total` | Total informado pela fonte |
 | `accessible_total`, `last_row` | Menor valor entre o total e 10.000 |
@@ -96,7 +124,7 @@ Os campos documentais são definidos em [`src/schema.js`](../src/schema.js). Cad
 
 ## Domínios e sugestões
 
-`GET /api/pncp/filters` aceita `tipos_documento=edital`, `normativos_base` com IDs separados por pipe e `campo` com o nome de um filtro que possui domínio. Campos desconhecidos ou exclusivos de contratos são rejeitados. Retorna `filters`, `warnings`, `raw`, `partial_domains`, `request_id` e `queried_at`. As opções são normalizadas para `{id, label}`. Opções de ano fora de `AAAA` são omitidas da lista normalizada com aviso; a resposta original fica em `raw`.
+`GET /api/pncp/filters` aceita `tipos_documento=edital` ou `contrato`, `normativos_base` com IDs separados por pipe e `campo` com o nome de um filtro que possui domínio. Campos desconhecidos ou incompatíveis com o documento são rejeitados. Retorna `filters`, `warnings`, `raw`, `partial_domains`, `request_id` e `queried_at`. As opções são normalizadas para `{id, label}`. Opções de ano fora de `AAAA` são omitidas da lista normalizada com aviso; a resposta original fica em `raw`.
 
 Sem `campo`, ou com um filtro da busca, a origem é `/api/search/filters`. Para os campos abaixo, apenas o catálogo solicitado é consultado:
 
@@ -105,10 +133,11 @@ Sem `campo`, ou com um filtro da busca, a origem é `/api/search/filters`. Para 
 | `paises_fornecedor` | `/api/pncp/v1/paises` | ID textual, como `BRA`; não é convertido para `codigoPaisBcb` |
 | `portes_fornecedor` | `/api/pncp/v1/portes-empresa` | ID como string |
 | `naturezas_juridicas` | `/api/pncp/v1/naturezas-juridicas` | ID com zeros à esquerda, como `0000` |
+| `situacoes_resultado` | `/api/pncp/v1/situacoes-compra-item-resultado` | ID como string, normalizado em `resultado_item_situacoes` |
 
-Opções desses catálogos podem incluir `active: false`; a interface distingue opções inativas sem descartar registros históricos. Conectar o catálogo não habilita o filtro: os três campos continuam pendentes de validação do predicado. Para países, a identidade aceita pela busca ainda precisa ser comprovada; a validação de listas de IDs numéricos não foi relaxada para presumir que o ID alfabético é aceito.
+Opções desses catálogos podem incluir `active: false`; a interface distingue opções inativas sem descartar registros históricos. O aplicativo valida e envia os IDs do catálogo de países, sem conversão BCB. O alcance da verificação do predicado remoto está no [guia dos filtros](viabilidade-filtros-pncp.md).
 
-Domínios fechados são conferidos pelo backend antes da pesquisa e da exportação, incluindo os filtros ativados por `PNCP_VALIDATED_FILTERS`. Domínios parciais utilizam sugestões e não são tratados como listas exaustivas. `municipios_fornecedor` está preparado para esse encaminhamento, mas permanece pendente por padrão.
+Domínios fechados são conferidos pelo backend antes da pesquisa e da exportação. Reservas/remanescentes usam a enumeração fixa do portal, com `domain_source: reference` e sem requisição externa para obter essas opções. Domínios parciais utilizam sugestões e não são tratados como listas exaustivas; incluem sub-rogação, fornecedores, municípios de fornecedores e unidades de medida.
 
 Ao adicionar ou remover normativos, a interface consulta novamente os amparos, preserva os válidos e remove os incompatíveis com aviso. Enquanto essa conferência está em andamento, **Aplicar e pesquisar** fica desabilitado. Em caso de falha, remova o filtro de amparo ou adicione novamente o normativo para repetir a conferência.
 
@@ -116,7 +145,7 @@ Ao adicionar ou remover normativos, a interface consulta novamente os amparos, p
 
 | Parâmetro | Regra |
 | --- | --- |
-| `tipos_documento` | `edital`, também usado quando omitido |
+| `tipos_documento` | `edital` ou `contrato`; padrão `edital` |
 | `campo` | Nome de um filtro habilitado do tipo lista |
 | `q` | Texto entre 3 e 128 caracteres |
 | `tam_pagina` | Inteiro de 1 a 20; padrão `20` |
@@ -153,7 +182,7 @@ A coleta começa na página 1 e usa `PNCP_PAGE_SIZE`, independentemente de `page
 
 Mudança de total, documento duplicado ou sem identidade, página incompleta e limites de bytes interrompem a operação. O servidor monta todo o CSV em memória antes de responder. Um erro retorna JSON, portanto clientes devem verificar o status HTTP antes de tratar o corpo salvo como CSV.
 
-O CSV usa UTF-8 com BOM, vírgulas, quebras CRLF e todos os campos documentais na ordem de `columns` do esquema. As células são delimitadas por aspas, e aspas internas são duplicadas. A exportação não inclui `_raw`, `_identity`, `_purchase` nem os itens de cada contratação.
+O CSV usa UTF-8 com BOM, vírgulas, quebras CRLF e todos os campos documentais na ordem de `columns_by_document[document_type]`. Em contratos, inclui tipo, fornecedor, CPF/CNPJ, valor global, assinatura, início/fim de vigência e nota fiscal. As células são delimitadas por aspas, e aspas internas são duplicadas. A exportação não inclui `_raw`, `_identity`, `_purchase` nem itens/resultados; mantém uma linha por documento.
 
 Cabeçalhos da resposta: `Content-Disposition`, `X-PNCP-Started-At`, `X-PNCP-Finished-At`, `X-PNCP-Source-Total`, `X-Exported-Rows` e `X-Snapshot-Guaranteed: false`. A coleta é nova e pode diferir da tabela, mesmo quando conclui com sucesso.
 
@@ -178,7 +207,7 @@ As respostas usam `Cache-Control: no-store` e `X-Request-ID`. Falhas seguem este
 | HTTP | Exemplos | Ação |
 | --- | --- | --- |
 | 400 | `UNKNOWN_FIELD`, `INVALID_DOMAIN`, `INVALID_SIZE` | Corrigir a requisição |
-| 409 | `CAPABILITY_PENDING`, `DOCUMENT_FILTER_UNAVAILABLE`, `DOMAIN_UNAVAILABLE`, `SOURCE_CHANGED` | Conferir o tipo documental e a capacidade ou repetir a consulta quando os dados mudarem |
+| 409 | `CAPABILITY_UNAVAILABLE`, `DOCUMENT_FILTER_UNAVAILABLE`, `DOMAIN_UNAVAILABLE`, `SOURCE_CHANGED` | Conferir o tipo documental e a capacidade ou repetir a consulta quando os dados mudarem |
 | 413 | `BODY_TOO_LARGE` | Reduzir o corpo enviado |
 | 422 | `PAGE_OUT_OF_RANGE`, `EXPORT_TOO_BROAD`, limites de recursos | Ajustar a página ou delimitar a pesquisa |
 | 429 | `CONCURRENCY_LIMIT` | Aguardar e repetir; observar `Retry-After` |

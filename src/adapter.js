@@ -45,12 +45,14 @@ export function identity(raw) {
 }
 export function purchaseIdentity(raw) {
   // Only the original identifiers supplied by the source are used.
+  if(raw.document_type!=='edital')return null;
   const cnpj = scalarText(raw.orgao_cnpj), year = scalarText(raw.ano), sequence = scalarText(raw.numero_sequencial);
   return /^\d{14}$/.test(cnpj || '') && /^\d{4}$/.test(year || '') && /^\d+$/.test(sequence || '') && BigInt(sequence) > 0n ? { cnpj, ano: year, sequencial: sequence } : null;
 }
 export function project(raw) {
   const mapping = { id:'id',tipo_documento:'document_type',numero_controle_pncp:'numero_controle_pncp',objeto_compra:'description',titulo:'title',orgao_cnpj:'orgao_cnpj',orgao_nome:'orgao_nome',unidade_orgao_nome_unidade:'unidade_nome',unidade_orgao_codigo_unidade:'unidade_codigo',orgao_entidade_esfera_id:'esfera_id',orgao_entidade_poder_id:'poder_id',uf:'uf',municipio_nome:'municipio_nome',modalidade_nome:'modalidade_licitacao_nome',situacao_compra_nome_pncp:'situacao_nome',data_publicacao_pncp:'data_publicacao_pncp',data_atualizacao_pncp:'data_atualizacao_pncp' };
-  const identifierFields=['id','numero_controle_pncp','orgao_cnpj','unidade_codigo','esfera_id','poder_id'];
+  if(raw.document_type==='contrato')Object.assign(mapping,{tipo_contrato_nome:'tipo_contrato_nome',fornecedor_nome:'fornecedor_nome',fornecedor_ni:'fornecedor_ni',data_assinatura:'data_assinatura',data_inicio_vigencia:'data_inicio_vigencia',data_fim_vigencia:'data_fim_vigencia'});
+  const identifierFields=['id','numero_controle_pncp','orgao_cnpj','unidade_codigo','esfera_id','poder_id','fornecedor_ni'];
   const result = Object.fromEntries(Object.entries(mapping).map(([key, origin]) => {
     const value=raw[origin];
     if(value!==undefined && value!==null && (identifierFields.includes(origin)?scalarText(value)===null:typeof value!=='string'))fail('INVALID_UPSTREAM',`Campo ${origin} com tipo incompatível no PNCP.`,502);
@@ -58,5 +60,9 @@ export function project(raw) {
   }));
   if(raw.tem_resultado!==undefined && raw.tem_resultado!==null && typeof raw.tem_resultado!=='boolean')fail('INVALID_UPSTREAM','tem_resultado não é booleano no PNCP.',502);
   Object.assign(result, { valor_total_estimado: decimalText(raw.valor_total_estimado), valor_total_homologado: decimalText(raw.valor_total_homologado), tem_resultado: typeof raw.tem_resultado === 'boolean' ? raw.tem_resultado : null, link_sistema_origem: safeLink(raw.link_sistema_origem), url_pncp: safeLink(raw.item_url, true), _identity: identity(raw), _purchase: purchaseIdentity(raw), _raw: plain(raw) });
+  if(raw.document_type==='contrato'){
+    assert(raw.possui_nfe==null || typeof raw.possui_nfe==='boolean','INVALID_UPSTREAM','possui_nfe não é booleano no PNCP.',502);
+    Object.assign(result,{valor_global:decimalText(raw.valor_global),possui_nfe:raw.possui_nfe ?? null});
+  }
   return result;
 }

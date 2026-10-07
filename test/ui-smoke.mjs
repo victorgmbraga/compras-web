@@ -34,6 +34,24 @@ const browser=await chromium.launch(launch),page=await browser.newPage({viewport
 page.on('pageerror',error=>errors.push(error.message));
 const check=name=>{checks.push(name);console.log('PASS '+name);};
 async function search(text) {await page.locator('#search').fill(text);await page.locator('#search-button').click();}
+async function addEveryFilter(type) {
+  const response=await page.request.get(`http://127.0.0.1:${app.server.address().port}/api/schema`),catalog=await response.json();
+  const caps=catalog.capabilities.filter(c=>!c.reserved && c.documents.includes(type));
+  await page.locator('#filters-button').click();
+  for(const cap of caps){
+    await page.locator('#native-field').selectOption(cap.name);
+    await page.waitForFunction(()=>!document.querySelector('#add-native').disabled);
+    if(['list','enum'].includes(cap.type)){
+      if(cap.domain_kind==='suggest')await page.locator('#native-suggestions .suggestion').first().click();
+      else {const first=await page.locator('#native-options option').first().getAttribute('value');await page.locator('#native-options').selectOption(first);}
+    }else if(cap.type==='boolean')await page.locator('#native-value').selectOption('false');
+    else await page.locator('#native-value').fill(cap.type==='date'?'2026-09-01':cap.type==='integer'?'0':cap.name==='codigo_ibge'?'5300108':'0.00');
+    await page.locator('#add-native').click();
+  }
+  const request=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && Object.keys(r.postDataJSON().pncp_filters).length===caps.length);
+  await page.locator('#apply-filters').click();const input=(await request).postDataJSON();assert.equal(input.document_type,type);assert.equal(Object.keys(input.pncp_filters).length,caps.length);
+  await page.waitForFunction(()=>!document.querySelector('#export-button').disabled);return caps.length;
+}
 try {
   await page.goto(`http://127.0.0.1:${app.server.address().port}`,{waitUntil:'load'});
   await page.waitForFunction(()=>document.querySelector('.tabulator'));
@@ -120,6 +138,18 @@ try {
   await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='11 contratações');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
   await page.locator('#filters-button').click();await page.locator('#native-field').selectOption('anos');await page.locator('#native-options').waitFor();assert.equal(await page.locator('#native-options option').innerText(),'2026');await page.locator('#filters-dialog .close-dialog[aria-label="Fechar"]').click();check('Domínio de anos no formato real do PNCP');
+  assert.equal(await addEveryFilter('edital'),71);check('Todos os 71 filtros de contratações podem ser preenchidos e aplicados no navegador');
+  await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
+  await page.locator('#document-type').selectOption('contrato');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratos');
+  assert(await page.locator('.tabulator-col[tabulator-field="valor_global"]').isVisible());assert.equal(await page.locator('.tabulator-col[tabulator-field="valor_total_estimado"]').count(),0);check('Troca para contratos consulta a fonte e apresenta as colunas próprias');
+  await page.locator('#filters-button').click();await page.locator('#draft-status').selectOption('vigente');await page.locator('#apply-filters').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='16 contratos');
+  await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratos');check('Status Vigentes usa o domínio temporal de contratos e limpar mantém o tipo');
+  const detailRequests=[];const observe=r=>{if(r.url().includes('/itens'))detailRequests.push(r.url());};page.on('request',observe);
+  await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});assert.match(await page.locator('#details-content').innerText(),/Valor global/);assert.equal(await page.locator('.items-section').count(),0);assert.equal(detailRequests.length,0);await page.locator('#details-dialog .close-dialog').click();page.off('request',observe);check('Detalhes de contratos mostram seus dados sem buscar itens com o sequencial do contrato');
+  await page.locator('#filters-button').click();await page.locator('#native-field').selectOption('tipos_contrato');await page.locator('#native-options').selectOption('1');await page.locator('#add-native').click();await page.locator('#native-field').selectOption('possui_nfe');await page.locator('#native-value').selectOption('true');await page.locator('#add-native').click();await page.locator('#apply-filters').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='8 contratos');
+  const contractDownload=page.waitForEvent('download');await page.locator('#export-button').click();const exportedContracts=await contractDownload,contractCsv=await readFile(await exportedContracts.path(),'utf8');assert.equal(contractCsv.split('\r\n').length,10);assert(contractCsv.split('\r\n')[0].includes('"valor_global"'));check('Filtros exclusivos de contratos e CSV de oito contratos usam os mesmos critérios');
+  await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratos');assert.equal(await addEveryFilter('contrato'),32);check('Todos os 32 filtros de contratos podem ser preenchidos e aplicados no navegador');
+  await page.locator('#document-type').selectOption('edital');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');check('Voltar a contratações restaura colunas e critérios do tipo escolhido');
   await page.locator('#columns-button').click();const checkbox=page.locator('#column-list label').filter({hasText:'CNPJ do órgão'}).locator('input');await checkbox.check();await page.locator('#columns-dialog .close-dialog').click();assert(await page.locator('.tabulator-col[tabulator-field="orgao_cnpj"]').isVisible());check('Seleção de colunas');
   await search('lenta-ui');assert.equal(await page.locator('#search-button').isVisible(),false);assert(await page.locator('#cancel-button').isVisible());
   await page.locator('#cancel-button').click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Consulta cancelada'));

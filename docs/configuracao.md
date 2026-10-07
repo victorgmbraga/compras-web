@@ -57,16 +57,9 @@ Os limites numéricos exigem valores de pelo menos 1, exceto `PNCP_MAX_RETRIES`,
 
 ## Habilitar filtros adicionais
 
-`GET /api/schema` publica o catálogo e o estado de cada capacidade. Antes de incluir um nome em `PNCP_VALIDATED_FILTERS`:
+`GET /api/schema` publica os 80 filtros implementados: 71 de contratações e 32 de contratos, com 23 compartilhados. Não é necessário preencher `PNCP_VALIDATED_FILTERS` para usá-los. A variável permanece por compatibilidade e declara conferência externa feita pelo operador (`validation_status: operator_declared`); não comprova o efeito remoto nem altera a compatibilidade documental. Nomes desconhecidos ou reservados continuam sendo rejeitados.
 
-1. Confira seu tipo, contexto documental e domínio em [`src/pncp-arguments.json`](../src/pncp-arguments.json).
-2. Verifique na API real o formato aceito e o efeito do argumento sobre a consulta.
-3. Acrescente o nome à lista separada por vírgulas e reinicie o processo.
-4. Confira a capacidade em `/api/schema` e valide uma consulta representativa.
-
-A configuração amplia a lista padrão; não desativa filtros já habilitados. Nomes desconhecidos ou reservados são rejeitados. O filtro também precisa ser aplicável a `edital`; a variável não implementa suporte a outros tipos documentais.
-
-A lista padrão possui 37 filtros. Além dos filtros documentais, inclui emenda parlamentar, critério de julgamento, categoria de leilão, benefício do item, incentivo produtivo básico e aplicabilidade de margens de preferência normal e adicional. Não é necessário preencher `PNCP_VALIDATED_FILTERS` para utilizá-los; consulte a [lista completa](consultas-pncp.md#filtros-habilitados-por-padrão). As capacidades publicam o provedor de domínio e a cardinalidade esperada. A ativação de um filtro com domínio fechado também exige pertencimento às opções retornadas pelo PNCP; não basta fornecer um ID com formato válido. Para países de fornecedores, a identidade utilizada pela busca ainda está em investigação, mesmo com o catálogo conectado.
+As capacidades publicam tipo, cardinalidade, contexto, provedor de domínio e evidência disponível. Domínios fechados exigem pertencimento ao catálogo antes da pesquisa e do CSV; listas parciais usam sugestões. Países preservam o ID alfabético do catálogo PNCP, como `BRA`, sem convertê-lo para código BCB. Reservas/remanescentes usam a enumeração fixa do portal. Consulte a [lista completa](consultas-pncp.md#filtros-habilitados-por-padrão) e o [alcance da verificação externa](viabilidade-filtros-pncp.md).
 
 ## Rede e implantação
 

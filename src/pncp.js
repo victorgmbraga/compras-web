@@ -3,7 +3,7 @@ import { parse } from 'lossless-json';
 import { randomUUID } from 'node:crypto';
 import { AppError, assert, fail } from './errors.js';
 import { scalarText, plain, itemSituation } from './adapter.js';
-import { catalogDomains, partialDomains } from './filter-domains.js';
+import { domainAliases, catalogDomains, referenceDomains, partialDomains } from './filter-domains.js';
 
 export const delay = (ms, signal) => new Promise((resolve, reject) => {
   if (signal?.aborted) return reject(signal.reason);
@@ -146,9 +146,11 @@ export class PncpClient {
     return { items: result.items, total };
   }
   async domains(type, normatives, op, field = null) {
+    if(Object.hasOwn(referenceDomains,field))return {filters:{[field]:referenceDomains[field].map(o=>({...o}))},warnings:[],raw:{},partial_domains:[],domain_source:'reference'};
     if(Object.hasOwn(catalogDomains,field)) {
       const result=await this.get(`${this.config.PNCP_DETAIL_BASE_URL}/${catalogDomains[field]}`,op);
-      return {filters:{[field]:normalizeCatalog(result)},warnings:[],raw:{[field]:plain(result)},partial_domains:[]};
+      const domain=domainAliases[field] || field;
+      return {filters:{[domain]:normalizeCatalog(result)},warnings:[],raw:{[domain]:plain(result)},partial_domains:[]};
     }
     const params = new URLSearchParams({ tipos_documento: type }); if (normatives) params.set('normativos_base',normatives.join('|'));
     const result = await this.get(`${this.config.PNCP_SEARCH_BASE_URL}/filters?${params}`,op);

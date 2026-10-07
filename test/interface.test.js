@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { setImmediate as tick } from 'node:timers/promises';
 import { schema } from '../src/schema.js';
-import { demoFetch } from '../src/demo.js';
+import { demoFetch,demoContracts } from '../src/demo.js';
 import { PncpClient } from '../src/pncp.js';
 import { QueryService } from '../src/query.js';
 import { config, service, document, query } from './helpers.js';
@@ -40,9 +40,9 @@ async function interfaceFixture(options={}) {
       if(url==='/api/schema')return Response.json(schema(cfg));
       if(url.startsWith('/api/pncp/filters')){
         domainRequests.push(url);if(domainHandler)return domainHandler(url,options,backend);
-        const p=new URL(url,'http://localhost').searchParams;return Response.json(await backend.domains('edital',p.get('normativos_base')?.split('|'),options.signal,null,p.get('campo')));
+        const p=new URL(url,'http://localhost').searchParams;return Response.json(await backend.domains(p.get('tipos_documento') || 'edital',p.get('normativos_base')?.split('|'),options.signal,null,p.get('campo')));
       }
-      if(url.startsWith('/api/pncp/suggest')){suggestRequests.push(url);const p=new URL(url,'http://localhost').searchParams;return Response.json(await backend.suggest('edital',p.get('campo'),p.get('q'),Number(p.get('tam_pagina')),options.signal));}
+      if(url.startsWith('/api/pncp/suggest')){suggestRequests.push(url);const p=new URL(url,'http://localhost').searchParams;return Response.json(await backend.suggest(p.get('tipos_documento') || 'edital',p.get('campo'),p.get('q'),Number(p.get('tam_pagina')),options.signal));}
       if(url==='/api/query'){const input=JSON.parse(options.body);requests.push(input);if(queryHandler)return await queryHandler(input,options,backend);return Response.json(await backend.execute(input,options.signal));}
       if(url==='/api/export') {
         const input=JSON.parse(options.body);exportRequests.push(input);
@@ -60,7 +60,7 @@ async function interfaceFixture(options={}) {
   };
   class Table {
     constructor(selector,options){this.options=options;this.size=options.paginationSize;this.handlers={};}on(name,fn){this.handlers[name]=fn;}clearSort(){}getPageSize(){return this.size;}
-    setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('/api/query',{page,size:this.size});}redraw(){}
+    setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('/api/query',{page,size:this.size});}redraw(){}clearData(){}setColumns(columns){this.options.columns=columns;}
   }
   const context=vm.createContext({document:dom,window:{addEventListener(){}},Tabulator:Table,fetch:fetcher,structuredClone,Intl,Date,Number,URL,URLSearchParams,AbortController,DOMException,setTimeout,clearTimeout,console});
   vm.runInContext(await readFile(new URL('../public/app.js',import.meta.url),'utf8'),context);
@@ -357,12 +357,13 @@ test('DETAILS-UI-06: quantidade e valores do PNCP preservam precisão, zero e au
   ]);
 });
 
-test('FILTERS-UI-04: grupos e motivos distinguem contratos de validação pendente',async()=>{
+test('FILTERS-UI-04: catálogo completo distingue a compatibilidade com contratos',async()=>{
   const ui=await interfaceFixture(),groups=ui.nodes.get('native-field').children;
-  assert.deepEqual(groups.map(g=>g.label),['Contratação','Item','Resultado do item','Fornecedor','Contratos (indisponíveis)']);
+  assert.deepEqual(groups.map(g=>g.label),['Contratação','Item','Resultado do item','Fornecedor','Contrato']);
   const contracts=groups.at(-1).children;assert.equal(contracts.length,9);assert(contracts.every(o=>o.disabled && o.textContent.endsWith('somente contratos')));
   const srp=groups[0].children.find(o=>o.value==='srp');assert.equal(srp.disabled,false);assert.equal(srp.textContent,'Sistema de Registro de Preços');
-  const country=groups[3].children.find(o=>o.value==='paises_fornecedor');assert(country.disabled);assert.match(country.title,/Identidade/);
+  const country=groups[3].children.find(o=>o.value==='paises_fornecedor');assert.equal(country.disabled,false);
+  assert(groups.flatMap(g=>g.children).every(o=>!o.textContent.includes('pendente')));
 });
 
 test('FILTERS-UI-05: seleção de Não preserva false na consulta SRP',async()=>{
@@ -481,4 +482,50 @@ test('FILTERS-UI-14: Não é preservado ao editar condições de itens e emenda'
   await ui.nodes.get('apply-filters').fire('click');assert(names.every(name=>ui.requests.at(-1).pncp_filters[name]===false));assert.equal(ui.nodes.get('result-title').textContent,'16 contratações');
   await ui.nodes.get('filters-button').fire('click');
   for(const name of names){ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');assert.equal(ui.nodes.get('native-value').value,'false');}
+});
+
+test('FILTERS-UI-15: Não é preservado nos cinco booleanos restantes',async()=>{
+  const ui=await interfaceFixture();await ui.nodes.get('filters-button').fire('click');
+  const names=['permite_adesao','indicador_subcontratacao','indicador_aplicacao_margem_preferencia','indicador_aplicacao_beneficio_me_epp','indicador_aplicacao_criterio_desempate'];
+  for(const name of names){ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');ui.nodes.get('native-value').value='false';await ui.nodes.get('add-native').fire('click');}
+  await ui.nodes.get('apply-filters').fire('click');assert(names.every(name=>ui.requests.at(-1).pncp_filters[name]===false));assert.equal(ui.nodes.get('result-title').textContent,'16 contratações');
+  await ui.nodes.get('filters-button').fire('click');for(const name of names){ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');assert.equal(ui.nodes.get('native-value').value,'false');}
+});
+
+test('FILTERS-UI-16: países, reserva, inteiro zero, percentual e data são enviados nos formatos exigidos',async()=>{
+  const ui=await interfaceFixture();await ui.nodes.get('filters-button').fire('click');
+  for(const [name,value]of [['paises_fornecedor','BRA'],['reservas_remanescentes','2']]){
+    ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');for(const option of ui.nodes.get('native-options').children)option.selected=option.value===value;await ui.nodes.get('add-native').fire('click');
+  }
+  for(const [name,value]of [['ordem_classificacao_min','0'],['resultado_percentual_desconto_min','0.00'],['data_homologacao_inicio','2026-09-01']]){
+    ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');ui.nodes.get('native-value').value=value;await ui.nodes.get('add-native').fire('click');
+  }
+  await ui.nodes.get('apply-filters').fire('click');const filters=ui.requests.at(-1).pncp_filters;assert.deepEqual(filters.paises_fornecedor,['BRA']);assert.deepEqual(filters.reservas_remanescentes,['2']);assert.equal(filters.ordem_classificacao_min,0);assert.equal(filters.resultado_percentual_desconto_min,'0.00');assert.equal(filters.data_homologacao_inicio,'2026-09-01');
+});
+
+test('CONTRACTS-UI-01: trocar o tipo reinicia critérios, colunas e status e permite consultar e exportar contratos',async()=>{
+  const ui=await interfaceFixture();await ui.nodes.get('filters-button').fire('click');await ui.setFilter('srp',true);await ui.nodes.get('apply-filters').fire('click');
+  ui.nodes.get('document-type').value='contrato';await ui.nodes.get('document-type').fire('change');
+  assert.equal(ui.state().document_type,'contrato');assert.deepEqual(ui.state().pncp_filters,{});assert.equal(ui.nodes.get('result-title').textContent,'32 contratos');assert(ui.tableColumns().some(c=>c.field==='valor_global'));assert(!ui.tableColumns().some(c=>c.field==='valor_total_estimado'));
+  assert.deepEqual(ui.nodes.get('draft-status').children.map(o=>o.value),['todos','vigente','nao_vigente']);
+  const fields=ui.nodes.get('native-field').children.flatMap(g=>g.children);assert.equal(fields.find(o=>o.value==='tipos_contrato').disabled,false);assert.equal(fields.find(o=>o.value==='item_quantidade_min').disabled,true);
+  await ui.nodes.get('filters-button').fire('click');ui.nodes.get('native-field').value='tipos_contrato';await ui.nodes.get('native-field').fire('change');assert(ui.domainRequests.at(-1).includes('tipos_documento=contrato'));
+  for(const option of ui.nodes.get('native-options').children)option.selected=option.value==='1';await ui.nodes.get('add-native').fire('click');
+  ui.nodes.get('native-field').value='possui_nfe';await ui.nodes.get('native-field').fire('change');ui.nodes.get('native-value').value='true';await ui.nodes.get('add-native').fire('click');await ui.nodes.get('apply-filters').fire('click');assert.equal(ui.nodes.get('result-title').textContent,'8 contratos');
+  await ui.nodes.get('export-button').fire('click');assert.equal(ui.exportRequests.at(-1).query.document_type,'contrato');assert.deepEqual(ui.exportRequests.at(-1).query.pncp_filters,{tipos_contrato:['1'],possui_nfe:true});
+  await ui.nodes.get('clear-button').fire('click');assert.equal(ui.state().document_type,'contrato');assert.equal(ui.nodes.get('result-title').textContent,'32 contratos');
+  ui.nodes.get('document-type').value='edital';await ui.nodes.get('document-type').fire('change');assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');assert(ui.tableColumns().some(c=>c.field==='valor_total_estimado'));
+});
+
+test('CONTRACTS-UI-02: detalhes de contratos exibem os campos próprios sem buscar itens com o sequencial do contrato',async()=>{
+  const ui=await interfaceFixture();ui.nodes.get('document-type').value='contrato';await ui.nodes.get('document-type').fire('change');await ui.openDocument(project(demoContracts[0]));
+  assert.equal(ui.itemRequests.length,0);assert(!ui.all.some(n=>n.className==='items-section'));
+  const values=ui.nodes.get('details-content').children.find(n=>n.tagName==='dl').children.map(wrap=>wrap.children[1].textContent);assert(values.includes('R$ 10.000,50'));assert(values.includes('01234567000189'));
+});
+
+test('CONTRACTS-UI-03: resposta de contrato atrasada não substitui a pesquisa após voltar a edital',async()=>{
+  let finishContract;const ui=await interfaceFixture({queryHandler:async(input,options,backend)=>input.document_type==='contrato'?new Promise(resolve=>{finishContract=async()=>resolve(Response.json(await backend.execute(input)));}):Response.json(await backend.execute(input))});
+  const selector=ui.nodes.get('document-type');selector.value='contrato';await selector.listeners.change[0]();await settle();assert(finishContract);
+  selector.value='edital';await selector.listeners.change[0]();await settle();await finishContract();await settle();
+  assert.equal(ui.state().document_type,'edital');assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');assert.equal(ui.nodes.get('export-button').disabled,false);
 });

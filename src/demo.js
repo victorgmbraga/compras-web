@@ -1,4 +1,5 @@
-import {domainAliases} from './schema.js';
+import {domainAliases} from './filter-domains.js';
+import {compareDecimal} from './validation.js';
 const objects = [
   'Contratação de solução de firewall com licenciamento, implantação e suporte técnico.',
   'Subscrição Microsoft 365, Azure e licenças de uso de software para 36 meses.',
@@ -16,12 +17,22 @@ const objects = [
 const orgs = ['Ministério da Gestão e da Inovação','Universidade Federal de Goiás','Tribunal Regional Eleitoral do Distrito Federal','Instituto Federal do Rio de Janeiro'];
 const itemCondition=i=>i%4===0?true:i%4===1?false:null;
 export const demoItems=Array.from({length:64},(_,i)=>[
-  {numeroItem:1,descricao:objects[i%objects.length],materialOuServico:'S',situacaoCompraItem:2,situacaoCompraItemNome:'Homologado',catalogoCodigoItem:'25852',catalogo:{id:1,nome:'Catálogo sintético de demonstração'},quantidade:'1',valorUnitarioEstimado:'120000.25',valorTotal:'120000.25',temResultado:true,
+  {numeroItem:1,descricao:objects[i%objects.length],materialOuServico:'S',situacaoCompraItem:2,situacaoCompraItemNome:'Homologado',catalogoCodigoItem:'25852',catalogo:{id:1,nome:'Catálogo sintético de demonstração'},quantidade:'1',unidadeMedida:['UNIDADE','Unidade ','SERVIÇO'][i%3],valorUnitarioEstimado:'120000.25',valorTotal:'120000.25',temResultado:true,
     criterioJulgamentoId:i%2===0?1:2,itemCategoriaId:i%3+1,tipoBeneficio:[1,3,4,5][i%4],
     incentivoProdutivoBasico:itemCondition(i),aplicabilidadeMargemPreferenciaNormal:itemCondition(i),aplicabilidadeMargemPreferenciaAdicional:itemCondition(i)},
-  {numeroItem:2,descricao:'Item complementar de demonstração.',materialOuServico:'M',situacaoCompraItem:1,situacaoCompraItemNome:'Em andamento',catalogo:null,quantidade:'2',valorUnitarioEstimado:'10.50',valorTotal:'21.00',temResultado:false,
+  {numeroItem:2,descricao:'Item complementar de demonstração.',materialOuServico:'M',situacaoCompraItem:1,situacaoCompraItemNome:'Em andamento',catalogo:null,quantidade:String(i%3+2),unidadeMedida:'PACOTE',valorUnitarioEstimado:i%8===7?null:`${i%4+10}.50`,valorTotal:i%8===7?null:((i%3+2)*(i%4+10.5)).toFixed(2),temResultado:false,
     criterioJulgamentoId:7,itemCategoriaId:3,tipoBeneficio:5,
     incentivoProdutivoBasico:itemCondition(i)===true?false:null,aplicabilidadeMargemPreferenciaNormal:itemCondition(i)===true?false:null,aplicabilidadeMargemPreferenciaAdicional:itemCondition(i)===true?false:null},
+]);
+export const demoResults=Array.from({length:64},(_,i)=>[
+  {numeroItem:1,situacaoCompraItemResultadoId:i%4+1,ordemClassificacaoSrp:i%3+1,tipoCadastroReserva:i%3+1,
+    dataResultado:`2026-09-${String(i%28+1).padStart(2,'0')}`,quantidadeHomologada:i%4===3?null:String(i%8+1),
+    valorUnitarioHomologado:i%4===3?null:`${i*1000}.50`,valorTotalHomologado:i%4===3?null:`${i*8000}.00`,percentualDesconto:i%4===3?null:['0','5.25','100'][i%3],
+    indicadorSubcontratacao:itemCondition(i),indicadorAplicacaoMargemPreferencia:itemCondition(i),indicadorAplicacaoBeneficioMeEpp:itemCondition(i),indicadorAplicacaoCriterioDesempate:itemCondition(i),
+    fornecedorId:i%2===0?'15566':'40491',municipioFornecedorId:i%2===0?'5300108':'3550308',codigoPais:i%2===0?'BRA':'ABW',porteFornecedorId:i%2===0?'1':'2',naturezaJuridicaId:i%2===0?'0000':'2062'},
+  {numeroItem:1,situacaoCompraItemResultadoId:1,ordemClassificacaoSrp:0,tipoCadastroReserva:3,dataResultado:null,quantidadeHomologada:null,valorUnitarioHomologado:null,valorTotalHomologado:null,percentualDesconto:null,
+    indicadorSubcontratacao:null,indicadorAplicacaoMargemPreferencia:null,indicadorAplicacaoBeneficioMeEpp:null,indicadorAplicacaoCriterioDesempate:null,
+    fornecedorId:'200',municipioFornecedorId:null,codigoPais:null,porteFornecedorId:null,naturezaJuridicaId:null},
 ]);
 export const demoDocuments = Array.from({length:64},(_,i)=>({
   id:`demo-${i+1}`,doc_type:'_doc',document_type:'edital',numero_controle_pncp:`00000000000000-1-${String(i+1).padStart(6,'0')}/2026`,
@@ -38,6 +49,8 @@ export const demoDocuments = Array.from({length:64},(_,i)=>({
   tem_nfe_contrato:i%4===0?true:i%4===1?false:null,
   exigencia_conteudo_nacional:i%4===0?true:i%4===1?false:null,
   possui_emenda_parlamentar:itemCondition(i),
+  permite_adesao:itemCondition(i),tipo_margem_preferencia_id:i%2===0?'1':'2',
+  orgao_subrogado_id:i%4===3?null:String(i%2+5007),unidade_subrogada_id:i%4===3?null:String(i%2+24550),
   criterio_julgamento_id:demoItems[i].map(item=>String(item.criterioJulgamentoId)),
   incentivo_produtivo_basico:itemCondition(i),aplicabilidade_margem_preferencia_normal:itemCondition(i),aplicabilidade_margem_preferencia_adicional:itemCondition(i),
   modalidade_licitacao_nome:'Pregão - Eletrônico',modalidade_licitacao_id:'6',situacao_id:'1',situacao_nome:'Divulgada no PNCP',
@@ -45,6 +58,11 @@ export const demoDocuments = Array.from({length:64},(_,i)=>({
   valor_total_estimado:`${120000+i*47813}.25`,valor_total_homologado:i%3===0?`${108000+i*45342}.50`:null,
   tem_resultado:i%3===0,item_url:null,link_sistema_origem:null,ano:'2026',numero_sequencial:String(i+1),
 }));
+export const demoContracts=demoDocuments.slice(0,32).map((doc,i)=>({...doc,id:`demo-contract-${i+1}`,document_type:'contrato',numero_controle_pncp:`00000000000000-2-${String(i+1).padStart(6,'0')}/2026`,
+  title:`Contrato de demonstração nº ${i+1}/2026`,item_url:`/contratos/00000000000000/2026/${i+1}`,tipo_contrato_id:i%2===0?'1':'7',tipo_contrato_nome:i%2===0?'Contrato (termo inicial)':'Empenho',
+  fornecedor_id:i%2===0?'15566':'40491',fornecedor_nome:i%2===0?'Fornecedor sintético A':'Fornecedor sintético B',fornecedor_ni:i%2===0?'01234567000189':'12345678901',fornecedor_subcontratado_id:i%4===3?null:'200',
+  data_assinatura:`2026-08-${String(i%28+1).padStart(2,'0')}`,data_inicio_vigencia:`2026-09-${String(i%28+1).padStart(2,'0')}`,data_fim_vigencia:i%2===0?'2027-09-30':'2026-09-30',
+  valor_global:i===31?'9007199254740993.12345':i===30?null:`${10000+i*1000}.50`,possui_nfe:itemCondition(i)}));
 const options=(values)=>values.map(([id,nome])=>({id,nome}));
 const filters={
   orgaos:options(orgs.map((o,i)=>[String(i+1),o])),unidades:options(orgs.map((_,i)=>[String(i+1),`Unidade de Tecnologia ${i+1}`])),
@@ -54,19 +72,25 @@ const filters={
   situacoes:options([['1','Divulgada no PNCP'],['2','Revogada'],['3','Anulada'],['4','Suspensa']]),anos:[{ano:'2026',total:64}],
   item_situacoes:options([['1','Em andamento'],['2','Homologado']]),item_tipos:options([['S','Serviço'],['M','Material']]),
   tipos:options([['1','Edital'],['3','Ato que autoriza a Contratação Direta']]),fontes_orcamentarias:options([['2','Municipal'],['4','Fonte sintética 4']]),
+  tipos_contrato:options([['1','Contrato (termo inicial)'],['7','Empenho']]),
+  orgaos_subrogados:options([['5007','Órgão sub-rogado A'],['5008','Órgão sub-rogado B']]),unidades_subrogadas:options([['24550','Unidade sub-rogada A'],['24551','Unidade sub-rogada B']]),
+  fornecedores:options([['15566','Fornecedor sintético A'],['40491','Fornecedor sintético B'],['200','Fornecedor sintético C']]),fornecedores_subcontratados:options([['200','Fornecedor sintético C']]),
+  municipios_fornecedor:options([['5300108','Brasília'],['3550308','São Paulo']]),
   fontes:options([['3','Compras.gov.br'],['5','BLL Compras'],['13','Sistema sintético 13']]),
   modos_disputa:options([['1','Aberto'],['2','Fechado'],['3','Aberto-Fechado'],['4','Dispensa Com Disputa'],['5','Não se aplica'],['6','Fechado-Aberto']]),
   criterios_julgamento:options([['1','Menor preço'],['2','Maior desconto'],['7','Não se aplica']]),
   item_categorias_leilao:options([['1','Bens Imóveis'],['2','Bens Móveis'],['3','Não se aplica']]),
   item_beneficios:options([['1','Participação exclusiva para ME/EPP'],['2','Subcontratação para ME/EPP'],['3','Cota reservada para ME/EPP'],['4','Sem benefício'],['5','Não se aplica']]),
+  item_unidades_medida:options([['UNIDADE','UNIDADE'],['Unidade ','Unidade '],['SERVIÇO','SERVIÇO'],['PACOTE','PACOTE']]),resultado_item_situacoes:options([['1','Informado'],['2','Cancelado'],['3','Informado cadastro de reserva'],['4','Informado remanescente']]),
   normativos_base:options([['1','Lei 14.133/2021'],['5','Normativo sintético 5']]),
   amparos_legais:[{id:'1',nome:'Amparo sintético 1',normativo:'1'},{id:'19',nome:'Lei 14.133/2021, Art. 75, II',normativo:'1'},{id:'98',nome:'Amparo sintético 98',normativo:'5'}],
   tipos_margens_preferencia:options([['1','Resolução CIIA-PAC'],['2','Resolução CICS']]),
 };
 const catalogs={
+  'situacoes-compra-item-resultado':[{id:1,nome:'Informado'},{id:2,nome:'Cancelado'},{id:3,nome:'Informado cadastro de reserva'},{id:4,nome:'Informado remanescente'}],
   paises:[{id:'BRA',nome:'Brasil',statusAtivo:true},{id:'ABW',nome:'Aruba',statusAtivo:true}],
   'portes-empresa':[{id:1,nome:'ME',statusAtivo:true},{id:2,nome:'EPP',statusAtivo:true}],
-  'naturezas-juridicas':[{id:'0000',nome:'Natureza Jurídica não informada',statusAtivo:false},{id:'1015',nome:'Órgão Público do Poder Executivo Federal',statusAtivo:true}],
+  'naturezas-juridicas':[{id:'0000',nome:'Natureza Jurídica não informada',statusAtivo:false},{id:'1015',nome:'Órgão Público do Poder Executivo Federal',statusAtivo:true},{id:'2062',nome:'Sociedade Empresária Limitada',statusAtivo:true}],
 };
 export function demoFetch(url) {
   const u=new URL(url),p=u.searchParams;let result;
@@ -81,18 +105,27 @@ export function demoFetch(url) {
     const index=Number(u.pathname.match(/compras\/\d+\/(\d+)\/itens/)[1])-1;
     const page=Number(p.get('pagina')),size=Number(p.get('tamanhoPagina'));result=(demoItems[index] || []).slice((page-1)*size,page*size);
   } else {
-    let docs=demoDocuments;
-    const fieldMap={ufs:'uf',orgaos:'orgao_id',unidades:'unidade_id',municipios:'municipio_id',esferas:'esfera_id',poderes:'poder_id',modalidades:'modalidade_licitacao_id',situacoes:'situacao_id',anos:'ano',tipos:'tipo_id',codigo_ibge:'codigo_ibge',fontes:'usuario_id',modos_disputa:'modo_disputa_id'};
+    let docs=p.get('tipos_documento')==='contrato'?demoContracts:demoDocuments;
+    // Contract status is simulated at the dataset's fixed reference date.
+    if(p.get('tipos_documento')==='contrato' && ['vigente','nao_vigente'].includes(p.get('status')))docs=docs.filter(d=>(d.data_inicio_vigencia<='2026-10-07' && d.data_fim_vigencia>='2026-10-07')===(p.get('status')==='vigente'));
+    const fieldMap={ufs:'uf',orgaos:'orgao_id',unidades:'unidade_id',municipios:'municipio_id',esferas:'esfera_id',poderes:'poder_id',modalidades:'modalidade_licitacao_id',situacoes:'situacao_id',anos:'ano',tipos:'tipo_id',codigo_ibge:'codigo_ibge',fontes:'usuario_id',modos_disputa:'modo_disputa_id',orgaos_subrogados:'orgao_subrogado_id',unidades_subrogadas:'unidade_subrogada_id',tipos_contrato:'tipo_contrato_id',fornecedores_subcontratados:'fornecedor_subcontratado_id',tipos_margens_preferencia:'tipo_margem_preferencia_id'};
     for(const [key,field]of Object.entries(fieldMap))if(p.has(key))docs=docs.filter(d=>p.get(key).split('|').includes(d[field]));
     for(const [key,field]of Object.entries({normativos_base:'normativo_base_id',amparos_legais:'amparo_legal_id',fontes_orcamentarias:'fonte_orcamentaria_id'}))if(p.has(key))docs=docs.filter(d=>d[field].some(id=>p.get(key).split('|').includes(id)));
-    for(const key of ['srp','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional','possui_emenda_parlamentar','incentivo_produtivo_basico','aplicabilidade_margem_preferencia_normal','aplicabilidade_margem_preferencia_adicional'])if(p.has(key))docs=docs.filter(d=>d[key]===(p.get(key)==='true'));
-    for(const [key,field]of Object.entries({criterios_julgamento:'criterioJulgamentoId',categorias_leilao:'itemCategoriaId',beneficios:'tipoBeneficio'}))if(p.has(key))docs=docs.filter(d=>demoItems[Number(d.numero_sequencial)-1].some(item=>p.get(key).split('|').includes(String(item[field]))));
+    for(const key of ['srp','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional','possui_emenda_parlamentar','permite_adesao','possui_nfe','incentivo_produtivo_basico','aplicabilidade_margem_preferencia_normal','aplicabilidade_margem_preferencia_adicional'])if(p.has(key))docs=docs.filter(d=>d[key]===(p.get(key)==='true'));
+    for(const [key,field]of Object.entries({criterios_julgamento:'criterioJulgamentoId',categorias_leilao:'itemCategoriaId',beneficios:'tipoBeneficio',unidades_medida:'unidadeMedida',tipos_item:'materialOuServico',situacoes_item:'situacaoCompraItem'}))if(p.has(key))docs=docs.filter(d=>demoItems[Number(d.numero_sequencial)-1].some(item=>p.get(key).split('|').includes(String(item[field]))));
+    const resultFields={situacoes_resultado:'situacaoCompraItemResultadoId',reservas_remanescentes:'tipoCadastroReserva',municipios_fornecedor:'municipioFornecedorId',paises_fornecedor:'codigoPais',portes_fornecedor:'porteFornecedorId',naturezas_juridicas:'naturezaJuridicaId',fornecedores:'fornecedorId'};
+    for(const [key,field]of Object.entries(resultFields))if(p.has(key))docs=docs.filter(d=>d.document_type==='contrato' && key==='fornecedores'?p.get(key).split('|').includes(d.fornecedor_id):demoResults[Number(d.numero_sequencial)-1].some(r=>r[field]!=null && p.get(key).split('|').includes(String(r[field]))));
+    for(const [key,field]of Object.entries({indicador_subcontratacao:'indicadorSubcontratacao',indicador_aplicacao_margem_preferencia:'indicadorAplicacaoMargemPreferencia',indicador_aplicacao_beneficio_me_epp:'indicadorAplicacaoBeneficioMeEpp',indicador_aplicacao_criterio_desempate:'indicadorAplicacaoCriterioDesempate'}))if(p.has(key))docs=docs.filter(d=>demoResults[Number(d.numero_sequencial)-1].some(r=>r[field]===(p.get(key)==='true')));
     if(p.has('q'))docs=docs.filter(d=>(d.description+' '+d.orgao_nome).toLowerCase().includes(p.get('q').toLowerCase()));
     if(p.has('data_publicacao_inicio'))docs=docs.filter(d=>d.data_publicacao_pncp.slice(0,10)>=p.get('data_publicacao_inicio'));
     if(p.has('data_publicacao_fim'))docs=docs.filter(d=>d.data_publicacao_pncp.slice(0,10)<=p.get('data_publicacao_fim'));
-    for(const key of ['valor_total_estimado','valor_total_homologado']) {
-      if(p.has(key+'_min'))docs=docs.filter(d=>d[key]!==null && Number(d[key])>=Number(p.get(key+'_min')));
-      if(p.has(key+'_max'))docs=docs.filter(d=>d[key]!==null && Number(d[key])<=Number(p.get(key+'_max')));
+    const ranges={valor_total_estimado:['document','valor_total_estimado'],valor_total_homologado:['document','valor_total_homologado'],valor_global:['document','valor_global'],
+      item_quantidade:['item','quantidade'],item_valor_unitario_estimado:['item','valorUnitarioEstimado'],item_valor_total_estimado:['item','valorTotal'],
+      ordem_classificacao:['result','ordemClassificacaoSrp'],resultado_quantidade_homologado:['result','quantidadeHomologada'],resultado_valor_unitario_homologado:['result','valorUnitarioHomologado'],resultado_valor_total_homologado:['result','valorTotalHomologado'],resultado_percentual_desconto:['result','percentualDesconto'],
+      data_assinatura:['document','data_assinatura'],data_inicio_vigencia:['document','data_inicio_vigencia'],data_homologacao:['result','dataResultado']};
+    for(const [name,[source,field]]of Object.entries(ranges))for(const [suffix,direction]of name.startsWith('data_')?[['inicio',1],['fim',-1]]:[['min',1],['max',-1]]) {
+      if(!p.has(name+'_'+suffix))continue;const value=p.get(name+'_'+suffix);
+      docs=docs.filter(d=>{const rows=source==='document'?[d]:source==='item'?demoItems[Number(d.numero_sequencial)-1]:demoResults[Number(d.numero_sequencial)-1];return rows.some(row=>row[field]!=null && (name.startsWith('data_')?String(row[field]).slice(0,10).localeCompare(value)*direction>=0:compareDecimal(String(row[field]),value)*direction>=0));});
     }
     docs=[...docs].sort((a,b)=>(a.data_publicacao_pncp<b.data_publicacao_pncp?-1:a.data_publicacao_pncp>b.data_publicacao_pncp?1:0)*(p.get('ordenacao')==='data'?1:-1));
     const size=Number(p.get('tam_pagina')),page=Number(p.get('pagina'));result={items:docs.slice((page-1)*size,page*size),total:docs.length};

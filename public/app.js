@@ -60,7 +60,8 @@ function status(value,query=state.query) {
   $('table-loader').hidden=!busy;
   $('results-table').setAttribute('aria-busy',String(busy));$('results-table').inert=busy;
   if(busy) {
-    $('table-loader-title').textContent=query.page>1?`Carregando página ${fmtInt(query.page)}`:state.lastResult?'Atualizando contratações':'Carregando contratações';
+    const label=query.document_type==='contrato'?'contratos':'contratações';
+    $('table-loader-title').textContent=query.page>1?`Carregando página ${fmtInt(query.page)}`:state.lastResult?`Atualizando ${label}`:`Carregando ${label}`;
     $('table-loader-message').textContent='Consultando o PNCP. Aguarde um instante.';
   }
   $('search-button').hidden=busy;$('cancel-button').hidden=!busy;$('retry-button').hidden=value!=='error';
@@ -84,6 +85,7 @@ async function api(url,options={}) {
 }
 function updateCriteria() {
   const q=state.query;$('order').value=q.order;
+  $('document-type').value=q.document_type;
   const count=Object.keys(q.pncp_filters).length+(q.status==='todos'?0:1);
   $('filter-count').hidden=!count;$('filter-count').textContent=String(count);$('clear-button').hidden=!count && !q.q;
   $('native-chips').replaceChildren();
@@ -123,11 +125,11 @@ function columnMenu(event,column) {
 }
 function renderResult(result,query) {
   state.lastQuery=clone(query);state.lastResult=result;
-  state.placeholder.textContent=result.data.length?'Informe uma pesquisa e consulte as contratações do PNCP.':'Nenhuma contratação encontrada com estes critérios.';
+  state.placeholder.textContent=result.data.length?'Informe uma pesquisa e consulte os documentos do PNCP.':query.document_type==='contrato'?'Nenhum contrato encontrado com estes critérios.':'Nenhuma contratação encontrada com estes critérios.';
   const first=result.data.length?(result.page-1)*result.size+1:0;
   const last=result.data.length?first+result.data.length-1:0;
   $('result-range').textContent=`Exibindo ${fmtInt(first)}-${fmtInt(last)} de `;$('result-range').hidden=false;
-  $('result-title').textContent=`${fmtInt(result.total)} ${result.total===1?'contratação':'contratações'}`;
+  $('result-title').textContent=`${fmtInt(result.total)} ${query.document_type==='contrato'?(result.total===1?'contrato':'contratos'):(result.total===1?'contratação':'contratações')}`;
   const source=result.demo?'Demonstração': 'PNCP';
   $('result-meta').textContent=`· ${source} · consulta às ${time(result.finished_at)} · ${(result.elapsed_ms/1000).toFixed(1).replace('.',',')} s · ${result.upstream_requests} chamada(s)`;
   $('result-meta').title=$('result-meta').textContent;
@@ -165,7 +167,43 @@ function execute() {
   updateCriteria();
   state.table.setData('/api/query',{page:1,size:TABLE_PAGE_SIZE}).catch(()=>{});
 }
-function defaultQuery() {return {api_version:'2.0',document_type:'edital',q:'',status:'todos',pncp_filters:{},order:'-data',page:1,size:TABLE_PAGE_SIZE};}
+function defaultQuery(type=state.query?.document_type || 'edital') {return {api_version:'2.0',document_type:type,q:'',status:'todos',pncp_filters:{},order:'-data',page:1,size:TABLE_PAGE_SIZE};}
+function renderFilterOptions() {
+  const select=$('native-field'),current=select.value;select.replaceChildren();
+  for(const groupName of ['Contratação','Item','Resultado do item','Fornecedor','Contrato']) {
+    const group=el('optgroup');group.label=groupName;
+    for(const cap of state.schema.capabilities.filter(c=>!c.reserved && c.group===groupName)) {
+      const compatible=cap.documents.includes(state.query.document_type);
+      const option=el('option',`${cap.label || cap.name}${compatible?'':cap.documents.includes('contrato')?' · somente contratos':' · somente contratações'}`);
+      option.value=cap.name;option.disabled=!compatible;option.title=cap.description;group.append(option);
+    }
+    if(group.children.length)select.append(group);
+  }
+  select.value=state.schema.capabilities.some(c=>c.name===current && c.documents.includes(state.query.document_type))?current:'ufs';
+  const statuses=state.schema.statuses_by_document[state.query.document_type],statusNames={todos:'Todos',recebendo_proposta:'Recebendo propostas',propostas_encerradas:'Propostas encerradas',vigente:'Vigentes',nao_vigente:'Não vigentes'};
+  $('draft-status').replaceChildren();for(const value of statuses){const option=el('option',statusNames[value] || value);option.value=value;$('draft-status').append(option);}
+}
+function tableColumnDefinitions() {
+  const columns=state.schema.columns;
+  return [columns.find(c=>c.field==='titulo'),...columns.filter(c=>c.field!=='titulo')].map(column=>({title:column.title,field:column.field,width:column.width || 180,minWidth:85,visible:!!column.visible,formatter:colFormatter(column),variableHeight:column.field==='objeto_compra',headerSort:false,headerMenu:columnMenu,tooltip:false}));
+}
+function renderColumnChoices() {
+  $('column-list').replaceChildren();
+  for(const column of state.schema.columns) {
+    const label=el('label',undefined,'checkbox-label'),input=el('input');input.type='checkbox';input.checked=!!column.visible;
+    input.addEventListener('change',()=>{input.checked?state.table.showColumn(column.field):state.table.hideColumn(column.field);});label.append(input,document.createTextNode(column.title));$('column-list').append(label);
+  }
+}
+async function changeDocumentType() {
+  const type=$('document-type').value;if(type===state.query.document_type)return;
+  state.abort?.abort();state.exportAbort?.abort();state.detailAbort?.abort();state.domainAbort?.abort();state.suggestAbort?.abort();state.legalAbort?.abort();
+  state.detailSeq++;state.domainSeq++;state.suggestSeq++;state.legalSeq++;clearTimeout(state.suggestTimer);
+  $('filters-dialog').close();$('details-dialog').close();
+  state.query=defaultQuery(type);state.lastQuery=null;state.lastResult=null;state.domains=null;state.draft=null;
+  $('result-info').hidden=true;$('result-title').textContent='Resultados';$('window-warning').hidden=true;hideWindowTooltip();
+  state.schema.columns=state.schema.columns_by_document[type];$('search').value='';state.table.clearSort();state.table.clearData();
+  state.table.setColumns(tableColumnDefinitions());renderColumnChoices();renderFilterOptions();execute();
+}
 function renderDraftLists() {
   const q=state.draft;
   $('draft-publication-start').value=q.pncp_filters.data_publicacao_inicio || '';
@@ -219,7 +257,7 @@ async function openFilters(column=null) {
   await renderNativeValue();
 }
 async function getDomains(signal,field=$('native-field').value) {
-  const params=new URLSearchParams({tipos_documento:'edital'});
+  const params=new URLSearchParams({tipos_documento:state.draft?.document_type || state.query.document_type});
   if(field)params.set('campo',field);
   const normatives=state.draft?.pncp_filters.normativos_base;
   if(normatives?.length)params.set('normativos_base',normatives.join('|'));
@@ -231,8 +269,8 @@ async function renderNativeValue() {
   const cap=state.schema.capabilities.find(c=>c.name===$('native-field').value),area=$('native-value-area');area.replaceChildren();$('domain-error').hidden=true;$('add-native').disabled=false;
   if(!cap)return;
   const help=el('p',`${cap.group} · ${cap.description}`,'panel-note');area.append(help);
-  if(cap.group==='Item')area.append(el('p','Este filtro seleciona contratações. Os detalhes mostram todos os itens, inclusive os que não correspondem ao filtro.','panel-note'));
-  if(cap.state!=='enabled'){$('add-native').disabled=true;area.append(el('p',cap.reason,'panel-note'));return;}
+  if(['Item','Resultado do item','Fornecedor'].includes(cap.group) && state.query.document_type==='edital')area.append(el('p','Este filtro seleciona contratações. Os detalhes mostram todos os itens, inclusive os que não correspondem ao filtro. Condições diferentes podem corresponder a itens ou resultados diferentes.','panel-note'));
+  if(cap.state!=='enabled' || !cap.documents.includes(state.query.document_type)){$('add-native').disabled=true;area.append(el('p','Filtro disponível em outro tipo de documento. Altere o tipo no cabeçalho.','panel-note'));return;}
   if(cap.type==='list' || cap.type==='enum') {
     $('add-native').disabled=true;
     const controller=new AbortController();state.domainAbort=controller;
@@ -257,7 +295,7 @@ async function renderNativeValue() {
           suggestions.replaceChildren(el('p','Consultando opções do PNCP…','panel-note'));
           state.suggestTimer=setTimeout(async()=>{
             const controller=new AbortController();state.suggestAbort=controller;
-            try{const response=await api(`/api/pncp/suggest?${new URLSearchParams({tipos_documento:'edital',campo:cap.name,q:input.value,tam_pagina:'20'})}`,{signal:controller.signal});const result=await response.json();if(seq===state.domainSeq && token===state.suggestSeq)showSuggestions(result.items);}
+            try{const response=await api(`/api/pncp/suggest?${new URLSearchParams({tipos_documento:state.draft.document_type,campo:cap.name,q:input.value,tam_pagina:'20'})}`,{signal:controller.signal});const result=await response.json();if(seq===state.domainSeq && token===state.suggestSeq)showSuggestions(result.items);}
             catch(error){if(error.name!=='AbortError' && seq===state.domainSeq && token===state.suggestSeq){suggestions.replaceChildren(el('p','Sugestões indisponíveis. Tente novamente.','panel-note'));$('domain-error').textContent=error.message;$('domain-error').hidden=false;}}
           },450);
         });
@@ -290,7 +328,7 @@ function renderSelectedOptions() {
 }
 async function addNative() {
   const cap=state.schema.capabilities.find(c=>c.name===$('native-field').value);let value;
-  if(!cap || cap.state!=='enabled' || $('add-native').disabled)return;
+  if(!cap || cap.state!=='enabled' || !cap.documents.includes(state.draft.document_type) || $('add-native').disabled)return;
   if(state.legalPending && cap.name==='amparos_legais')return;
   if(cap.type==='list'){value=$('native-options')?[...$('native-options').selectedOptions].map(o=>o.value):state.selected.map(o=>o.id);if(!value.length)return;}
   else if(cap.type==='enum'){value=$('native-options').value;if(!value)return;}
@@ -306,9 +344,12 @@ async function openDetails(doc) {
   content.append(el('p',doc.objeto_compra ?? 'Objeto não informado.','detail-object'));
   const links=el('div',undefined,'detail-links');
   for(const [label,url]of [['Abrir no PNCP',doc.url_pncp],['Sistema de origem',doc.link_sistema_origem]]){const link=safeAnchor(label,url);if(link)links.append(link);}content.append(links);
-  const fields=['numero_controle_pncp','orgao_nome','orgao_cnpj','unidade_orgao_nome_unidade','uf','municipio_nome','modalidade_nome','situacao_compra_nome_pncp','data_publicacao_pncp','data_atualizacao_pncp','valor_total_estimado','valor_total_homologado'];
+  const fields=['numero_controle_pncp','orgao_nome','orgao_cnpj','unidade_orgao_nome_unidade','uf','municipio_nome','modalidade_nome','situacao_compra_nome_pncp','data_publicacao_pncp','data_atualizacao_pncp',...(doc.tipo_documento==='contrato'?['tipo_contrato_nome','fornecedor_nome','fornecedor_ni','valor_global','data_assinatura','data_inicio_vigencia','data_fim_vigencia']:['valor_total_estimado','valor_total_homologado'])];
   const grid=el('dl',undefined,'detail-grid');
   for(const field of fields){const column=state.schema.columns.find(c=>c.field===field),wrap=el('div');wrap.append(el('dt',column.title),el('dd',column.type==='decimal'?money(doc[field]):column.type==='date'?date(doc[field]):doc[field] ?? '—'));grid.append(wrap);}content.append(grid);
+  if(doc.tipo_documento==='contrato'){
+    const raw=el('details'),summary=el('summary','Registro original da busca'),pre=el('pre',JSON.stringify(doc._raw,null,2));raw.append(summary,pre);content.append(raw);openDialog('details-dialog');return;
+  }
   const section=el('section',undefined,'items-section'),toolbar=el('div',undefined,'items-toolbar'),retry=el('button','Tentar consultar itens','button small'),itemsTitle=el('h3','Itens da contratação');retry.hidden=true;toolbar.append(itemsTitle,retry);section.append(toolbar);
   const itemStatus=el('p','Preparando consulta de itens…','items-status'),list=el('div'),pager=el('div',undefined,'item-pager'),previous=el('button','Anterior','button small'),pageLabel=el('span','Página 1'),next=el('button','Próxima','button small');pager.hidden=true;pager.append(previous,pageLabel,next);section.append(itemStatus,list,pager);content.append(section);
   let page=1,controller=null,hasMore=false;
@@ -358,16 +399,8 @@ async function init() {
   state.query=defaultQuery();
   $('search').value='';
   $('source-badge').hidden=!state.schema.demo;
-  for(const groupName of ['Contratação','Item','Resultado do item','Fornecedor','Contrato']) {
-    const group=el('optgroup');group.label=groupName==='Contrato'?'Contratos (indisponíveis)':groupName;
-    for(const cap of state.schema.capabilities.filter(c=>!c.reserved && c.group===groupName)) {
-      const suffix=cap.state==='unsupported_document'?' · somente contratos':cap.state==='enabled'?'':' · pendente';
-      const option=el('option',`${cap.label || cap.name}${suffix}`);option.value=cap.name;option.disabled=cap.state!=='enabled';option.title=cap.reason || cap.description;group.append(option);
-    }
-    $('native-field').append(group);
-  }
+  renderFilterOptions();
   $('native-field').value='ufs';
-  const tableColumns=[state.schema.columns.find(c=>c.field==='titulo'),...state.schema.columns.filter(c=>c.field!=='titulo')];
   state.placeholder=el('div','Informe uma pesquisa e consulte as contratações do PNCP.');
   const resultInfo=$('result-info');
   state.table=new Tabulator('#results-table',{
@@ -377,12 +410,11 @@ async function init() {
     sortMode:'remote',filterMode:'remote',ajaxRequestFunc:requestTable,dataLoader:false,data:[],
     placeholder:state.placeholder,
     locale:'pt-br',langs:{'pt-br':{pagination:{page_size:'Linhas',page_title:'Página',first:paginationIcons.first,first_title:'Primeira página',last:paginationIcons.last,last_title:'Última página',prev:paginationIcons.prev,prev_title:'Página anterior',next:paginationIcons.next,next_title:'Próxima página',counter:{showing:'Exibindo',of:'de',rows:'contratações',pages:'páginas'}}}},
-    columns:tableColumns.map(column=>({title:column.title,field:column.field,width:column.width || 180,minWidth:85,visible:!!column.visible,formatter:colFormatter(column),variableHeight:column.field==='objeto_compra',headerSort:false,headerMenu:columnMenu,tooltip:false})),
+    columns:tableColumnDefinitions(),
   });
   state.table.on('rowClick',(event,row)=>openDetails(row.getData()));
-  for(const column of tableColumns) {
-    const label=el('label',undefined,'checkbox-label'),input=el('input');input.type='checkbox';input.checked=!!column.visible;input.addEventListener('change',()=>{input.checked?state.table.showColumn(column.field):state.table.hideColumn(column.field);});label.append(input,document.createTextNode(column.title));$('column-list').append(label);
-  }
+  renderColumnChoices();
+  $('document-type').addEventListener('change',changeDocumentType);
   $('app-header').addEventListener('focusin',event=>event.target.scrollIntoView({block:'nearest',inline:'nearest'}));
   $('search-form').addEventListener('submit',event=>{event.preventDefault();execute();});
   $('filters-button').addEventListener('click',()=>openFilters());$('columns-button').addEventListener('click',()=>openDialog('columns-dialog'));

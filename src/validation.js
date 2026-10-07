@@ -1,5 +1,5 @@
 import { assert, checkKeys } from './errors.js';
-import { capabilities, reserved } from './schema.js';
+import { capabilities, reserved, documentStatuses } from './schema.js';
 
 export const validDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s;
 export const validDecimal = s => typeof s === 'string' && /^\d+(?:\.\d+)?$/.test(s) && s.length <= 100;
@@ -11,22 +11,23 @@ export function compareDecimal(a, b) {
   const out = x.i.length === y.i.length ? (x.i + x.f.padEnd(l, '0')).localeCompare(y.i + y.f.padEnd(l, '0'), 'en') : x.i.length - y.i.length;
   return x.neg ? -Math.sign(out) : Math.sign(out);
 }
-export function validateFilters(filters, config) {
+export function validateFilters(filters, config, documentType='edital') {
   checkKeys(filters, capabilities(config).filter(c => !c.reserved).map(c => c.name), 'pncp_filters');
   const map = Object.fromEntries(capabilities(config).map(c => [c.name, c]));
   const out = {};
   for (const [name, value] of Object.entries(filters)) {
     assert(!reserved.includes(name), 'RESERVED_PARAMETER', `${name} é reservado ao adaptador.`);
     const cap = map[name];
-    assert(cap.documents.includes('edital'),'DOCUMENT_FILTER_UNAVAILABLE',`Filtro ${name} não está disponível para contratações.`,409,{field:name,reason:cap.reason});
-    assert(cap.state === 'enabled' && cap.documents.includes('edital'), 'CAPABILITY_PENDING', `Filtro ${name} ainda não validado para contratações.`, 409, { field: name, reason: cap.reason });
+    assert(cap.documents.includes(documentType),'DOCUMENT_FILTER_UNAVAILABLE',`Filtro ${name} não está disponível para ${documentType}.`,409,{field:name,document_type:documentType});
+    assert(cap.state === 'enabled', 'CAPABILITY_UNAVAILABLE', `Filtro ${name} não está implementado.`, 409, { field: name, reason: cap.reason });
     if (cap.type === 'list') {
       assert(Array.isArray(value) && value.length >= 1 && value.length <= 100 && value.every(v => typeof v === 'string' && v.length > 0 && v.length <= 256 && !v.includes('|') && !/[\u0000-\u001f]/u.test(v)), 'INVALID_TYPE', `${name} exige lista de strings, sem pipe.`);
       if (name === 'ufs') assert(value.every(v => ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].includes(v)), 'INVALID_DOMAIN', 'UF inválida.');
       if (name === 'esferas') assert(value.every(v => ['F','E','M','D','N'].includes(v)), 'INVALID_DOMAIN', 'Esfera inválida.');
       if (name === 'poderes') assert(value.every(v => ['E','L','J','N'].includes(v)), 'INVALID_DOMAIN', 'Poder inválido.');
       if (name === 'anos') assert(value.every(v => /^\d{4}$/.test(v)), 'INVALID_DOMAIN', 'Ano inválido.');
-      if (!['ufs', 'esferas', 'poderes', 'anos', 'unidades_medida'].includes(name)) assert(value.every(v => /^\d+$/.test(v)), 'INVALID_DOMAIN', `${name} exige IDs do domínio, não nomes ou códigos administrativos.`);
+      if(name==='paises_fornecedor')assert(value.every(v=>/^[A-Z]{3}$/.test(v)),'INVALID_DOMAIN','Países exigem IDs do catálogo PNCP, como BRA; não use códigos BCB.');
+      else if (!['ufs', 'esferas', 'poderes', 'anos', 'unidades_medida'].includes(name)) assert(value.every(v => /^\d+$/.test(v)), 'INVALID_DOMAIN', `${name} exige IDs do domínio, não nomes ou códigos administrativos.`);
     } else if (cap.type === 'enum') {
       assert(typeof value==='string' && (name==='tipos_item' ? ['S','M'].includes(value) : /^\d+$/.test(value)), 'INVALID_DOMAIN', `${name} exige uma única opção do domínio.`);
     } else if (cap.type === 'boolean') assert(typeof value === 'boolean', 'INVALID_TYPE', `${name} exige booleano.`);
@@ -36,6 +37,7 @@ export function validateFilters(filters, config) {
     else assert(typeof value === 'string' && value.length > 0 && value.length <= 256 && !value.includes('|'), 'INVALID_TYPE', `${name} exige string única.`);
     if (name === 'codigo_ibge') assert(/^\d{7}$/.test(value), 'INVALID_DOMAIN', 'codigo_ibge exige sete dígitos.');
     if (name === 'tipos_item') assert(['S', 'M'].includes(value), 'INVALID_DOMAIN', 'tipos_item exige S ou M.');
+    if(name.startsWith('resultado_percentual_desconto_'))assert(compareDecimal(value,'100')<=0,'INVALID_DOMAIN','Percentual de desconto deve estar entre 0 e 100, sem o símbolo %.');
     out[name] = value;
   }
   for (const key of Object.keys(out)) {
@@ -48,13 +50,13 @@ export function validateQuery(input, config) {
   checkKeys(input, ['api_version','document_type','q','status','pncp_filters','order','page','size'], 'query');
   const q = { api_version: '2.0', document_type: 'edital', q: '', status: 'todos', pncp_filters: {}, order: '-data', page: 1, size: config.PNCP_PAGE_SIZE, ...input };
   assert(q.api_version === '2.0', 'INCOMPATIBLE_VERSION', 'Use api_version 2.0.');
-  assert(q.document_type === 'edital', 'DOCUMENT_TYPE_UNAVAILABLE', 'Somente contratações (edital) estão habilitadas.', 409);
+  assert(typeof q.document_type==='string' && Object.hasOwn(documentStatuses,q.document_type), 'DOCUMENT_TYPE_UNAVAILABLE', 'Escolha contratações (edital) ou contratos (contrato).', 409);
   assert(typeof q.q === 'string' && q.q.length <= 128, 'INVALID_QUERY_TEXT', 'A busca textual permite até 128 caracteres.');
-  assert(['todos','recebendo_proposta','propostas_encerradas'].includes(q.status), 'INVALID_STATUS', 'Status temporal inválido.');
+  assert(documentStatuses[q.document_type].includes(q.status), 'INVALID_STATUS', 'Status temporal inválido para o tipo documental.');
   assert(['-data','data','relevancia'].includes(q.order) && (q.order !== 'relevancia' || q.q.trim()), 'INVALID_ORDER', 'Ordenação não habilitada ou relevância sem busca textual.');
   assert(Number.isSafeInteger(q.page) && q.page > 0, 'INVALID_PAGE', 'page deve ser inteiro positivo.');
   assert([10,25,50,100].includes(q.size), 'INVALID_SIZE', 'size deve ser 10, 25, 50 ou 100.');
-  q.pncp_filters = validateFilters(q.pncp_filters, config);
+  q.pncp_filters = validateFilters(q.pncp_filters, config, q.document_type);
   assert(q.page * q.size <= 10000, 'PAGE_OUT_OF_RANGE', 'Página além da janela de 10000 documentos.', 422, { last_page: Math.floor(10000/q.size) });
   return q;
 }

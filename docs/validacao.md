@@ -33,9 +33,9 @@ curl --fail-with-body -sS http://localhost:8000/api/query \
   -d '{"api_version":"2.0","q":"firewall","size":10}'
 ```
 
-Confira HTTP 200, `status: "ok"` no healthcheck e `source` correspondente ao modo escolhido. Na pesquisa, confira `data`, totais e paginação. Em demonstração, a pesquisa por `firewall` retorna seis documentos; a pesquisa sem texto retorna total 64. Com a fonte real, os resultados e totais variam.
+Confira HTTP 200, `status: "ok"` no healthcheck e `source` correspondente ao modo escolhido. Na pesquisa, confira `data`, totais e paginação. Em demonstração, a pesquisa por `firewall` retorna seis contratações; a pesquisa sem texto retorna 64 contratações ou 32 contratos. Com a fonte real, os resultados e totais variam.
 
-Pela interface, verifique pesquisa inicial, filtros, paginação, abertura de itens, cancelamento e CSV. Confira também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de sugestões e exportação.
+Pela interface, verifique pesquisa inicial, todos os filtros, paginação, itens, troca entre contratações e contratos, cancelamento e CSV de ambos os tipos. Confira também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de sugestões e exportação.
 
 ## Build e distribuição
 
@@ -74,25 +74,18 @@ O comando escreve um JSON na saída com duração, quantidade de linhas, chamada
 
 ## Situação verificada e alcance
 
-Revisão atual: 6 de outubro de 2026, Linux, Node.js 24.19.0.
+Revisão atual: 7 de outubro de 2026, Linux, Node.js 24.19.0.
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm test` | 105 testes passaram, sem falhas ou testes ignorados |
-| Build e distribuição em demonstração | Build concluído; saúde, esquema, arquivos estáticos, pesquisa, filtros, sugestões, itens e CSV verificados |
-| Pesquisa real por `firewall`, tamanho 10 | HTTP 200, fonte `pncp` e dez documentos |
-| Benchmark de demonstração | Pesquisa, paginação e exportação concluídas |
-| Teste de navegador com Playwright 1.58.2 e Chromium do ambiente | 33 verificações passaram, incluindo filtros documentais e de itens combinados, edição de Não, detalhes sem refinamento, CSV, SRP, IBGE, reconciliação legal e responsividade; sem erros JavaScript não tratados |
-| Filtros documentais na fonte real | Sondagens válidas conferiram todos os registros das páginas para os treze filtros liberados; exigência de conteúdo nacional com `true` teve um registro, e as demais páginas tinham dez |
-| Novos filtros pela API real da aplicação | Orçamento sigiloso `false`, ata vinculada `false` e modo de disputa `5` retornaram HTTP 200 com dez registros correspondentes; sistema de origem `3` retornou HTTP 503 nessa verificação |
-| Emenda parlamentar pela API real | Condição `false` com órgão, unidade e ano retornou HTTP 200 e cinco registros correspondentes; CSV HTTP 200 com cinco contratações |
-| Seis filtros de itens na fonte real | Respostas válidas da busca e detalhes confirmaram controles de critérios, categorias, benefícios, incentivo e margens. Buscas pela API da aplicação de critério, benefício e margem adicional tiveram HTTP 503 na rodada |
-| Catálogos pela API da aplicação | Países, portes e naturezas jurídicas responderam HTTP 200 |
+| `npm test` | 120 testes passaram, sem falhas ou testes ignorados |
+| Build e distribuição em demonstração | Build concluído; saúde, esquema, estáticos, pesquisa, domínios, sugestões, itens e CSV dos dois tipos verificados |
+| Chromium com Playwright 1.58.2 | 40 verificações passaram, incluindo todos os 71 controles de contratações e os 32 de contratos, status, detalhes, CSV e responsividade; sem erros JavaScript não tratados |
+| Catálogo | 80 filtros implementados, 71 de edital e 32 de contrato; nenhum filtro pendente |
+| Integração real | Respostas válidas para parte dos filtros e para contratos; outras chamadas receberam HTTP 503. O alcance e os controles estão no guia dos filtros |
 
-Os filtros documentais liberados possuem testes de valores únicos e múltiplos, booleanos, formato IBGE, pertencimento a domínios, consulta e CSV. A dependência legal tem testes de preservação e remoção de amparos, bloqueio durante a conferência, falha, repetição e descarte de respostas atrasadas. Há também testes de códigos de transporte numéricos para que uma falha de proxy seja apresentada como erro de transporte.
+A cobertura funcional verifica todos os filtros na pesquisa e na exportação, tipos e intervalos inválidos antes da rede, pertinência aos domínios, IDs alfabéticos, espaços em unidades, zeros à esquerda, ausência distinta de false e precisão decimal além da faixa segura de inteiros. Contratos têm projeção e CSV próprios; o sequencial do contrato não inicia consultas de itens de uma compra.
 
-Origem e modo de disputa têm testes de união de opções e validação compartilhada dos domínios antes da busca e do CSV. Orçamento sigiloso, ata vinculada, contrato/empenho vinculado, nota fiscal do contrato e conteúdo nacional distinguem omissão, `true`, `false` e `null` na demonstração. A cobertura verifica combinações, segunda página, coleta completa, rejeição de entradas inválidas e edição/remoção pela interface. O teste Chromium confirma a consulta dos sete novos filtros combinados e o download das onze contratações correspondentes.
+Os testes de interface verificam edição de Não, reconciliação legal, status e colunas por documento, limpeza de critérios ao trocar de tipo e descarte de respostas atrasadas. A demonstração preserva todos os itens nos detalhes e mantém uma linha por documento no CSV. O navegador percorre os controles completos, aplica combinações e baixa arquivos dos dois tipos.
 
-Emenda e os seis filtros de itens têm cobertura de domínios, aliases, tipos inválidos, omissão, booleanos e exportação. A demonstração mantém dois itens por contratação. Os testes verificam que os detalhes preservam itens não correspondentes, que o CSV exporta contratações e que a busca/exportação não consultam itens automaticamente. No Chromium, a combinação dos sete filtros retorna seis contratações, os detalhes continuam com dois itens e o CSV contém seis linhas de dados. Os ensaios reais confirmam controles individuais; a correlação de condições distintas no mesmo item permanece sem homologação.
-
-As respostas do PNCP foram intermitentes: depois das sondagens válidas, várias consultas pela API da aplicação receberam indisponibilidade ou timeout, inclusive com critérios mais restritos. Os testes sintéticos não garantem disponibilidade contínua nem todas as combinações possíveis na fonte. O [planejamento dos filtros](viabilidade-filtros-pncp.md) registra os campos e valores conferidos e o que ainda precisa ser comprovado.
+As sondagens externas verificam respostas e controles selecionados, sem homologar todos os predicados e combinações. O formulário oficial do PNCP confirmou o uso do ID do catálogo de países, o catálogo de situações de resultados e os status vigente/nao_vigente. Falhas intermitentes impedem afirmar disponibilidade contínua ou correlação no mesmo item/resultado. Consulte [Implementação e verificação dos filtros](viabilidade-filtros-pncp.md).
