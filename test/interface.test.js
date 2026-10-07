@@ -24,7 +24,8 @@ async function interfaceFixture(options={}) {
     get selectedOptions(){return this.children.filter(n=>n.selected);}
     click(){if(this.tagName==='a')downloads.push({href:this.href,filename:this.download});}remove(){}
     addEventListener(name,fn){(this.listeners[name]??=[]).push(fn);}
-    async fire(name){for(const fn of this.listeners[name] || [])await fn({target:this,preventDefault(){}});await settle();await Promise.allSettled(pending);await settle();}
+    async fire(name,extra={}){for(const fn of this.listeners[name] || [])await fn({target:this,preventDefault(){},...extra});await settle();await Promise.allSettled(pending);await settle();}
+    focus(){dom.activeElement=this;}scrollIntoView(){}
     setAttribute(name,value){(this.attributes??={})[name]=String(value);}getAttribute(name){return this.attributes?.[name] ?? null;}querySelectorAll(){return [];}showModal(){this.open=true;}
     close(){this.open=false;for(const fn of this.listeners.close || [])fn();}
   }
@@ -33,7 +34,7 @@ async function interfaceFixture(options={}) {
   const dom={body:new Element('body'),getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),createTextNode:text=>text,addEventListener(){},querySelectorAll:selector=>selector==='dialog'?all.filter(n=>n.tagName==='dialog'):[],querySelector(){return null;}};
   const cfg=config({DEMO_MODE:true,...options.config});
   const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[],relatedRequests=[],exportRequests=[],domainRequests=[],suggestRequests=[];
-  const queryHandler=options.queryHandler,exportHandler=options.exportHandler,domainHandler=options.domainHandler,relatedHandler=options.relatedHandler;
+  const queryHandler=options.queryHandler,exportHandler=options.exportHandler,domainHandler=options.domainHandler,relatedHandler=options.relatedHandler,itemHandler=options.itemHandler;
   let detailFailures=options.detailFailures || 0;
   const fetcher=async(url,options={})=>{
     try{
@@ -57,6 +58,7 @@ async function interfaceFixture(options={}) {
           return Response.json(await backend.related({cnpj,ano,sequencial},resource,Number(params.get('pagina')),10,options.signal));
         }
         itemRequests.push(url);if(detailFailures-->0)return Response.json({error:{code:'PNCP_HTTP_ERROR',message:'Falha temporária dos itens.'}},{status:503});
+        if(itemHandler)return itemHandler(url,options,backend);
         const [,cnpj,ano,sequencial]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/itens/),params=new URL(url,'http://localhost').searchParams;
         return Response.json(await backend.details({cnpj,ano,sequencial},Number(params.get('pagina')),100,options.signal));
       }
@@ -83,37 +85,63 @@ async function interfaceFixture(options={}) {
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
 
-test('RELATED-UI-01: quatro seções carregam sob demanda e exibem dados e links corretos',async()=>{
+test('DETAIL-TABS-01: rótulos, campos, vínculos ARIA e links de cabeçalho correspondem ao documento aberto',async()=>{
+  const ui=await interfaceFixture();await ui.openDocument(project(document(1,{item_url:'/compras/00000000000000/2026/1',link_sistema_origem:'https://example.test/compra/1'})));
+  const tabs=ui.nodes.get('details-content').children.find(n=>n.className==='detail-tabs');
+  assert.deepEqual(tabs.children.map(n=>n.textContent),['Detalhes (12)','Itens (2)','Arquivos (12)','Atas de Registro de Preço (3)','Contratos/Empenhos (2)','Histórico (12)']);assert.equal(tabs.getAttribute('role'),'tablist');
+  for(const [index,button]of tabs.children.entries()){const panel=ui.nodes.get(button.getAttribute('aria-controls'));assert.equal(panel.getAttribute('role'),'tabpanel');assert.equal(panel.getAttribute('aria-labelledby'),button.id);assert.equal(panel.hidden,index!==0);assert.equal(button.getAttribute('aria-selected'),String(index===0));assert.equal(button.tabIndex,index===0?0:-1);}
+  const grid=ui.nodes.get('detail-panel-detalhes').children[0];assert.deepEqual(grid.children.map(n=>n.children[0].textContent),['Controle PNCP','Órgão','CNPJ do órgão','Unidade','UF','Município','Modalidade','Situação','Publicação','Atualização','Valor estimado','Valor homologado']);
+  assert.deepEqual(ui.nodes.get('details-links').children.map(n=>n.textContent),['Abrir no PNCP','Sistema de origem']);assert(!ui.nodes.get('details-content').children.some(n=>n.className==='detail-links'));
+  await ui.openDocument(project(document(2)));assert.equal(ui.nodes.get('details-links').children.length,1);assert(!ui.nodes.get('details-links').children.some(n=>n.href==='https://example.test/compra/1'));
+});
+test('DETAIL-TABS-02: teclado percorre abas sem novas chamadas e mantém apenas um painel visível',async()=>{
+  const ui=await interfaceFixture();await ui.openDocument(project(document(1)));const initial=ui.relatedRequests.length+ui.itemRequests.length;
+  await ui.nodes.get('detail-tab-detalhes').fire('keydown',{key:'ArrowRight'});assert.equal(ui.nodes.get('detail-tab-itens').getAttribute('aria-selected'),'true');assert.equal(ui.nodes.get('detail-panel-itens').hidden,false);assert.equal(ui.nodes.get('detail-panel-detalhes').hidden,true);
+  await ui.nodes.get('detail-tab-itens').fire('keydown',{key:'End'});assert.equal(ui.nodes.get('detail-tab-historico').tabIndex,0);
+  await ui.nodes.get('detail-tab-historico').fire('keydown',{key:'ArrowRight'});assert.equal(ui.nodes.get('detail-tab-detalhes').tabIndex,0);
+  await ui.nodes.get('detail-tab-detalhes').fire('keydown',{key:'ArrowLeft'});assert.equal(ui.nodes.get('detail-tab-historico').tabIndex,0);
+  await ui.nodes.get('detail-tab-historico').fire('keydown',{key:'Home'});assert.equal(ui.nodes.get('detail-tab-detalhes').tabIndex,0);
+  assert.equal(ui.relatedRequests.length+ui.itemRequests.length,initial);assert.equal(ui.nodes.get('details-content').children.filter(n=>n.getAttribute?.('role')==='tabpanel' && !n.hidden).length,1);
+});
+test('DETAIL-TABS-03: abertura é imediata e consulta as cinco listas com no máximo duas requisições simultâneas',async()=>{
+  let active=0,peak=0;const queued=[],started=[];
+  const handler=(url,options,backend)=>{active++;peak=Math.max(peak,active);started.push(url);return new Promise(resolve=>queued.push(async()=>{const [,cnpj,ano,sequencial,resource]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/(\w+)/);const result=resource==='itens'?await backend.details({cnpj,ano,sequencial},1,100,options.signal):await backend.related({cnpj,ano,sequencial},resource,1,10,options.signal);active--;resolve(Response.json(result));}));};
+  const ui=await interfaceFixture({itemHandler:handler,relatedHandler:handler});const opening=ui.openDocument(project(document(1)));await settle();assert.equal(ui.nodes.get('details-dialog').open,true);assert.equal(started.length,2);assert.equal(ui.nodes.get('detail-tab-detalhes').getAttribute('aria-selected'),'true');assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (…)');
+  for(let round=0;round<4;round++){await Promise.all(queued.splice(0).map(release=>release()));await settle();}
+  await opening;assert.equal(started.length,5);assert.equal(peak,2);assert.equal(active,0);assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (12)');
+});
+
+test('RELATED-UI-01: quatro abas carregam em background e exibem dados e links corretos',async()=>{
   const ui=await interfaceFixture();await ui.openDocument(project(document(1)));
-  const sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');assert.equal(sections.length,4);assert.equal(ui.relatedRequests.length,0);
-  for(const section of sections){section.open=true;await section.fire('toggle');assert.match(section.children[0].textContent,/\(\d+\)$/);assert(section.children[3].children.length>0);assert.equal(section.getAttribute('aria-busy'),'false');}
+  const sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');assert.equal(sections.length,4);assert.equal(ui.relatedRequests.length,4);
+  for(const section of sections){assert.equal(section.hidden,true);assert.match(section.children[0].textContent,/\(\d+\)$/);assert(section.children[3].children.length>0);assert.equal(section.getAttribute('aria-busy'),'false');}
   assert.equal(ui.relatedRequests.length,4);
   const files=sections.find(s=>s.dataset.resource==='arquivos');assert.equal(files.children[3].children[0].children.at(-1).textContent,'Baixar arquivo');assert.match(files.children[3].children[0].children.at(-1).href,/\/arquivos\/1$/);
   const atas=sections.find(s=>s.dataset.resource==='atas');assert.match(atas.children[3].children[0].children.at(-1).href,/\/app\/atas\//);
   const contracts=sections.find(s=>s.dataset.resource==='contratos');assert.match(contracts.children[3].children[1].children[1].children.at(-1).children[1].textContent,/9\.007\.199\.254\.740\.993,12345/);
   const history=sections.find(s=>s.dataset.resource==='historico');assert(history.children[3].children[1].children[1].children.some(field=>field.children[1].textContent==='Exigência Legal'));
-  await files.fire('toggle');assert.equal(ui.relatedRequests.length,4);
+  await ui.nodes.get('detail-tab-arquivos').fire('click');assert.equal(files.hidden,false);assert.equal(ui.relatedRequests.length,4);
 });
 test('RELATED-UI-02: paginação de arquivos e histórico é independente dos itens e das outras seções',async()=>{
   const ui=await interfaceFixture();await ui.openDocument(project(document(1)));const sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');
-  for(const resource of ['arquivos','historico']){const section=sections.find(s=>s.dataset.resource===resource);section.open=true;await section.fire('toggle');const pager=section.children[4];assert.equal(pager.hidden,false);await pager.children[2].fire('click');assert.equal(section.children[3].children.length,2);assert.equal(pager.children[2].disabled,true);assert.equal(pager.children[1].textContent,'Página 2 de 2');await pager.children[0].fire('click');assert.equal(section.children[3].children.length,10);}
-  assert.equal(ui.itemRequests.length,1);assert(ui.relatedRequests.every(url=>/\/(arquivos|historico)\?/.test(url)));
+  for(const resource of ['arquivos','historico']){const section=sections.find(s=>s.dataset.resource===resource);await ui.nodes.get(`detail-tab-${resource}`).fire('click');const pager=section.children[4];assert.equal(pager.hidden,false);await pager.children[2].fire('click');assert.equal(section.children[3].children.length,2);assert.equal(pager.children[2].disabled,true);assert.equal(pager.children[1].textContent,'Página 2 de 2');await pager.children[0].fire('click');assert.equal(section.children[3].children.length,10);}
+  assert.equal(ui.itemRequests.length,1);assert.equal(ui.relatedRequests.length,8);assert.equal(ui.nodes.get('detail-tab-arquivos').textContent,'Arquivos (12)');assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (12)');
 });
 test('RELATED-UI-03: falha em uma listagem permite repetir e não impede as outras',async()=>{
   let failures=1;const ui=await interfaceFixture({relatedHandler:async(url,options,backend)=>{if(url.includes('/arquivos?') && failures-->0)return Response.json({error:{message:'Arquivos indisponíveis.'}},{status:503});const [,cnpj,ano,sequencial,resource]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/(\w+)/);return Response.json(await backend.related({cnpj,ano,sequencial},resource,1,10,options.signal));}});
-  await ui.openDocument(project(document(1)));const sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section'),files=sections[0];files.open=true;await files.fire('toggle');assert.equal(files.children[1].children[0].hidden,false);assert.equal(files.children[2].textContent,'Arquivos indisponíveis.');
-  const atas=sections[1];atas.open=true;await atas.fire('toggle');assert.equal(atas.children[3].children.length,3);
+  await ui.openDocument(project(document(1)));const sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section'),files=sections[0];assert.equal(files.children[1].children[0].hidden,false);assert.equal(files.children[2].textContent,'Arquivos indisponíveis.');assert.equal(ui.nodes.get('detail-tab-arquivos').textContent,'Arquivos (—)');
+  const atas=sections[1];assert.equal(atas.children[3].children.length,3);assert.equal(ui.nodes.get('detail-tab-atas').textContent,'Atas de Registro de Preço (3)');
   await files.children[1].children[0].fire('click');assert.equal(files.children[3].children.length,10);assert.equal(files.children[1].children[0].hidden,true);assert.equal(ui.itemRequests.length,1);
 });
 test('RELATED-UI-04: lista vazia e ausência de identificação não tentam acessar outro documento',async()=>{
   const ui=await interfaceFixture();await ui.openDocument(project(document(5)));let sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');
-  for(const section of sections){section.open=true;await section.fire('toggle');assert.match(section.children[3].children[0].textContent,/Nenhum registro/);assert.equal(section.children[4].hidden,true);}
-  const count=ui.relatedRequests.length;await ui.openDocument(project(document(1,{numero_sequencial:null})));sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');for(const section of sections){section.open=true;await section.fire('toggle');assert.match(section.children[2].textContent,/não forneceu CNPJ/);}assert.equal(ui.relatedRequests.length,count);
+  for(const section of sections){assert.match(section.children[3].children[0].textContent,/Nenhum registro/);assert.equal(section.children[4].hidden,true);assert.match(ui.nodes.get(`detail-tab-${section.dataset.resource}`).textContent,/\(0\)$/);}
+  const count=ui.relatedRequests.length;await ui.openDocument(project(document(1,{numero_sequencial:null})));sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');for(const section of sections){assert.match(section.children[2].textContent,/não forneceu CNPJ/);assert.match(ui.nodes.get(`detail-tab-${section.dataset.resource}`).textContent,/\(—\)$/);}assert.equal(ui.relatedRequests.length,count);
 });
 test('RELATED-UI-05: fechar os detalhes cancela todas as consultas e descarta uma resposta atrasada',async()=>{
-  let resolve,responseSignal;const ui=await interfaceFixture({relatedHandler:(url,options)=>{responseSignal=options.signal;return new Promise(r=>{resolve=r;});}});await ui.openDocument(project(document(1)));
-  const section=ui.nodes.get('details-content').children.find(n=>n.className==='related-section');section.open=true;const pending=section.fire('toggle');await settle();ui.nodes.get('details-dialog').close();assert.equal(responseSignal.aborted,true);
-  await ui.openDocument(project(document(2)));resolve(Response.json({page:1,size:10,data:[{titulo:'Resposta antiga'}],total:1,total_pages:1,has_more:false}));await pending;assert.equal(section.children[3].children.length,0);assert(!ui.all.some(n=>n.textContent==='Resposta antiga'));
+  const resolutions=[],signals=[];const ui=await interfaceFixture({relatedHandler:(url,options,backend)=>{const [,cnpj,ano,sequencial,resource]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/(\w+)/);if(sequencial==='1'){signals.push(options.signal);return new Promise(resolve=>resolutions.push(resolve));}return backend.related({cnpj,ano,sequencial},resource,1,10,options.signal).then(Response.json);}});
+  const pending=ui.openDocument(project(document(1)));await settle();const section=ui.nodes.get('details-content').children.find(n=>n.className==='related-section');ui.nodes.get('details-dialog').close();assert(signals.length>0);assert(signals.every(signal=>signal.aborted));
+  await ui.openDocument(project(document(2)));for(const resolve of resolutions)resolve(Response.json({page:1,size:10,data:[{titulo:'Resposta antiga'}],total:1,total_pages:1,has_more:false}));await pending;assert.equal(section.children[3].children.length,0);assert(!ui.all.some(n=>n.textContent==='Resposta antiga'));assert(!ui.relatedRequests.some(url=>/\/2026\/1\/(contratos|historico)/.test(url)));
 });
 
 test('HEADER-UI-01: ordenação e todas as ações dos resultados ficam no cabeçalho',async()=>{
@@ -558,7 +586,7 @@ test('CONTRACTS-UI-01: trocar o tipo reinicia critérios, colunas e status e per
 test('CONTRACTS-UI-02: detalhes de contratos exibem os campos próprios sem buscar itens com o sequencial do contrato',async()=>{
   const ui=await interfaceFixture();ui.nodes.get('document-type').value='contrato';await ui.nodes.get('document-type').fire('change');await ui.openDocument(project(demoContracts[0]));
   assert.equal(ui.itemRequests.length,0);assert(!ui.all.some(n=>n.className==='items-section'));
-  const values=ui.nodes.get('details-content').children.find(n=>n.tagName==='dl').children.map(wrap=>wrap.children[1].textContent);assert(values.includes('R$ 10.000,50'));assert(values.includes('01234567000189'));
+  const values=ui.nodes.get('detail-panel-detalhes').children[0].children.map(wrap=>wrap.children[1].textContent);assert(values.includes('R$ 10.000,50'));assert(values.includes('01234567000189'));
 });
 
 test('CONTRACTS-UI-03: resposta de contrato atrasada não substitui a pesquisa após voltar a edital',async()=>{

@@ -14,7 +14,8 @@ O comando usa `node --test --test-concurrency=1 test/*.test.js`. A suíte cobre:
 - Identificadores, projeção documental, precisão numérica e normalização de links.
 - Paginação remota, totais, janela de resultados e consistência da exportação.
 - Quantidade, paginação, campos e falhas dos itens.
-- Arquivos, atas, contratos/empenhos e histórico: rotas oficiais, contagens, HTTP 204, links, valores exatos, carregamento sob demanda, paginação independente, nova tentativa e cancelamento.
+- Arquivos, atas, contratos/empenhos e histórico: rotas oficiais, contagens, HTTP 204, links, valores exatos, carregamento em segundo plano, paginação independente, nova tentativa e cancelamento.
+- Abas de detalhes: campos e rótulos, vínculos ARIA, navegação por teclado, contadores, até duas consultas simultâneas e descarte de chamadas pendentes ao fechar.
 - Cancelamento, timeouts, tentativas e orçamentos de recursos.
 - Handlers da interface com DOM mínimo, controle de respostas atrasadas e recuperação de erros.
 - Filtros documentais, enumerações singulares, catálogos auxiliares, domínios parciais e reconciliação de normativos/amparos.
@@ -36,7 +37,7 @@ curl --fail-with-body -sS http://localhost:8000/api/query \
 
 Confira HTTP 200, `status: "ok"` no healthcheck e `source` correspondente ao modo escolhido. Na pesquisa, confira `data`, totais e paginação. Em demonstração, a pesquisa por `firewall` retorna seis contratações; a pesquisa sem texto retorna 64 contratações ou 32 contratos. Com a fonte real, os resultados e totais variam.
 
-Pela interface, verifique pesquisa inicial, todos os filtros, paginação, itens, troca entre contratações e contratos, cancelamento e CSV de ambos os tipos. Expanda as quatro listagens nos detalhes de uma contratação e confira downloads, acesso a atas/contratos e páginas de arquivos/histórico. Confira também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de detalhes, sugestões e exportação.
+Pela interface, verifique pesquisa inicial, todos os filtros, paginação, itens, troca entre contratações e contratos, cancelamento e CSV de ambos os tipos. Abra os detalhes de uma contratação, confira o carregamento das cinco listagens em segundo plano e percorra suas abas por mouse e teclado. Confira downloads, links de atas/contratos, contadores e páginas de arquivos/histórico. Verifique também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de detalhes, sugestões e exportação.
 
 ## Build e distribuição
 
@@ -79,9 +80,9 @@ Revisão atual: 7 de outubro de 2026, Linux, Node.js 24.19.0.
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm test` | 132 testes passaram, sem falhas ou testes ignorados |
+| `npm test` | 135 testes passaram, sem falhas ou testes ignorados |
 | Build e distribuição em demonstração | Build concluído; saúde, esquema, estáticos, pesquisa, domínios, sugestões, itens, quatro listagens dos detalhes e CSV dos dois tipos verificados |
-| Chromium com Playwright 1.58.2 | 47 verificações passaram, incluindo todos os 71 controles de contratações e os 32 de contratos, quatro listagens dos detalhes, paginação, status, CSV e responsividade; sem erros JavaScript não tratados |
+| Chromium com Playwright 1.58.2 | 52 verificações passaram, incluindo todos os 71 controles de contratações e os 32 de contratos, abas, carregamento em segundo plano, contadores, teclado, paginação, status, CSV e responsividade; sem erros JavaScript não tratados |
 | Catálogo | 80 filtros implementados, 71 de edital e 32 de contrato; nenhum filtro pendente |
 | Integração real | Respostas válidas para as quatro listagens de detalhes, incluindo duas páginas de atas, além de parte dos filtros e contratos; outras chamadas receberam HTTP 503. O alcance dos filtros está no respectivo guia |
 

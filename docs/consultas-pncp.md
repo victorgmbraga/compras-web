@@ -169,7 +169,9 @@ A interface consulta os itens ao abrir os detalhes e ao navegar entre suas pági
 
 ## Listagens nos detalhes de uma contratação
 
-As quatro rotas `GET /api/contratacoes/{cnpj}/{ano}/{sequencial}/{recurso}` usam os mesmos identificadores e parâmetros `pagina` e `tamanhoPagina` dos itens. A interface pede dez registros por página e consulta a fonte quando a seção é aberta ou sua página muda. Cada seção preserva seu próprio estado e permite repetir uma consulta que falhou. Fechar os detalhes, abrir outra contratação ou trocar o tipo documental cancela as consultas em andamento.
+As quatro rotas `GET /api/contratacoes/{cnpj}/{ano}/{sequencial}/{recurso}` usam os mesmos identificadores e parâmetros `pagina` e `tamanhoPagina` dos itens. Ao abrir os detalhes, a interface inicia as primeiras páginas dessas listagens e dos itens em segundo plano, com até duas requisições simultâneas. Pede dez registros por página nas quatro listagens e 100 nos itens. Cada aba preserva seu próprio estado e permite repetir uma consulta que falhou. Trocar de aba não faz nova consulta; mudar sua página consulta novamente a fonte. Fechar os detalhes, abrir outra contratação ou trocar o tipo documental cancela chamadas ativas e pendentes.
+
+O painel tem largura de até 888 pixels e começa na aba **Detalhes**, com 12 campos documentais. Seu contador indica os campos exibidos; os contadores das outras cinco abas indicam o total de registros informado pela fonte, independentemente da página atual. `…` indica carregamento; `—` indica falha ou identificação insuficiente. Zero é mostrado somente quando confirmado pela fonte. As abas podem ser percorridas por setas, Home e End; em telas menores, a barra permite rolagem horizontal. Os links externos ficam no cabeçalho junto ao botão de fechar.
 
 | Recurso | Campos em `data` | Serviço externo, relativo a `PNCP_DETAIL_BASE_URL` |
 | --- | --- | --- |

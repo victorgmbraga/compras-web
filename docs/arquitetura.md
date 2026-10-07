@@ -44,7 +44,7 @@ O servidor usa `node:http` sem framework web. Undici faz as requisições, `loss
 4. A busca confere o tipo documental, o total e a quantidade de registros. O adaptador produz as colunas, a identidade e os identificadores de itens.
 5. A interface aplica a resposta se ela ainda corresponder à operação atual. Pesquisa, detalhes e exportação possuem controle de cancelamento; respostas atrasadas não substituem uma consulta mais recente.
 
-Cada troca de página chama novamente a fonte. Os documentos e sua ordem são preservados. Os itens são consultados separadamente quando os detalhes são abertos. Arquivos, atas, contratos/empenhos e histórico são consultados ao expandir a respectiva seção, com paginação, recuperação de erro e cancelamento independentes. Arquivos e histórico usam contagem separada; atas e contratos usam o total do envelope da resposta. A exportação percorre as páginas em sequência e verifica a consistência antes de produzir o arquivo.
+Cada troca de página chama novamente a fonte. Os documentos e sua ordem são preservados. Ao abrir uma contratação, a interface mostra a aba Detalhes e inicia as primeiras páginas de itens, arquivos, atas, contratos/empenhos e histórico em segundo plano. Uma fila por painel limita essas consultas a duas requisições simultâneas. As abas possuem contadores, navegação por teclado, paginação e recuperação de erro independentes; trocar de aba preserva os dados já consultados. Fechar o painel ou abrir outro documento cancela chamadas ativas e pendentes e descarta respostas antigas. Arquivos e histórico usam contagem separada; atas e contratos usam o total do envelope da resposta. A exportação percorre as páginas em sequência e verifica a consistência antes de produzir o arquivo.
 
 ## Estado, recursos e operação
 
