@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError, assert, fail } from './errors.js';
 import { scalarText, plain, itemSituation } from './adapter.js';
 import { domainAliases, catalogDomains, referenceDomains, partialDomains } from './filter-domains.js';
+import { relatedResources, projectRelated } from './related.js';
 
 export const delay = (ms, signal) => new Promise((resolve, reject) => {
   if (signal?.aborted) return reject(signal.reason);
@@ -183,6 +184,24 @@ export class PncpClient {
       assert(item.catalogo==null || typeof item.catalogo==='object' && !Array.isArray(item.catalogo),'INVALID_UPSTREAM','Catálogo do item com tipo incompatível no PNCP.',502);
     }
     return items;
+  }
+  async relatedPage(purchase, resource, page, size, op) {
+    assert(relatedResources.includes(resource), 'NOT_FOUND', 'Listagem não encontrada.', 404);
+    const base = `${this.config.PNCP_DETAIL_BASE_URL}/orgaos/${purchase.cnpj}`;
+    const path = resource === 'contratos' ? `${base}/contratos/contratacao/${purchase.ano}/${purchase.sequencial}` : `${base}/compras/${purchase.ano}/${purchase.sequencial}/${resource}`;
+    const counted = ['arquivos', 'historico'].includes(resource);
+    let total = counted ? integer(await this.get(`${path}/quantidade`, op), 'Quantidade de registros') : null;
+    if (counted) assert(page <= Math.max(1, Math.ceil(total / size)), 'PAGE_OUT_OF_RANGE', 'Página além da listagem atual.', 422, { last_page: Math.max(1, Math.ceil(total / size)) });
+    const params = new URLSearchParams({ pagina: String(page), tamanhoPagina: String(size) });
+    const result = total === 0 ? [] : await this.get(`${path}?${params}`, op, true);
+    const data = counted ? result || [] : result === null ? [] : result?.data;
+    if (!counted) total = result === null ? 0 : integer(result?.totalRegistros, 'Total de registros');
+    assert(Array.isArray(data) && data.every(v => v && typeof v === 'object' && !Array.isArray(v)), 'INVALID_UPSTREAM', 'Listagem PNCP retornou formato inesperado.', 502);
+    const pages = Math.max(1, Math.ceil(total / size));
+    assert(page <= pages, 'PAGE_OUT_OF_RANGE', 'Página além da listagem atual.', 422, { last_page: pages });
+    if (!counted && result !== null && result.numeroPagina != null) assert(integer(result.numeroPagina, 'Número da página') === page, 'INVALID_UPSTREAM', 'PNCP retornou outra página da listagem.', 502);
+    assert(data.length === Math.min(size, Math.max(0, total - (page - 1) * size)), 'SOURCE_CHANGED', 'A página não corresponde ao total informado pelo PNCP. Repita a consulta.', 409, {}, true);
+    return { data: data.map(record => projectRelated(resource, record, purchase)), total, total_pages: pages };
   }
   async close() { await this.dispatcher?.close(); }
 }

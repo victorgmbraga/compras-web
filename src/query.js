@@ -84,4 +84,11 @@ export class QueryService {
       return {api_version:'2.0',request_id:op.id,source:this.config.DEMO_MODE?'demo':'pncp',data:plain(items),page,size,total_items:total,total_pages:pages,has_more:page<pages,complete:page===pages,snapshot_guaranteed:false,queried_at:new Date().toISOString(),upstream_requests:op.requests,pagination_note:'Paginação baseada na quantidade de itens informada pelo PNCP nesta consulta.'};
     }finally{op.finish();}
   }
+  async related(purchase,resource,page,size,signal,requestId) {
+    const op=operation(this.config,signal,requestId);
+    try {
+      const result=await this.client.relatedPage(purchase,resource,page,size,op);
+      return {api_version:'2.0',request_id:op.id,source:this.config.DEMO_MODE?'demo':'pncp',resource,...result,page,size,has_more:page<result.total_pages,complete:page===result.total_pages,snapshot_guaranteed:false,queried_at:new Date().toISOString(),upstream_requests:op.requests};
+    }finally{op.finish();}
+  }
 }

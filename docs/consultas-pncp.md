@@ -167,6 +167,31 @@ Cada requisição consulta a quantidade de itens e, quando o total é positivo, 
 
 A interface consulta os itens ao abrir os detalhes e ao navegar entre suas páginas. Quando faltam identificadores originais válidos, informa a ausência e não faz uma chamada de itens.
 
+## Listagens nos detalhes de uma contratação
+
+As quatro rotas `GET /api/contratacoes/{cnpj}/{ano}/{sequencial}/{recurso}` usam os mesmos identificadores e parâmetros `pagina` e `tamanhoPagina` dos itens. A interface pede dez registros por página e consulta a fonte quando a seção é aberta ou sua página muda. Cada seção preserva seu próprio estado e permite repetir uma consulta que falhou. Fechar os detalhes, abrir outra contratação ou trocar o tipo documental cancela as consultas em andamento.
+
+| Recurso | Campos em `data` | Serviço externo, relativo a `PNCP_DETAIL_BASE_URL` |
+| --- | --- | --- |
+| `arquivos` | `titulo`, `tipo`, `data_publicacao`, `url` | `/orgaos/{cnpj}/compras/{ano}/{sequencial}/arquivos` e `/arquivos/quantidade` |
+| `atas` | `numero`, `numero_controle_pncp`, `data_assinatura`, `vigencia_inicio`, `vigencia_fim`, `data_cancelamento`, `url` | `/orgaos/{cnpj}/compras/{ano}/{sequencial}/atas` |
+| `contratos` | `numero`, `numero_controle_pncp`, `data_assinatura`, `vigencia_inicio`, `vigencia_fim`, `fornecedor_nome`, `valor_global`, `url` | `/orgaos/{cnpj}/contratos/contratacao/{ano}/{sequencial}` |
+| `historico` | `evento`, `nome`, `data_evento`, `justificativa` | `/orgaos/{cnpj}/compras/{ano}/{sequencial}/historico` e `/historico/quantidade` |
+
+Todos os serviços de página recebem `pagina` e `tamanhoPagina`. Arquivos e histórico retornam listas; atas e contratos retornam um objeto com `data` e `totalRegistros`. HTTP 204 na listagem equivale a uma página sem registros; quantidade ausente, HTTP de erro, formato inesperado ou divergência entre página e total são reportados como erros. Nenhum HTTP 404 é convertido silenciosamente em lista vazia.
+
+A resposta da aplicação contém `api_version`, `request_id`, `source`, `resource`, `data`, `page`, `size`, `total`, `total_pages`, `has_more`, `complete`, `snapshot_guaranteed: false`, `queried_at` e `upstream_requests`. `complete` identifica a última página. `valor_global` preserva os decimais como string. `url` é `null` quando o link de download é inválido ou os identificadores do registro não permitem gerar um link de acesso. O link de ata usa o ano da compra presente no número de controle PNCP, que pode diferir de `anoAta`.
+
+O histórico apresenta o evento, o nome do documento quando fornecido, a data/hora e a justificativa. Uma justificativa ausente ou vazia é apresentada como `Exigência Legal`, seguindo o portal oficial. Textos são exibidos como texto; downloads aceitam apenas HTTP/HTTPS sem credenciais, e os links de atas e contratos apontam para o PNCP. Listagens não são consultadas durante pesquisa ou exportação. Quando faltam identificadores originais válidos, as seções mostram essa informação e não fazem requisições.
+
+```sh
+curl --fail-with-body -sS --get \
+  http://localhost:8000/api/contratacoes/00000000000000/2026/1/arquivos \
+  --data-urlencode 'pagina=1' --data-urlencode 'tamanhoPagina=10'
+```
+
+Esse identificador é sintético, para uso com `npm run demo`. A demonstração fornece arquivos, atas, contratos/empenhos e eventos fictícios, incluindo listas vazias, cancelamento, mais de uma página e valores monetários exatos. Seus links de documentos/registro são ilustrativos e não garantem a existência desses dados no PNCP.
+
 ## Exportação
 
 `POST /api/export` recebe um objeto com o campo `query`, usando os mesmos critérios de pesquisa:

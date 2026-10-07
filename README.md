@@ -28,7 +28,7 @@ A demonstração é identificada na interface e usa 64 contratações fictícias
 1. A página inicia uma pesquisa de contratações sem filtros e mostra até 100 documentos por página. Escolha **Contratações** ou **Contratos** no cabeçalho. A troca reinicia os critérios e ajusta as colunas. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
 2. Abra **Filtros** para selecionar condições documentais, sub-rogação, itens, resultados e fornecedores. Há intervalos de quantidade, valores, classificação, homologação e desconto; catálogos de países, portes e naturezas jurídicas; e condições de adesão, benefício e preferência. Em contratos, use também tipo, nota fiscal, fornecedor subcontratado, assinatura, início de vigência e valor global. Campos de outro tipo documental ficam indisponíveis nessa seleção. Órgãos, unidades e fornecedores usam os IDs fornecidos pelo PNCP.
 3. Use a paginação para consultar outras páginas. **Atualizar** repete os últimos critérios concluídos na página atual; novos critérios começam na primeira página. **Cancelar** interrompe a pesquisa em andamento. Uma falha mantém e identifica o resultado anterior.
-4. Clique em um documento para ver seus dados e links. Em contratações, os itens são carregados automaticamente quando a fonte fornece CNPJ, ano e sequencial válidos. Em contratos, os detalhes mostram fornecedor, valor global, assinatura e vigência.
+4. Clique em um documento para ver seus dados e links. Em contratações, os itens são carregados automaticamente quando a fonte fornece CNPJ, ano e sequencial válidos. Abra **Arquivos**, **Atas de Registro de Preço**, **Contratos/Empenhos** ou **Histórico** para consultar cada listagem, com paginação e nova tentativa independentes. Arquivos têm links de download; atas e contratos têm links para o PNCP. Em contratos, os detalhes mostram fornecedor, valor global, assinatura e vigência.
 5. Use **Colunas** para escolher os campos visíveis. O menu de cada coluna oferece as ações de filtro e ordenação nativas disponíveis.
 6. **Exportar CSV** faz uma nova coleta com os últimos critérios concluídos e inicia o download. O arquivo contém todas as colunas documentais, independentemente da seleção visual.
 
@@ -57,6 +57,10 @@ O modo de desenvolvimento observa `src/`, `public/`, `.env`, `package.json` e `p
 | GET | `/api/pncp/filters` | Opções dos domínios de filtros |
 | GET | `/api/pncp/suggest` | Sugestões para filtros de lista habilitados |
 | GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/itens` | Quantidade e página de itens |
+| GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/arquivos` | Arquivos da contratação e links de download |
+| GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/atas` | Atas de registro de preço vinculadas |
+| GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/contratos` | Contratos/empenhos vinculados |
+| GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/historico` | Eventos, documentos e justificativas |
 | POST | `/api/export` | Nova coleta e download CSV |
 | GET | `/api/health` | Estado do processo e dados da última chamada ao PNCP |
 

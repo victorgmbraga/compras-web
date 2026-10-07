@@ -86,6 +86,17 @@ try {
   await page.locator('.tabulator-page[data-page="prev"]').click();await page.waitForFunction(()=>/1\s*[-–]\s*100\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de página anterior retorna');
   await search('firewall');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='6 contratações');assert.equal(await page.locator('.tabulator-page.active').getAttribute('data-page'),'1');check('Novos critérios voltam à página 1');
   await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});await page.locator('.item-card').first().waitFor();assert.match(await page.locator('.item-card').first().innerText(),/Homologado/);check('Detalhes carregam itens automaticamente');
+  for(const [resource,pattern]of [['arquivos',/Baixar arquivo/],['atas',/Vigência/],['contratos',/Valor global/],['historico',/Justificativa/]]) {
+    const section=page.locator(`.related-section[data-resource="${resource}"]`);assert.equal(await section.locator('.related-card').count(),0);
+    await section.locator('summary').click();await section.locator('.related-card').first().waitFor();assert.match(await section.innerText(),pattern);check(`Detalhes carregam ${resource} ao abrir a seção`);
+  }
+  for(const resource of ['arquivos','historico']) {
+    const section=page.locator(`.related-section[data-resource="${resource}"]`);assert.equal(await section.locator('.related-card').count(),10);
+    await section.locator('.item-pager button').nth(1).click();await page.waitForFunction(r=>document.querySelector(`.related-section[data-resource="${r}"] .item-pager span`)?.textContent==='Página 2 de 2',resource);
+    assert.equal(await section.locator('.related-card').count(),2);assert.equal(await section.locator('.item-pager button').nth(1).isDisabled(),true);check(`Paginação de ${resource} alcança a última página`);
+  }
+  const fileLink=page.locator('.related-section[data-resource="arquivos"] .related-card a').first();assert.equal(await fileLink.getAttribute('target'),'_blank');assert.equal(await fileLink.getAttribute('rel'),'noopener noreferrer');assert.match(await fileLink.getAttribute('href'),/^https:\/\/pncp.gov.br\//);
+  const previousViewport=page.viewportSize();await page.setViewportSize({width:390,height:844});assert.equal(await page.locator('#details-dialog').evaluate(node=>node.scrollWidth<=node.clientWidth+1),true);await page.setViewportSize(previousViewport);check('Listagens e links cabem no painel em tela móvel');
   await page.locator('#details-dialog .close-dialog').click();
   const downloadPromise=page.waitForEvent('download');await page.locator('#export-button').click();const download=await downloadPromise;assert.match(download.suggestedFilename(),/^compras-demo-/);assert.equal(await page.locator('#export-dialog').count(),0);check('CSV baixado diretamente por nova coleta, sem confirmação');
   await page.locator('#filters-button').click();await page.locator('#native-options').waitFor();await page.locator('#native-options').selectOption('GO');await page.locator('#add-native').click();await page.locator('#apply-filters').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='0 contratações');check('Filtro nativo UF aplicado no backend');

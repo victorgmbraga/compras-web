@@ -6,7 +6,7 @@ Revisão: 7 de outubro de 2026.
 
 Os **80 filtros do catálogo estão implementados**, sem capacidades pendentes: **71 para contratações (`edital`)**, **32 para contratos (`contrato`)** e **23 compartilhados**. Os outros sete argumentos são controles reservados ao adaptador, e não filtros a acrescentar em `pncp_filters`.
 
-A implementação abrange controles da interface, formatos JSON, compatibilidade documental, domínios, serialização nativa, pesquisa, CSV e demonstração. A consulta de contratos tem colunas e projeção próprias. Atas, IRP e PCA permanecem sem projeção; não há filtros exclusivos desses tipos no catálogo atual.
+A implementação abrange controles da interface, formatos JSON, compatibilidade documental, domínios, serialização nativa, pesquisa, CSV e demonstração. A consulta de contratos tem colunas e projeção próprias. A pesquisa autônoma de atas, IRP e PCA permanece sem projeção; atas vinculadas podem ser consultadas nos detalhes de contratações. Não há filtros exclusivos desses tipos no catálogo atual.
 
 `state: enabled` informa disponibilidade no aplicativo. `validation_status` e `evidence` registram o alcance da verificação, sem afirmar homologação integral da fonte:
 

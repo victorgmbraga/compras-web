@@ -338,8 +338,56 @@ async function addNative() {
 function safeAnchor(label,value) {
   try{const url=new URL(value);if(!['https:','http:'].includes(url.protocol) || url.username || url.password)return null;const link=el('a',label);link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';return link;}catch{return null;}
 }
+function relatedSection(resource,title,doc,token,signal) {
+  const section=el('details',undefined,'related-section');section.dataset.resource=resource;
+  const heading=el('summary',title),toolbar=el('div',undefined,'items-toolbar'),retry=el('button','Tentar novamente','button small'),status=el('p','Abra esta seção para consultar o PNCP.','items-status'),list=el('div',undefined,'related-list');
+  retry.hidden=true;toolbar.append(retry);
+  const pager=el('div',undefined,'item-pager'),previous=el('button','Anterior','button small'),label=el('span','Página 1'),next=el('button','Próxima','button small');pager.hidden=true;pager.append(previous,label,next);
+  previous.setAttribute('aria-label',`Página anterior de ${title}`);next.setAttribute('aria-label',`Próxima página de ${title}`);retry.setAttribute('aria-label',`Consultar ${title} novamente`);
+  status.setAttribute('role','status');section.append(heading,toolbar,status,list,pager);
+  let loaded=false,loading=false,page=1,hasMore=false,controller=null,seq=0;
+  const showFields=(card,fields)=>{const values=el('dl',undefined,'related-values');for(const [name,value]of fields){const field=el('div');field.append(el('dt',name),el('dd',value ?? '—'));values.append(field);}card.append(values);};
+  async function load(target) {
+    controller?.abort();controller=new AbortController();const request=++seq;
+    const current=()=>token===state.detailSeq && request===seq && !signal.aborted;
+    loading=true;retry.hidden=true;previous.disabled=true;next.disabled=true;section.setAttribute('aria-busy','true');status.textContent='Consultando o PNCP…';
+    try {
+      const p=doc._purchase,response=await api(`/api/contratacoes/${p.cnpj}/${p.ano}/${p.sequencial}/${resource}?pagina=${target}&tamanhoPagina=10`,{signal:AbortSignal.any([signal,controller.signal])}),result=await response.json();
+      if(!current())return;loaded=true;page=result.page;hasMore=result.has_more;list.replaceChildren();
+      for(const record of result.data) {
+        const card=el('article',undefined,'related-card');
+        if(resource==='arquivos') {
+          card.append(el('h4',record.titulo ?? 'Arquivo sem título'));
+          showFields(card,[['Tipo',record.tipo],['Inclusão',time(record.data_publicacao)]]);
+        } else if(resource==='historico') {
+          card.append(el('h4',record.evento ?? 'Evento não informado'));
+          showFields(card,[['Nome',record.nome],['Data/Hora do evento',time(record.data_evento)],['Justificativa',record.justificativa]]);
+        } else {
+          card.append(el('h4',`${resource==='atas'?'Ata':'Contrato/Empenho'} ${record.numero ?? '—'}`));
+          showFields(card,[['Controle PNCP',record.numero_controle_pncp],['Assinatura',date(record.data_assinatura)],['Vigência',`${date(record.vigencia_inicio)} a ${date(record.vigencia_fim)}`],...(resource==='atas'?[['Cancelamento',record.data_cancelamento?time(record.data_cancelamento):'—']]:[['Fornecedor',record.fornecedor_nome],['Valor global',money(record.valor_global)]])]);
+        }
+        if(resource!=='historico') {const link=safeAnchor(resource==='arquivos'?'Baixar arquivo':'Abrir no PNCP',record.url);if(link)card.append(link);else card.append(el('p','Link não disponível.','panel-note'));}
+        list.append(card);
+      }
+      if(!result.data.length)list.append(el('p',`Nenhum registro em ${title}.`,'panel-note'));
+      heading.textContent=`${title} (${fmtInt(result.total)})`;
+      const first=result.data.length?(page-1)*result.size+1:0,last=result.data.length?first+result.data.length-1:0;
+      status.textContent=`${result.total===0?'0 registros':`Registros ${fmtInt(first)}–${fmtInt(last)} de ${fmtInt(result.total)}`} · Consulta às ${time(result.queried_at)}.`;
+      label.textContent=`Página ${page} de ${fmtInt(result.total_pages)}`;pager.hidden=result.total_pages<=1;previous.disabled=page<=1;next.disabled=!hasMore;
+    }catch(error){if(current() && error.name!=='AbortError'){
+      if(error.code==='PAGE_OUT_OF_RANGE' && Number.isSafeInteger(error.details?.last_page) && error.details.last_page>=1 && error.details.last_page<target)return load(error.details.last_page);
+      status.textContent=error.message;retry.hidden=false;previous.disabled=page<=1;next.disabled=!hasMore;
+    }}finally{if(current()){loading=false;section.setAttribute('aria-busy','false');}}
+  }
+  if(doc._purchase) {
+    section.addEventListener('toggle',()=>{if(section.open && !loaded && !loading && !signal.aborted)return load(1);});
+    retry.addEventListener('click',()=>load(page));previous.addEventListener('click',()=>load(page-1));next.addEventListener('click',()=>load(page+1));
+  } else status.textContent='A fonte não forneceu CNPJ, ano e sequencial originais suficientes para consultar esta listagem.';
+  return section;
+}
 async function openDetails(doc) {
   state.detailAbort?.abort();state.detailSeq++;const token=state.detailSeq;
+  const detailController=new AbortController();state.detailAbort=detailController;
   const content=$('details-content');content.replaceChildren();
   content.append(el('p',doc.objeto_compra ?? 'Objeto não informado.','detail-object'));
   const links=el('div',undefined,'detail-links');
@@ -354,10 +402,10 @@ async function openDetails(doc) {
   const itemStatus=el('p','Preparando consulta de itens…','items-status'),list=el('div'),pager=el('div',undefined,'item-pager'),previous=el('button','Anterior','button small'),pageLabel=el('span','Página 1'),next=el('button','Próxima','button small');pager.hidden=true;pager.append(previous,pageLabel,next);section.append(itemStatus,list,pager);content.append(section);
   let page=1,controller=null,hasMore=false;
   async function itemPage(target) {
-    controller?.abort();controller=new AbortController();state.detailAbort=controller;
+    controller?.abort();controller=new AbortController();
     retry.hidden=true;previous.disabled=true;next.disabled=true;itemStatus.textContent='Consultando itens no PNCP…';
     try {
-      const p=doc._purchase,response=await api(`/api/contratacoes/${p.cnpj}/${p.ano}/${p.sequencial}/itens?pagina=${target}&tamanhoPagina=100`,{signal:controller.signal}),result=await response.json();
+      const p=doc._purchase,response=await api(`/api/contratacoes/${p.cnpj}/${p.ano}/${p.sequencial}/itens?pagina=${target}&tamanhoPagina=100`,{signal:AbortSignal.any([detailController.signal,controller.signal])}),result=await response.json();
       if(token!==state.detailSeq)return;page=result.page;list.replaceChildren();
       for(const item of result.data) {
         const card=el('article',undefined,'item-card');card.append(el('h4',`Item ${item.numeroItem ?? '—'}`),el('p',item.descricao ?? 'Descrição não informada.'),el('div',`${item.materialOuServico==='S'?'Serviço':item.materialOuServico==='M'?'Material':'Tipo não informado'} · ${item.situacaoCompraItemNome ?? 'Situação não informada'} · Catálogo: ${item.catalogo?.nome ?? '—'} / ${item.catalogoCodigoItem ?? '—'}`,'item-meta'));
@@ -378,6 +426,7 @@ async function openDetails(doc) {
   }
   if(!doc._purchase){itemStatus.textContent='A fonte não forneceu CNPJ, ano e sequencial originais suficientes para consultar itens.';}
   else {retry.addEventListener('click',()=>itemPage(page));previous.addEventListener('click',()=>itemPage(page-1));next.addEventListener('click',()=>itemPage(page+1));}
+  for(const [resource,title]of [['arquivos','Arquivos'],['atas','Atas de Registro de Preço'],['contratos','Contratos/Empenhos'],['historico','Histórico']])content.append(relatedSection(resource,title,doc,token,detailController.signal));
   const raw=el('details'),summary=el('summary','Registro original da busca'),pre=el('pre',JSON.stringify(doc._raw,null,2));raw.append(summary,pre);content.append(raw);openDialog('details-dialog');
   if(doc._purchase)await itemPage(1);
 }

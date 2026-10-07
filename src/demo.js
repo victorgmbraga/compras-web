@@ -92,12 +92,30 @@ const catalogs={
   'portes-empresa':[{id:1,nome:'ME',statusAtivo:true},{id:2,nome:'EPP',statusAtivo:true}],
   'naturezas-juridicas':[{id:'0000',nome:'Natureza Jurídica não informada',statusAtivo:false},{id:'1015',nome:'Órgão Público do Poder Executivo Federal',statusAtivo:true},{id:'2062',nome:'Sociedade Empresária Limitada',statusAtivo:true}],
 };
+export function demoRelated(purchase,resource) {
+  const index=Number(purchase.sequencial)-1;
+  if(index<0 || index>=demoItems.length || index%5===4)return [];
+  const count=resource==='arquivos' || resource==='historico'?12:resource==='atas'?3:2;
+  return Array.from({length:count},(_,i)=>{
+    const number=i+1,day=String(number).padStart(2,'0');
+    if(resource==='arquivos')return {sequencialDocumento:number,titulo:`${number===1?'Edital':'Anexo'} ${number} — demonstração.pdf`,tipoDocumentoNome:number===1?'Edital':'Outros documentos',dataPublicacaoPncp:`2026-09-${day}T10:00:00`,url:`https://pncp.gov.br/api/pncp/v1/orgaos/${purchase.cnpj}/compras/${purchase.ano}/${purchase.sequencial}/arquivos/${number}`};
+    if(resource==='historico')return {tipoLogManutencaoNome:number===1?'Inclusão':'Retificação',categoriaLogManutencaoNome:number%2?'Contratação':'Documento de contratação',documentoTitulo:number%2?null:`Anexo ${number}`,logManutencaoDataInclusao:`2026-09-${day}T10:00:00`,justificativa:number%2?'Atualização de informações sintéticas.':null};
+    const common={numeroControlePNCP:resource==='atas'?`${purchase.cnpj}-1-${String(purchase.sequencial).padStart(6,'0')}/${purchase.ano}-${String(number).padStart(6,'0')}`:`${purchase.cnpj}-2-${String(number).padStart(6,'0')}/${purchase.ano}`,dataAssinatura:'2026-09-01',dataVigenciaInicio:'2026-09-01',dataVigenciaFim:'2027-09-01'};
+    return resource==='atas'?{...common,sequencialAta:number,numeroAtaRegistroPreco:`${purchase.sequencial}/${number}`,dataCancelamento:number===3?'2026-10-01T12:00:00':null}:{...common,sequencialContrato:number,anoContrato:purchase.ano,numeroContratoEmpenho:`${purchase.sequencial}/${number}`,orgaoEntidade:{cnpj:purchase.cnpj},nomeRazaoSocialFornecedor:'Fornecedor de demonstração',valorGlobal:number===1?'10000.5000':'9007199254740993.12345'};
+  });
+}
 export function demoFetch(url) {
   const u=new URL(url),p=u.searchParams;let result;
   const catalog=u.pathname.split('/').at(-1);
   if(Object.hasOwn(catalogs,catalog))result=catalogs[catalog];
   else if(u.pathname.endsWith('/filters'))result={filters:{...filters,amparos_legais:p.has('normativos_base')?filters.amparos_legais.filter(o=>p.get('normativos_base').split('|').includes(o.normativo)):filters.amparos_legais}};
   else if(u.pathname.endsWith('/suggest'))result={items:(filters[domainAliases[p.get('campo')] || p.get('campo')] || []).filter(o=>String(o.nome ?? o.ano ?? o.id).toLowerCase().includes(p.get('q').toLowerCase()))};
+  else if(/\/(arquivos|atas|historico)(\/quantidade)?$/.test(u.pathname) || /\/contratos\/contratacao\/\d{4}\/\d+$/.test(u.pathname)) {
+    const match=u.pathname.match(/\/orgaos\/(\d{14})\/(?:compras|contratos\/contratacao)\/(\d{4})\/(\d+)/);
+    const resource=u.pathname.includes('/contratos/contratacao/')?'contratos':u.pathname.match(/\/(arquivos|atas|historico)(?:\/quantidade)?$/)[1];
+    const records=demoRelated({cnpj:match[1],ano:match[2],sequencial:match[3]},resource),size=Number(p.get('tamanhoPagina') || 10),page=Number(p.get('pagina') || 1);
+    result=u.pathname.endsWith('/quantidade')?records.length:['arquivos','historico'].includes(resource)?records.slice((page-1)*size,page*size):{data:records.slice((page-1)*size,page*size),totalRegistros:records.length,totalPaginas:Math.max(1,Math.ceil(records.length/size)),numeroPagina:page};
+  }
   else if(u.pathname.endsWith('/itens/quantidade')) {
     const index=Number(u.pathname.match(/compras\/\d+\/(\d+)\/itens/)[1])-1;result=demoItems[index]?.length ?? 0;
   }

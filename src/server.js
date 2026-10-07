@@ -64,11 +64,12 @@ export function createApplication(config,{fetcher,logger=()=>{},liveReload=false
           assert(typeof q==='string' && q.length>=3 && q.length<=128 && Number.isSafeInteger(size) && size>=1 && size<=20,'INVALID_SUGGEST','Sugestões exigem 3–128 caracteres e tamanho de 1–20.');
           return json(res,200,await service.suggest(type,field,q,size,controller.signal,id));
         }
-        const detail=url.pathname.match(/^\/api\/contratacoes\/(\d{14})\/(\d{4})\/(\d+)\/itens$/);
+        const detail=url.pathname.match(/^\/api\/contratacoes\/(\d{14})\/(\d{4})\/(\d+)\/(itens|arquivos|atas|contratos|historico)$/);
         if(detail && req.method==='GET') {
           getParams(url,['pagina','tamanhoPagina']);const page=Number(url.searchParams.get('pagina') ?? 1),size=Number(url.searchParams.get('tamanhoPagina') ?? 100);
-          assert(Number.isSafeInteger(page) && page>0 && [10,25,50,100].includes(size) && BigInt(detail[3])>0n,'INVALID_PAGINATION','Paginação de itens inválida.');
-          return json(res,200,await service.details({cnpj:detail[1],ano:detail[2],sequencial:detail[3]},page,size,controller.signal,id));
+          assert(Number.isSafeInteger(page) && page>0 && [10,25,50,100].includes(size) && BigInt(detail[3])>0n,'INVALID_PAGINATION','Paginação de detalhes inválida.');
+          const purchase={cnpj:detail[1],ano:detail[2],sequencial:detail[3]};
+          return json(res,200,await (detail[4]==='itens' ? service.details(purchase,page,size,controller.signal,id) : service.related(purchase,detail[4],page,size,controller.signal,id)));
         }
         fail('NOT_FOUND','Rota ou método não encontrado.',404);
       }

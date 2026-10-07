@@ -14,6 +14,7 @@ O comando usa `node --test --test-concurrency=1 test/*.test.js`. A suíte cobre:
 - Identificadores, projeção documental, precisão numérica e normalização de links.
 - Paginação remota, totais, janela de resultados e consistência da exportação.
 - Quantidade, paginação, campos e falhas dos itens.
+- Arquivos, atas, contratos/empenhos e histórico: rotas oficiais, contagens, HTTP 204, links, valores exatos, carregamento sob demanda, paginação independente, nova tentativa e cancelamento.
 - Cancelamento, timeouts, tentativas e orçamentos de recursos.
 - Handlers da interface com DOM mínimo, controle de respostas atrasadas e recuperação de erros.
 - Filtros documentais, enumerações singulares, catálogos auxiliares, domínios parciais e reconciliação de normativos/amparos.
@@ -35,7 +36,7 @@ curl --fail-with-body -sS http://localhost:8000/api/query \
 
 Confira HTTP 200, `status: "ok"` no healthcheck e `source` correspondente ao modo escolhido. Na pesquisa, confira `data`, totais e paginação. Em demonstração, a pesquisa por `firewall` retorna seis contratações; a pesquisa sem texto retorna 64 contratações ou 32 contratos. Com a fonte real, os resultados e totais variam.
 
-Pela interface, verifique pesquisa inicial, todos os filtros, paginação, itens, troca entre contratações e contratos, cancelamento e CSV de ambos os tipos. Confira também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de sugestões e exportação.
+Pela interface, verifique pesquisa inicial, todos os filtros, paginação, itens, troca entre contratações e contratos, cancelamento e CSV de ambos os tipos. Expanda as quatro listagens nos detalhes de uma contratação e confira downloads, acesso a atas/contratos e páginas de arquivos/histórico. Confira também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de detalhes, sugestões e exportação.
 
 ## Build e distribuição
 
@@ -78,14 +79,16 @@ Revisão atual: 7 de outubro de 2026, Linux, Node.js 24.19.0.
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm test` | 120 testes passaram, sem falhas ou testes ignorados |
-| Build e distribuição em demonstração | Build concluído; saúde, esquema, estáticos, pesquisa, domínios, sugestões, itens e CSV dos dois tipos verificados |
-| Chromium com Playwright 1.58.2 | 40 verificações passaram, incluindo todos os 71 controles de contratações e os 32 de contratos, status, detalhes, CSV e responsividade; sem erros JavaScript não tratados |
+| `npm test` | 132 testes passaram, sem falhas ou testes ignorados |
+| Build e distribuição em demonstração | Build concluído; saúde, esquema, estáticos, pesquisa, domínios, sugestões, itens, quatro listagens dos detalhes e CSV dos dois tipos verificados |
+| Chromium com Playwright 1.58.2 | 47 verificações passaram, incluindo todos os 71 controles de contratações e os 32 de contratos, quatro listagens dos detalhes, paginação, status, CSV e responsividade; sem erros JavaScript não tratados |
 | Catálogo | 80 filtros implementados, 71 de edital e 32 de contrato; nenhum filtro pendente |
-| Integração real | Respostas válidas para parte dos filtros e para contratos; outras chamadas receberam HTTP 503. O alcance e os controles estão no guia dos filtros |
+| Integração real | Respostas válidas para as quatro listagens de detalhes, incluindo duas páginas de atas, além de parte dos filtros e contratos; outras chamadas receberam HTTP 503. O alcance dos filtros está no respectivo guia |
 
 A cobertura funcional verifica todos os filtros na pesquisa e na exportação, tipos e intervalos inválidos antes da rede, pertinência aos domínios, IDs alfabéticos, espaços em unidades, zeros à esquerda, ausência distinta de false e precisão decimal além da faixa segura de inteiros. Contratos têm projeção e CSV próprios; o sequencial do contrato não inicia consultas de itens de uma compra.
 
 Os testes de interface verificam edição de Não, reconciliação legal, status e colunas por documento, limpeza de critérios ao trocar de tipo e descarte de respostas atrasadas. A demonstração preserva todos os itens nos detalhes e mantém uma linha por documento no CSV. O navegador percorre os controles completos, aplica combinações e baixa arquivos dos dois tipos.
+
+As quatro listagens de detalhes foram verificadas nos serviços reais usados pelo portal oficial: arquivos e histórico de `00394452000103-1-021678/2026`, contrato vinculado à contratação `18629840000183-1-000051/2026` e 11 atas em duas páginas de `88585518000185-1-000469/2026`. A conferência incluiu formatos, contagens, campos e URLs retornadas pela API da aplicação. Ela não baixou o conteúdo binário dos arquivos nem certifica disponibilidade contínua da fonte.
 
 As sondagens externas verificam respostas e controles selecionados, sem homologar todos os predicados e combinações. O formulário oficial do PNCP confirmou o uso do ID do catálogo de países, o catálogo de situações de resultados e os status vigente/nao_vigente. Falhas intermitentes impedem afirmar disponibilidade contínua ou correlação no mesmo item/resultado. Consulte [Implementação e verificação dos filtros](viabilidade-filtros-pncp.md).

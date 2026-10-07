@@ -32,8 +32,8 @@ async function interfaceFixture(options={}) {
   for(const match of html.matchAll(/<([a-z]+)[^>]*\bid="([^"]+)"[^>]*>/g)){const node=new Element(match[1]);node.id=match[2];node.hidden=match[0].includes(' hidden');}
   const dom={body:new Element('body'),getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),createTextNode:text=>text,addEventListener(){},querySelectorAll:selector=>selector==='dialog'?all.filter(n=>n.tagName==='dialog'):[],querySelector(){return null;}};
   const cfg=config({DEMO_MODE:true,...options.config});
-  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[],exportRequests=[],domainRequests=[],suggestRequests=[];
-  const queryHandler=options.queryHandler,exportHandler=options.exportHandler,domainHandler=options.domainHandler;
+  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[],relatedRequests=[],exportRequests=[],domainRequests=[],suggestRequests=[];
+  const queryHandler=options.queryHandler,exportHandler=options.exportHandler,domainHandler=options.domainHandler,relatedHandler=options.relatedHandler;
   let detailFailures=options.detailFailures || 0;
   const fetcher=async(url,options={})=>{
     try{
@@ -51,6 +51,11 @@ async function interfaceFixture(options={}) {
         return new Response(result.csv,{headers:{'Content-Type':'text/csv','Content-Disposition':'attachment; filename="compras-demo.csv"','X-Exported-Rows':String(result.metadata.data.length),'X-PNCP-Started-At':result.metadata.started_at,'X-PNCP-Finished-At':result.metadata.finished_at}});
       }
       if(url.startsWith('/api/contratacoes/')){
+        if(!url.includes('/itens?')){
+          relatedRequests.push(url);if(relatedHandler)return relatedHandler(url,options,backend);
+          const [,cnpj,ano,sequencial,resource]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/(\w+)/),params=new URL(url,'http://localhost').searchParams;
+          return Response.json(await backend.related({cnpj,ano,sequencial},resource,Number(params.get('pagina')),10,options.signal));
+        }
         itemRequests.push(url);if(detailFailures-->0)return Response.json({error:{code:'PNCP_HTTP_ERROR',message:'Falha temporária dos itens.'}},{status:503});
         const [,cnpj,ano,sequencial]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/itens/),params=new URL(url,'http://localhost').searchParams;
         return Response.json(await backend.details({cnpj,ano,sequencial},Number(params.get('pagina')),100,options.signal));
@@ -62,7 +67,7 @@ async function interfaceFixture(options={}) {
     constructor(selector,options){this.options=options;this.size=options.paginationSize;this.handlers={};}on(name,fn){this.handlers[name]=fn;}clearSort(){}getPageSize(){return this.size;}
     setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('/api/query',{page,size:this.size});}redraw(){}clearData(){}setColumns(columns){this.options.columns=columns;}
   }
-  const context=vm.createContext({document:dom,window:{addEventListener(){}},Tabulator:Table,fetch:fetcher,structuredClone,Intl,Date,Number,URL,URLSearchParams,AbortController,DOMException,setTimeout,clearTimeout,console});
+  const context=vm.createContext({document:dom,window:{addEventListener(){}},Tabulator:Table,fetch:fetcher,structuredClone,Intl,Date,Number,URL,URLSearchParams,AbortController,AbortSignal,DOMException,setTimeout,clearTimeout,console});
   vm.runInContext(await readFile(new URL('../public/app.js',import.meta.url),'utf8'),context);
   await settle();assert.equal(nodes.get('startup-error').hidden,true);
   const buildTable=async()=>{vm.runInContext('state.table.handlers.tableBuilt()',context);await Promise.allSettled(pending);await settle();};
@@ -74,9 +79,42 @@ async function interfaceFixture(options={}) {
   const footer=()=>vm.runInContext('state.table.options.paginationCounter',context)();
   const draft=()=>JSON.parse(vm.runInContext('JSON.stringify(state.draft)',context));
   const setFilter=(name,value)=>vm.runInContext('setDraftFilter',context)(name,value);
-  return {nodes,all,requests,itemRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable};
+  return {nodes,all,requests,itemRequests,relatedRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
+
+test('RELATED-UI-01: quatro seções carregam sob demanda e exibem dados e links corretos',async()=>{
+  const ui=await interfaceFixture();await ui.openDocument(project(document(1)));
+  const sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');assert.equal(sections.length,4);assert.equal(ui.relatedRequests.length,0);
+  for(const section of sections){section.open=true;await section.fire('toggle');assert.match(section.children[0].textContent,/\(\d+\)$/);assert(section.children[3].children.length>0);assert.equal(section.getAttribute('aria-busy'),'false');}
+  assert.equal(ui.relatedRequests.length,4);
+  const files=sections.find(s=>s.dataset.resource==='arquivos');assert.equal(files.children[3].children[0].children.at(-1).textContent,'Baixar arquivo');assert.match(files.children[3].children[0].children.at(-1).href,/\/arquivos\/1$/);
+  const atas=sections.find(s=>s.dataset.resource==='atas');assert.match(atas.children[3].children[0].children.at(-1).href,/\/app\/atas\//);
+  const contracts=sections.find(s=>s.dataset.resource==='contratos');assert.match(contracts.children[3].children[1].children[1].children.at(-1).children[1].textContent,/9\.007\.199\.254\.740\.993,12345/);
+  const history=sections.find(s=>s.dataset.resource==='historico');assert(history.children[3].children[1].children[1].children.some(field=>field.children[1].textContent==='Exigência Legal'));
+  await files.fire('toggle');assert.equal(ui.relatedRequests.length,4);
+});
+test('RELATED-UI-02: paginação de arquivos e histórico é independente dos itens e das outras seções',async()=>{
+  const ui=await interfaceFixture();await ui.openDocument(project(document(1)));const sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');
+  for(const resource of ['arquivos','historico']){const section=sections.find(s=>s.dataset.resource===resource);section.open=true;await section.fire('toggle');const pager=section.children[4];assert.equal(pager.hidden,false);await pager.children[2].fire('click');assert.equal(section.children[3].children.length,2);assert.equal(pager.children[2].disabled,true);assert.equal(pager.children[1].textContent,'Página 2 de 2');await pager.children[0].fire('click');assert.equal(section.children[3].children.length,10);}
+  assert.equal(ui.itemRequests.length,1);assert(ui.relatedRequests.every(url=>/\/(arquivos|historico)\?/.test(url)));
+});
+test('RELATED-UI-03: falha em uma listagem permite repetir e não impede as outras',async()=>{
+  let failures=1;const ui=await interfaceFixture({relatedHandler:async(url,options,backend)=>{if(url.includes('/arquivos?') && failures-->0)return Response.json({error:{message:'Arquivos indisponíveis.'}},{status:503});const [,cnpj,ano,sequencial,resource]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/(\w+)/);return Response.json(await backend.related({cnpj,ano,sequencial},resource,1,10,options.signal));}});
+  await ui.openDocument(project(document(1)));const sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section'),files=sections[0];files.open=true;await files.fire('toggle');assert.equal(files.children[1].children[0].hidden,false);assert.equal(files.children[2].textContent,'Arquivos indisponíveis.');
+  const atas=sections[1];atas.open=true;await atas.fire('toggle');assert.equal(atas.children[3].children.length,3);
+  await files.children[1].children[0].fire('click');assert.equal(files.children[3].children.length,10);assert.equal(files.children[1].children[0].hidden,true);assert.equal(ui.itemRequests.length,1);
+});
+test('RELATED-UI-04: lista vazia e ausência de identificação não tentam acessar outro documento',async()=>{
+  const ui=await interfaceFixture();await ui.openDocument(project(document(5)));let sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');
+  for(const section of sections){section.open=true;await section.fire('toggle');assert.match(section.children[3].children[0].textContent,/Nenhum registro/);assert.equal(section.children[4].hidden,true);}
+  const count=ui.relatedRequests.length;await ui.openDocument(project(document(1,{numero_sequencial:null})));sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');for(const section of sections){section.open=true;await section.fire('toggle');assert.match(section.children[2].textContent,/não forneceu CNPJ/);}assert.equal(ui.relatedRequests.length,count);
+});
+test('RELATED-UI-05: fechar os detalhes cancela todas as consultas e descarta uma resposta atrasada',async()=>{
+  let resolve,responseSignal;const ui=await interfaceFixture({relatedHandler:(url,options)=>{responseSignal=options.signal;return new Promise(r=>{resolve=r;});}});await ui.openDocument(project(document(1)));
+  const section=ui.nodes.get('details-content').children.find(n=>n.className==='related-section');section.open=true;const pending=section.fire('toggle');await settle();ui.nodes.get('details-dialog').close();assert.equal(responseSignal.aborted,true);
+  await ui.openDocument(project(document(2)));resolve(Response.json({page:1,size:10,data:[{titulo:'Resposta antiga'}],total:1,total_pages:1,has_more:false}));await pending;assert.equal(section.children[3].children.length,0);assert(!ui.all.some(n=>n.textContent==='Resposta antiga'));
+});
 
 test('HEADER-UI-01: ordenação e todas as ações dos resultados ficam no cabeçalho',async()=>{
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
