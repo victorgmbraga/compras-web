@@ -133,9 +133,10 @@ test('RELATED-UI-03: falha em uma listagem permite repetir e não impede as outr
   const atas=sections[1];assert.equal(atas.children[3].children.length,3);assert.equal(ui.nodes.get('detail-tab-atas').textContent,'Atas de Registro de Preço (3)');
   await files.children[1].children[0].fire('click');assert.equal(files.children[3].children.length,10);assert.equal(files.children[1].children[0].hidden,true);assert.equal(ui.itemRequests.length,1);
 });
-test('RELATED-UI-04: lista vazia e ausência de identificação não tentam acessar outro documento',async()=>{
-  const ui=await interfaceFixture();await ui.openDocument(project(document(5)));let sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');
+test('RELATED-UI-04: HTTP 404 de contratos exibe zero, listas vazias e ausência de identificação são tratadas',async()=>{
+  const ui=await interfaceFixture({itemFetcher:url=>url.includes('/contratos/contratacao/')?Promise.resolve(new Response(null,{status:404})):demoFetch(url)});await ui.openDocument(project(document(5)));let sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');
   for(const section of sections){assert.match(section.children[3].children[0].textContent,/Nenhum registro/);assert.equal(section.children[4].hidden,true);assert.match(ui.nodes.get(`detail-tab-${section.dataset.resource}`).textContent,/\(0\)$/);}
+  assert.equal(ui.nodes.get('detail-tab-contratos').textContent,'Contratos/Empenhos (0)');assert.equal(ui.nodes.get('detail-tab-contratos').dataset.state,'loaded');assert.equal(ui.nodes.get('detail-panel-contratos').children[1].children[0].hidden,true);
   const count=ui.relatedRequests.length;await ui.openDocument(project(document(1,{numero_sequencial:null})));sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');for(const section of sections){assert.match(section.children[2].textContent,/não forneceu CNPJ/);assert.match(ui.nodes.get(`detail-tab-${section.dataset.resource}`).textContent,/\(—\)$/);}assert.equal(ui.relatedRequests.length,count);
 });
 test('RELATED-UI-05: fechar os detalhes cancela todas as consultas e descarta uma resposta atrasada',async()=>{

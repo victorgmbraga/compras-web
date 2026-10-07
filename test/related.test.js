@@ -32,12 +32,16 @@ test('RELATED-02: documentos, links de atas/contratos, cancelamento e histórico
   const contracts=await f.service.related(purchase,'contratos',1,10);assert.equal(contracts.data[0].url,'https://pncp.gov.br/app/contratos/00000000000000/2026/1');assert.equal(contracts.data[1].valor_global,'9007199254740993.12345');
   const history=await f.service.related(purchase,'historico',1,10);assert.equal(history.data[0].evento,'Inclusão - Contratação');assert.equal(history.data[1].nome,'Anexo 2');assert.equal(history.data[1].justificativa,'Exigência Legal');
 });
-test('RELATED-03: zero confirmado e HTTP 204 geram listas vazias; falhas permanecem erros',async()=>{
+test('RELATED-03: zero, HTTP 204 e HTTP 404 de contratos geram listas vazias; outras falhas permanecem erros',async()=>{
   for(const resource of ['arquivos','atas','contratos','historico']){
     const f=fixture(url=>url.endsWith('/quantidade')?Response.json(0):new Response(null,{status:204}));
     const result=await f.service.related(purchase,resource,1,10);assert.equal(result.total,0);assert.deepEqual(result.data,[]);assert.equal(result.has_more,false);assert.equal(f.requests.length,1);
   }
-  for(const status of [404,503]){const f=fixture(()=>new Response(null,{status}));await assert.rejects(f.service.related(purchase,'contratos',1,10),e=>e.code===(status===503?'PNCP_UNAVAILABLE':'PNCP_HTTP_ERROR'));}
+  const missing=fixture(()=>new Response(null,{status:404})),empty=await missing.service.related(purchase,'contratos',1,10);
+  assert.equal(empty.total,0);assert.deepEqual(empty.data,[]);assert.equal(empty.total_pages,1);assert.equal(empty.has_more,false);assert.equal(empty.complete,true);
+  await assert.rejects(missing.service.related(purchase,'contratos',2,10),e=>e.code==='PAGE_OUT_OF_RANGE' && e.details.last_page===1);
+  for(const resource of ['arquivos','atas','historico']){const f=fixture(()=>new Response(null,{status:404}));await assert.rejects(f.service.related(purchase,resource,1,10),e=>e.code==='PNCP_HTTP_ERROR');}
+  for(const status of [500,503]){const f=fixture(()=>new Response(null,{status}));await assert.rejects(f.service.related(purchase,'contratos',1,10),e=>e.code===(status===503?'PNCP_UNAVAILABLE':'PNCP_HTTP_ERROR'));}
 });
 test('RELATED-04: contagem divergente, formato inválido e página fora do total não passam como sucesso',async()=>{
   const responses=[{data:[],totalRegistros:1},{data:[null],totalRegistros:1},{data:{},totalRegistros:0},{data:[],totalRegistros:-1},{data:[{}],totalRegistros:1,numeroPagina:2}];

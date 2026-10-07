@@ -193,7 +193,12 @@ export class PncpClient {
     let total = counted ? integer(await this.get(`${path}/quantidade`, op), 'Quantidade de registros') : null;
     if (counted) assert(page <= Math.max(1, Math.ceil(total / size)), 'PAGE_OUT_OF_RANGE', 'Página além da listagem atual.', 422, { last_page: Math.max(1, Math.ceil(total / size)) });
     const params = new URLSearchParams({ pagina: String(page), tamanhoPagina: String(size) });
-    const result = total === 0 ? [] : await this.get(`${path}?${params}`, op, true);
+    let result;
+    try { result = total === 0 ? [] : await this.get(`${path}?${params}`, op, true); }
+    catch (error) {
+      if (resource !== 'contratos' || !(error instanceof AppError) || error.code !== 'PNCP_HTTP_ERROR' || error.details.upstream_status !== 404) throw error;
+      result = null;
+    }
     const data = counted ? result || [] : result === null ? [] : result?.data;
     if (!counted) total = result === null ? 0 : integer(result?.totalRegistros, 'Total de registros');
     assert(Array.isArray(data) && data.every(v => v && typeof v === 'object' && !Array.isArray(v)), 'INVALID_UPSTREAM', 'Listagem PNCP retornou formato inesperado.', 502);
