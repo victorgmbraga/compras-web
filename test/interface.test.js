@@ -455,3 +455,30 @@ test('FILTERS-UI-12: domínio indisponível impede adicionar opções de origem'
   assert.equal(ui.nodes.get('add-native').disabled,true);assert.equal(ui.nodes.get('domain-error').hidden,false);
   await ui.nodes.get('add-native').fire('click');assert.deepEqual(ui.draft().pncp_filters,{});
 });
+
+test('FILTERS-UI-13: filtros de itens habilitados usam domínios e informam o alcance dos detalhes',async()=>{
+  const ui=await interfaceFixture();await ui.nodes.get('filters-button').fire('click');
+  for(const [name,ids]of [['criterios_julgamento',['7']],['categorias_leilao',['1']],['beneficios',['1']]]){
+    ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');
+    assert(ui.nodes.get('native-value-area').children.some(n=>n.textContent?.includes('Os detalhes mostram todos os itens')));
+    const select=ui.nodes.get('native-options');assert.equal(select.multiple,true);for(const option of select.children)option.selected=ids.includes(option.value);
+    await ui.nodes.get('add-native').fire('click');
+  }
+  for(const name of ['possui_emenda_parlamentar','incentivo_produtivo_basico','aplicabilidade_margem_preferencia_normal','aplicabilidade_margem_preferencia_adicional']){
+    ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');ui.nodes.get('native-value').value='true';await ui.nodes.get('add-native').fire('click');
+  }
+  await ui.nodes.get('apply-filters').fire('click');const filters=ui.requests.at(-1).pncp_filters;
+  assert.deepEqual(filters.criterios_julgamento,['7']);assert.deepEqual(filters.categorias_leilao,['1']);assert.deepEqual(filters.beneficios,['1']);
+  assert.equal(filters.possui_emenda_parlamentar,true);assert.equal(ui.nodes.get('result-title').textContent,'6 contratações');
+});
+
+test('FILTERS-UI-14: Não é preservado ao editar condições de itens e emenda',async()=>{
+  const ui=await interfaceFixture(),names=['possui_emenda_parlamentar','incentivo_produtivo_basico','aplicabilidade_margem_preferencia_normal','aplicabilidade_margem_preferencia_adicional'];
+  await ui.nodes.get('filters-button').fire('click');
+  for(const name of names){
+    ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');ui.nodes.get('native-value').value='false';await ui.nodes.get('add-native').fire('click');
+  }
+  await ui.nodes.get('apply-filters').fire('click');assert(names.every(name=>ui.requests.at(-1).pncp_filters[name]===false));assert.equal(ui.nodes.get('result-title').textContent,'16 contratações');
+  await ui.nodes.get('filters-button').fire('click');
+  for(const name of names){ui.nodes.get('native-field').value=name;await ui.nodes.get('native-field').fire('change');assert.equal(ui.nodes.get('native-value').value,'false');}
+});

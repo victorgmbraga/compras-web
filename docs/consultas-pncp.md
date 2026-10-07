@@ -36,6 +36,7 @@ O servidor serializa os controles como `tipos_documento`, `q`, `status`, `ordena
 | `codigo_ibge` | String com exatamente sete dígitos, por exemplo `"5300108"`; não é o ID de `municipios` |
 | `srp` | Booleano `true` ou `false`; omitir o filtro não restringe por SRP |
 | `indicador_orcamento_sigiloso`, `exigencia_conteudo_nacional` | Booleanos `true` ou `false` da contratação |
+| `possui_emenda_parlamentar` | Booleano `true` ou `false` de vínculo com emenda parlamentar |
 | `tem_ata_registro_preco`, `tem_contrato_empenho`, `tem_nfe_contrato` | Booleanos de vínculo da contratação com ata, contrato ou empenho e nota fiscal do contrato, respectivamente |
 | `fontes` | Lista de IDs dos sistemas de origem conferidos no domínio do PNCP; corresponde a `usuario_id`, não à fonte orçamentária |
 | `modos_disputa` | Lista de IDs de modos de disputa conferidos no domínio do PNCP |
@@ -47,6 +48,11 @@ O servidor serializa os controles como `tipos_documento`, `q`, `status`, `ordena
 | `modalidades`, `situacoes` | Listas de IDs como strings, conferidos no domínio do PNCP |
 | `situacoes_item` | Lista de IDs como strings, conferidos em `item_situacoes` |
 | `tipos_item` | String única: `"S"` (serviço) ou `"M"` (material) |
+| `criterios_julgamento` | Lista de IDs conferidos no domínio de mesmo nome |
+| `categorias_leilao` | Lista de IDs conferidos em `item_categorias_leilao`; não restringe implicitamente a modalidade |
+| `beneficios` | Lista de IDs conferidos em `item_beneficios`; condição aplicável ao item, distinta de benefício aplicado no resultado |
+| `incentivo_produtivo_basico` | Booleano `true` ou `false` |
+| `aplicabilidade_margem_preferencia_normal`, `aplicabilidade_margem_preferencia_adicional` | Booleanos `true` ou `false` de aplicabilidade no item; não indicam que a preferência foi aplicada ao resultado |
 | `anos` | Lista de anos no formato `AAAA`, como `["2026"]` |
 | `data_publicacao_inicio`, `data_publicacao_fim` | Datas reais no formato `AAAA-MM-DD` |
 | `valor_total_estimado_min`, `valor_total_estimado_max` | Decimais não negativos como strings com ponto, por exemplo `"1000.50"` |
@@ -60,7 +66,9 @@ Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false
 {"api_version":"2.0","document_type":"edital","q":"firewall","pncp_filters":{"fontes":["3","5"],"modos_disputa":["1","3"],"indicador_orcamento_sigiloso":false,"tem_contrato_empenho":true},"page":1,"size":10}
 ```
 
-`GET /api/schema` informa `columns`, `capabilities`, `statuses`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados, 30 filtros habilitados, 41 pendentes de validação para contratações e nove exclusivos de contratos (`unsupported_document`). Um argumento catalogado não implica suporte ativo: confira `state`, `reserved`, `documents`, `type` e `domain`.
+Filtros de itens selecionam **contratações** na busca nativa. Tabela e CSV continuam contendo uma linha por contratação. Os detalhes exibem todos os itens, inclusive os que não satisfazem os critérios. Uma condição verdadeira na busca pode coexistir com itens que a informam como falsa nos detalhes. Não há garantia de que condições diferentes incidam sobre o mesmo item; a aplicação não aplica um refinamento local para impor essa correlação. Os nomes enviados à busca continuam sendo `categorias_leilao` e `beneficios`, embora os domínios usem aliases.
+
+`GET /api/schema` informa `columns`, `capabilities`, `statuses`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados, 37 filtros habilitados, 34 pendentes de validação para contratações e nove exclusivos de contratos (`unsupported_document`). Um argumento catalogado não implica suporte ativo: confira `state`, `reserved`, `documents`, `type` e `domain`.
 
 Cada capacidade também informa `label`, `group`, `input_hint`, `cardinality`, `domain_source` e `domain_kind`. O tipo `enum` é singular: `tipos_item` e `tipos_margens_preferencia` usam uma string escolhida no domínio, não uma lista nem texto livre. O segundo continua pendente por padrão. Para habilitar filtros adicionais após verificar seu efeito real, consulte [PNCP_VALIDATED_FILTERS](configuracao.md#habilitar-filtros-adicionais).
 

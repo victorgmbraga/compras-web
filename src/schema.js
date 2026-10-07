@@ -28,8 +28,9 @@ export const reserved = ['tipos_documento', 'q', 'status', 'ordenacao', 'pagina'
 // Enabled core filters are grounded in the supplied PNCP reference examples.
 // Other portal arguments are catalogued, but deliberately require verification.
 export const documentaryEnabled=['srp','codigo_ibge','tipos','normativos_base','amparos_legais','fontes_orcamentarias',
-  'fontes','modos_disputa','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'];
-export const initialEnabled = ['ufs', 'orgaos', 'unidades', 'municipios', 'esferas', 'poderes', 'modalidades', 'situacoes', 'situacoes_item', 'tipos_item', 'anos', 'data_publicacao_inicio', 'data_publicacao_fim', 'valor_total_estimado_min', 'valor_total_estimado_max', 'valor_total_homologado_min', 'valor_total_homologado_max',...documentaryEnabled];
+  'fontes','modos_disputa','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional','possui_emenda_parlamentar'];
+export const itemEnabled=['criterios_julgamento','categorias_leilao','beneficios','incentivo_produtivo_basico','aplicabilidade_margem_preferencia_normal','aplicabilidade_margem_preferencia_adicional'];
+export const initialEnabled = ['ufs', 'orgaos', 'unidades', 'municipios', 'esferas', 'poderes', 'modalidades', 'situacoes', 'situacoes_item', 'tipos_item', 'anos', 'data_publicacao_inicio', 'data_publicacao_fim', 'valor_total_estimado_min', 'valor_total_estimado_max', 'valor_total_homologado_min', 'valor_total_homologado_max',...documentaryEnabled,...itemEnabled];
 export function capabilities(config) {
   const additional = config.PNCP_VALIDATED_FILTERS.split(',').map(s => s.trim()).filter(Boolean);
   for (const name of additional) assert(argumentsList.some(a => a.name === name) && !reserved.includes(name), 'INVALID_CONFIG', `Filtro validado desconhecido ou reservado: ${name}.`);
@@ -44,7 +45,7 @@ export function capabilities(config) {
       domain_source:domain ? (catalogDomains[a.name] ? 'catalog' : 'search') : null,
       domain_kind:domain ? (partialDomains.includes(domain) || partialDomains.includes(a.name) ? 'suggest' : closedDomains.includes(a.name) ? 'closed' : 'options') : null,
       state:enabled ? 'enabled' : compatible ? 'pending_validation' : 'unsupported_document',
-      evidence:documentaryEnabled.includes(a.name) ? 'live_api:2026-10-06; docs/consultas-pncp.md' : ['tipos_item','situacoes_item'].includes(a.name) ? 'live_api:2026-10-05; docs/consultas-pncp.md' : additional.includes(a.name) ? 'server_configuration:PNCP_VALIDATED_FILTERS' : isReserved || initialEnabled.includes(a.name) ? 'supplied_reference:2.0.0; live_integration_not_verified_in_build_environment' : 'portal_bundle:buildCurrentQueryParams',
+      evidence:documentaryEnabled.includes(a.name) || itemEnabled.includes(a.name) ? 'live_api:2026-10-06; docs/viabilidade-filtros-pncp.md' : ['tipos_item','situacoes_item'].includes(a.name) ? 'live_api:2026-10-05; docs/consultas-pncp.md' : additional.includes(a.name) ? 'server_configuration:PNCP_VALIDATED_FILTERS' : isReserved || initialEnabled.includes(a.name) ? 'supplied_reference:2.0.0; live_integration_not_verified_in_build_environment' : 'portal_bundle:buildCurrentQueryParams',
       reason:enabled ? null : compatible ? (a.name==='paises_fornecedor' ? 'Identidade do país exigida pela busca ainda não comprovada.' : 'Efeito na busca ainda não comprovado para contratações.') : 'Disponível somente para contratos; este tipo documental ainda não está habilitado.' };
   });
 }

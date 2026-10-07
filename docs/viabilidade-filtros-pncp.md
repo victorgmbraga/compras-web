@@ -4,7 +4,7 @@ Data: 6 de outubro de 2026.
 
 ## Situação da implementação
 
-Estão implementados `srp`, `codigo_ibge`, `tipos`, `normativos_base`, `amparos_legais`, `fontes_orcamentarias`, `fontes`, `modos_disputa`, `indicador_orcamento_sigiloso`, `tem_ata_registro_preco`, `tem_contrato_empenho`, `tem_nfe_contrato` e `exigencia_conteudo_nacional`. A configuração padrão possui **30 filtros habilitados**, **41 pendentes para edital**, **nove exclusivos de contratos** e sete argumentos reservados. Os testes exercitam a interface, a validação, a serialização, a consulta e o CSV; a demonstração também aplica esses treze filtros documentais.
+Estão implementados os quatorze filtros documentais `srp`, `codigo_ibge`, `tipos`, `normativos_base`, `amparos_legais`, `fontes_orcamentarias`, `fontes`, `modos_disputa`, `indicador_orcamento_sigiloso`, `tem_ata_registro_preco`, `tem_contrato_empenho`, `tem_nfe_contrato`, `exigencia_conteudo_nacional` e `possui_emenda_parlamentar`. Nos itens, estão liberados `criterios_julgamento`, `categorias_leilao`, `beneficios`, `incentivo_produtivo_basico`, `aplicabilidade_margem_preferencia_normal` e `aplicabilidade_margem_preferencia_adicional`. A configuração padrão possui **37 filtros habilitados**, **34 pendentes para edital**, **nove exclusivos de contratos** e sete argumentos reservados. Os testes exercitam a interface, a validação, a serialização, a consulta e o CSV; a demonstração aplica os grupos liberados e mantém dois itens por contratação.
 
 Os domínios fechados são conferidos antes da busca e da exportação. A interface agrupa os campos por nível, apresenta rótulos e exemplos, distingue contratos indisponíveis e reconcilia os amparos quando os normativos mudam. A conferência mantém amparos compatíveis, remove os incompatíveis com aviso e bloqueia a aplicação se a verificação falhar.
 
@@ -43,7 +43,25 @@ As sondagens válidas conferiram **todos os dez registros de cada página**, exc
 
 Foram observados registros com campos booleanos ausentes ou `null` nas buscas sem aquele filtro. Não houve conversão desses valores para `false`. Os ensaios confirmam as páginas e os valores acima, sem garantir todas as combinações, estabilidade da indexação ou disponibilidade contínua. Várias tentativas retornaram HTTP 503 ou timeout, incluindo sondagens de domínios; os domínios de origem e disputa já haviam sido observados no levantamento. Pela API real da aplicação, orçamento sigiloso `false`, ata vinculada `false` e modo de disputa `5` retornaram HTTP 200 com os dez registros correspondentes. O modo fez uma consulta de domínio e uma de busca. Sistema de origem `3` recebeu HTTP 503 nessa verificação pela aplicação, embora sua busca direta tenha sido conferida nas sondagens acima.
 
-Os próximos grupos incluem emendas parlamentares e adesão, além dos predicados de itens, resultados e fornecedores descritos abaixo. Leia o [contrato atualizado](consultas-pncp.md) para os controles e formatos já implementados.
+### Evidência de emenda parlamentar e filtros de itens
+
+As consultas usaram `edital`, tamanho 10 e status `todos`, exceto onde indicado. Campos disponíveis no índice de busca foram conferidos em todos os registros da página; para categorias e benefícios, a conferência dependeu dos detalhes de contratações selecionadas, pois esses campos não aparecem na resposta documental.
+
+| Filtro | Valores e contexto confirmados | Conferência |
+| --- | --- | --- |
+| `possui_emenda_parlamentar` | `true` sem texto, `-data`: dez registros; `false` sem texto, `-data`, órgão `33565`, unidade `2848840`, ano `2026`: cinco registros | Mesmo campo e booleano em todos os registros. Pela API da aplicação, a condição `false` e o CSV retornaram HTTP 200, com cinco contratações |
+| `criterios_julgamento` | `1` com órgão `44611`, unidade `1021`, ano `2026`, sem texto, `data`; `7` e `1\|7` com `firewall`, `data` | Dez registros por página com IDs selecionados em `criterio_julgamento_id`. Dois controles do valor `1` tinham um item cada, ambos com `criterioJulgamentoId=1` |
+| `categorias_leilao` | `1` sem texto, `-data`; `3` com `software`, `-data` | Duas contratações do valor `1`, com oito e um item, todos `itemCategoriaId=1`. Duas do valor `3`, com três e um item, todos `itemCategoriaId=3` |
+| `beneficios` | `1` com `cpac-ram32gb-19000`, `-data`: sete registros; também com `firewall`, `recebendo_proposta`; `4` sem texto, `data`; `1\|4` com `firewall`, `relevancia` | Controle `00394452000103-1-021678/2026` com um item e `tipoBeneficio=1`. Dois controles do valor `4` tinham um e 35 itens, todos com `tipoBeneficio=4`. A lista recebeu uma busca válida; não houve inspeção de todos os seus itens |
+| `incentivo_produtivo_basico` | `true` sem texto, `-data`, órgão `56281`, unidade `2427824`, ano `2025`: um registro; `false` com `software` ou com órgão `44611`, unidade `1021`, ano `2026` | Índice com o mesmo booleano. O controle positivo `06240352000109-1-000026/2025` possui três itens, dois com `false` e um com `incentivoProdutivoBasico=true` |
+| `aplicabilidade_margem_preferencia_normal` | `true` com `software`, `-data`; `false` sem texto, `-data`, órgão `44611`, unidade `1021`, ano `2026` | Dez registros por página com o mesmo booleano. Controle positivo com um item `true`; outro com 124 itens teve `true` e `false` na primeira página de 100 itens |
+| `aplicabilidade_margem_preferencia_adicional` | `true` sem texto, `data`, órgão `47563`, unidade `4212`, ano `2026`; `false` sem texto, `-data`, órgão `44611`, unidade `1021`, ano `2026` | Dez registros por página com o mesmo booleano. Dois controles positivos, com 93 e dois itens, apresentaram `aplicabilidadeMargemPreferenciaAdicional=true` e `false` |
+
+Os domínios reais forneceram nove critérios, três categorias de leilão e cinco benefícios. A validação usa `item_categorias_leilao` e `item_beneficios`, mas serializa os nomes nativos `categorias_leilao` e `beneficios`. Benefício aplicável ao item e margem aplicável não equivalem aos indicadores de aplicação no resultado, que seguem pendentes.
+
+As consultas e os detalhes são operações distintas, sem snapshot. A evidência confirma os controles acima, sem homologar todas as combinações nem a correlação de diferentes condições no mesmo item. Uma tentativa de verificar essa correlação com benefício e incentivo no mesmo controle recebeu HTTP 503; a aplicação não presume uma resposta para esse caso. A interface informa que os detalhes mantêm todos os itens. A tabela e o CSV mantêm uma linha por contratação, e a pesquisa não passa a consultar itens automaticamente.
+
+Pela API da aplicação, critério `1`, benefício `1` e margem adicional `true` receberam HTTP 503 nessa rodada, apesar das respostas diretas válidas acima. Isso mantém a limitação de disponibilidade já observada. Adesão `true`, sem texto, teve uma resposta válida com zero registros; continua pendente por falta de controle positivo. Os próximos grupos incluem unidades de medida, intervalos de itens, resultados e fornecedores. Leia o [contrato atualizado](consultas-pncp.md) para os controles e formatos já implementados.
 
 ## Conclusão e escopo
 
@@ -203,8 +221,8 @@ Adicionar esses nomes a `PNCP_VALIDATED_FILTERS` não os habilita para edital: o
 7. **Dependência legal:** implementada a reconciliação, com cancelamento de respostas anteriores, preservação de escolhas compatíveis e recuperação após falha.
 8. **Validação de domínio:** o serviço usa metadados para conferir domínios fechados da busca e catálogos auxiliares; não considera listas parciais exaustivas.
 9. **Usabilidade:** implementados grupos, rótulos, descrições, exemplos de entrada e cardinalidade dos controles.
-10. **Demo:** implementada a semântica dos treze filtros documentais liberados, catálogos e dependência legal. A simulação de outros filtros continua parcial; os ensaios reais usam a fonte HTTPS.
-11. **Origem, disputa e booleanos documentais:** liberados os sete filtros da tabela de evidências acima; emendas e adesão seguem pendentes, assim como as condições de itens/resultados que não foram comprovadas.
+10. **Demo:** implementada a semântica dos quatorze filtros documentais e seis filtros de itens liberados, catálogos e dependência legal. Cada contratação tem dois itens; os detalhes não são filtrados pelos critérios da pesquisa. A simulação de outros filtros continua parcial; os ensaios reais usam a fonte HTTPS.
+11. **Condições documentais e itens:** liberados os grupos nas tabelas de evidências acima. Adesão, unidades de medida, intervalos de itens, resultados e fornecedores ainda precisam dos controles descritos neste plano.
 
 ## Critério de habilitação e plano recomendado
 
@@ -214,11 +232,13 @@ Separar os nove exclusivos de contrato, integrar os catálogos comprovados, ajus
 
 ### 2. Validar progressivamente filtros documentais e domínios
 
-SRP, IBGE, fontes, instrumentos convocatórios, normativos/amparos, modos de disputa e cinco condições booleanas documentais estão implementados. Para os candidatos restantes, obter casos conhecidos positivos e negativos, valores únicos/múltiplos e booleanos omitido/true/false. Normalizar e conferir domínios conforme suas respostas reais.
+SRP, IBGE, fontes, instrumentos convocatórios, normativos/amparos, modos de disputa e seis condições booleanas documentais estão implementados. Para os candidatos restantes, obter casos conhecidos positivos e negativos, valores únicos/múltiplos e booleanos omitido/true/false. Normalizar e conferir domínios conforme suas respostas reais.
 
 ### 3. Validar filtros de itens e resultados
 
 Exigir evidência sobre correspondência no mesmo item/resultado, existência de registros filhos, campos ausentes, unidade de quantidade, datas e escala de percentual. Uma contratação pode conter itens diferentes que satisfaçam condições separadamente: não prometer correlação sem ensaio.
+
+Critérios, categorias, benefícios, incentivo e aplicabilidade de margens estão liberados com controles individuais. A correlação de combinações no mesmo item não está homologada. Unidades de medida, intervalos de itens e todos os filtros adicionais de resultados e fornecedores continuam pendentes.
 
 A tabela e o CSV continuam representando contratações. Os itens dos detalhes não são automaticamente filtrados para conter apenas os registros filhos correspondentes.
 
@@ -230,4 +250,4 @@ Não acrescentar banco, cache de resultados, presets, refinamento local ou consu
 
 ## Verificação
 
-O levantamento usou leituras, inventário programático e sondagens reais. A implementação inclui testes de controles, domínios, catálogo, rejeição de valores inválidos, dependência legal, cancelamento e exportação. Origem e disputa possuem testes de seleção múltipla; os booleanos têm cobertura de ausência, `true`, `false`, edição, remoção, combinações, paginação e CSV. As respostas reais de busca não são persistidas como dados da aplicação. A cobertura e os resultados atuais estão em [Testes e validação](validacao.md).
+O levantamento usou leituras, inventário programático e sondagens reais. A implementação inclui testes de controles, domínios, catálogo, rejeição de valores inválidos, dependência legal, cancelamento e exportação. Listas de itens possuem testes de seleção múltipla e aliases; os booleanos têm cobertura de ausência, `true`, `false`, edição, remoção, combinações, paginação e CSV. Os testes preservam itens não correspondentes nos detalhes e verificam que a pesquisa e o CSV não fazem chamadas automáticas de itens. As respostas reais de busca não são persistidas como dados da aplicação. A cobertura e os resultados atuais estão em [Testes e validação](validacao.md).

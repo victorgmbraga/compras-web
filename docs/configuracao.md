@@ -66,7 +66,7 @@ Os limites numéricos exigem valores de pelo menos 1, exceto `PNCP_MAX_RETRIES`,
 
 A configuração amplia a lista padrão; não desativa filtros já habilitados. Nomes desconhecidos ou reservados são rejeitados. O filtro também precisa ser aplicável a `edital`; a variável não implementa suporte a outros tipos documentais.
 
-A lista padrão possui 30 filtros e inclui SRP, código IBGE, instrumentos convocatórios, sistemas de origem, fontes orçamentárias, modos de disputa, normativos e amparos legais, orçamento sigiloso, vínculos com atas/contratos/notas fiscais e exigência de conteúdo nacional. Não é necessário preencher `PNCP_VALIDATED_FILTERS` para utilizá-los. As capacidades publicam o provedor de domínio e a cardinalidade esperada. A ativação de um filtro com domínio fechado também exige pertencimento às opções retornadas pelo PNCP; não basta fornecer um ID com formato válido. Para países de fornecedores, a identidade utilizada pela busca ainda está em investigação, mesmo com o catálogo conectado.
+A lista padrão possui 37 filtros. Além dos filtros documentais, inclui emenda parlamentar, critério de julgamento, categoria de leilão, benefício do item, incentivo produtivo básico e aplicabilidade de margens de preferência normal e adicional. Não é necessário preencher `PNCP_VALIDATED_FILTERS` para utilizá-los; consulte a [lista completa](consultas-pncp.md#filtros-habilitados-por-padrão). As capacidades publicam o provedor de domínio e a cardinalidade esperada. A ativação de um filtro com domínio fechado também exige pertencimento às opções retornadas pelo PNCP; não basta fornecer um ID com formato válido. Para países de fornecedores, a identidade utilizada pela busca ainda está em investigação, mesmo com o catálogo conectado.
 
 ## Rede e implantação
 

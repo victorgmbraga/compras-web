@@ -14,6 +14,15 @@ const objects = [
   'Contratação de serviços de impressão e central telefônica VoIP.',
 ];
 const orgs = ['Ministério da Gestão e da Inovação','Universidade Federal de Goiás','Tribunal Regional Eleitoral do Distrito Federal','Instituto Federal do Rio de Janeiro'];
+const itemCondition=i=>i%4===0?true:i%4===1?false:null;
+export const demoItems=Array.from({length:64},(_,i)=>[
+  {numeroItem:1,descricao:objects[i%objects.length],materialOuServico:'S',situacaoCompraItem:2,situacaoCompraItemNome:'Homologado',catalogoCodigoItem:'25852',catalogo:{id:1,nome:'Catálogo sintético de demonstração'},quantidade:'1',valorUnitarioEstimado:'120000.25',valorTotal:'120000.25',temResultado:true,
+    criterioJulgamentoId:i%2===0?1:2,itemCategoriaId:i%3+1,tipoBeneficio:[1,3,4,5][i%4],
+    incentivoProdutivoBasico:itemCondition(i),aplicabilidadeMargemPreferenciaNormal:itemCondition(i),aplicabilidadeMargemPreferenciaAdicional:itemCondition(i)},
+  {numeroItem:2,descricao:'Item complementar de demonstração.',materialOuServico:'M',situacaoCompraItem:1,situacaoCompraItemNome:'Em andamento',catalogo:null,quantidade:'2',valorUnitarioEstimado:'10.50',valorTotal:'21.00',temResultado:false,
+    criterioJulgamentoId:7,itemCategoriaId:3,tipoBeneficio:5,
+    incentivoProdutivoBasico:itemCondition(i)===true?false:null,aplicabilidadeMargemPreferenciaNormal:itemCondition(i)===true?false:null,aplicabilidadeMargemPreferenciaAdicional:itemCondition(i)===true?false:null},
+]);
 export const demoDocuments = Array.from({length:64},(_,i)=>({
   id:`demo-${i+1}`,doc_type:'_doc',document_type:'edital',numero_controle_pncp:`00000000000000-1-${String(i+1).padStart(6,'0')}/2026`,
   description:objects[i%objects.length],title:`Edital de demonstração nº ${i+1}/2026`,orgao_cnpj:'00000000000000',orgao_id:String(i%4+1),orgao_nome:orgs[i%4],
@@ -28,6 +37,9 @@ export const demoDocuments = Array.from({length:64},(_,i)=>({
   tem_contrato_empenho:i%4===0?true:i%4===1?false:null,
   tem_nfe_contrato:i%4===0?true:i%4===1?false:null,
   exigencia_conteudo_nacional:i%4===0?true:i%4===1?false:null,
+  possui_emenda_parlamentar:itemCondition(i),
+  criterio_julgamento_id:demoItems[i].map(item=>String(item.criterioJulgamentoId)),
+  incentivo_produtivo_basico:itemCondition(i),aplicabilidade_margem_preferencia_normal:itemCondition(i),aplicabilidade_margem_preferencia_adicional:itemCondition(i),
   modalidade_licitacao_nome:'Pregão - Eletrônico',modalidade_licitacao_id:'6',situacao_id:'1',situacao_nome:'Divulgada no PNCP',
   data_publicacao_pncp:`2026-09-${String(30-i%28).padStart(2,'0')}T10:00:00`,data_atualizacao_pncp:'2026-10-01T09:00:00',
   valor_total_estimado:`${120000+i*47813}.25`,valor_total_homologado:i%3===0?`${108000+i*45342}.50`:null,
@@ -44,6 +56,9 @@ const filters={
   tipos:options([['1','Edital'],['3','Ato que autoriza a Contratação Direta']]),fontes_orcamentarias:options([['2','Municipal'],['4','Fonte sintética 4']]),
   fontes:options([['3','Compras.gov.br'],['5','BLL Compras'],['13','Sistema sintético 13']]),
   modos_disputa:options([['1','Aberto'],['2','Fechado'],['3','Aberto-Fechado'],['4','Dispensa Com Disputa'],['5','Não se aplica'],['6','Fechado-Aberto']]),
+  criterios_julgamento:options([['1','Menor preço'],['2','Maior desconto'],['7','Não se aplica']]),
+  item_categorias_leilao:options([['1','Bens Imóveis'],['2','Bens Móveis'],['3','Não se aplica']]),
+  item_beneficios:options([['1','Participação exclusiva para ME/EPP'],['2','Subcontratação para ME/EPP'],['3','Cota reservada para ME/EPP'],['4','Sem benefício'],['5','Não se aplica']]),
   normativos_base:options([['1','Lei 14.133/2021'],['5','Normativo sintético 5']]),
   amparos_legais:[{id:'1',nome:'Amparo sintético 1',normativo:'1'},{id:'19',nome:'Lei 14.133/2021, Art. 75, II',normativo:'1'},{id:'98',nome:'Amparo sintético 98',normativo:'5'}],
   tipos_margens_preferencia:options([['1','Resolução CIIA-PAC'],['2','Resolução CICS']]),
@@ -59,16 +74,19 @@ export function demoFetch(url) {
   if(Object.hasOwn(catalogs,catalog))result=catalogs[catalog];
   else if(u.pathname.endsWith('/filters'))result={filters:{...filters,amparos_legais:p.has('normativos_base')?filters.amparos_legais.filter(o=>p.get('normativos_base').split('|').includes(o.normativo)):filters.amparos_legais}};
   else if(u.pathname.endsWith('/suggest'))result={items:(filters[domainAliases[p.get('campo')] || p.get('campo')] || []).filter(o=>String(o.nome ?? o.ano ?? o.id).toLowerCase().includes(p.get('q').toLowerCase()))};
-  else if(u.pathname.endsWith('/itens/quantidade'))result=1;
+  else if(u.pathname.endsWith('/itens/quantidade')) {
+    const index=Number(u.pathname.match(/compras\/\d+\/(\d+)\/itens/)[1])-1;result=demoItems[index]?.length ?? 0;
+  }
   else if(u.pathname.endsWith('/itens')) {
     const index=Number(u.pathname.match(/compras\/\d+\/(\d+)\/itens/)[1])-1;
-    result=p.get('pagina')==='1'?[{numeroItem:1,descricao:objects[index%objects.length],materialOuServico:'S',situacaoCompraItem:2,situacaoCompraItemNome:'Homologado',catalogoCodigoItem:'25852',catalogo:{id:1,nome:'Catálogo sintético de demonstração'},quantidade:'1',valorUnitarioEstimado:'120000.25',valorTotal:'120000.25',temResultado:true}]:[];
+    const page=Number(p.get('pagina')),size=Number(p.get('tamanhoPagina'));result=(demoItems[index] || []).slice((page-1)*size,page*size);
   } else {
     let docs=demoDocuments;
     const fieldMap={ufs:'uf',orgaos:'orgao_id',unidades:'unidade_id',municipios:'municipio_id',esferas:'esfera_id',poderes:'poder_id',modalidades:'modalidade_licitacao_id',situacoes:'situacao_id',anos:'ano',tipos:'tipo_id',codigo_ibge:'codigo_ibge',fontes:'usuario_id',modos_disputa:'modo_disputa_id'};
     for(const [key,field]of Object.entries(fieldMap))if(p.has(key))docs=docs.filter(d=>p.get(key).split('|').includes(d[field]));
     for(const [key,field]of Object.entries({normativos_base:'normativo_base_id',amparos_legais:'amparo_legal_id',fontes_orcamentarias:'fonte_orcamentaria_id'}))if(p.has(key))docs=docs.filter(d=>d[field].some(id=>p.get(key).split('|').includes(id)));
-    for(const key of ['srp','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'])if(p.has(key))docs=docs.filter(d=>d[key]===(p.get(key)==='true'));
+    for(const key of ['srp','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional','possui_emenda_parlamentar','incentivo_produtivo_basico','aplicabilidade_margem_preferencia_normal','aplicabilidade_margem_preferencia_adicional'])if(p.has(key))docs=docs.filter(d=>d[key]===(p.get(key)==='true'));
+    for(const [key,field]of Object.entries({criterios_julgamento:'criterioJulgamentoId',categorias_leilao:'itemCategoriaId',beneficios:'tipoBeneficio'}))if(p.has(key))docs=docs.filter(d=>demoItems[Number(d.numero_sequencial)-1].some(item=>p.get(key).split('|').includes(String(item[field]))));
     if(p.has('q'))docs=docs.filter(d=>(d.description+' '+d.orgao_nome).toLowerCase().includes(p.get('q').toLowerCase()));
     if(p.has('data_publicacao_inicio'))docs=docs.filter(d=>d.data_publicacao_pncp.slice(0,10)>=p.get('data_publicacao_inicio'));
     if(p.has('data_publicacao_fim'))docs=docs.filter(d=>d.data_publicacao_pncp.slice(0,10)<=p.get('data_publicacao_fim'));

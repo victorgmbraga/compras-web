@@ -231,6 +231,7 @@ async function renderNativeValue() {
   const cap=state.schema.capabilities.find(c=>c.name===$('native-field').value),area=$('native-value-area');area.replaceChildren();$('domain-error').hidden=true;$('add-native').disabled=false;
   if(!cap)return;
   const help=el('p',`${cap.group} · ${cap.description}`,'panel-note');area.append(help);
+  if(cap.group==='Item')area.append(el('p','Este filtro seleciona contratações. Os detalhes mostram todos os itens, inclusive os que não correspondem ao filtro.','panel-note'));
   if(cap.state!=='enabled'){$('add-native').disabled=true;area.append(el('p',cap.reason,'panel-note'));return;}
   if(cap.type==='list' || cap.type==='enum') {
     $('add-native').disabled=true;
