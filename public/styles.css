@@ -170,7 +170,6 @@ dialog select[multiple]{min-height:155px}
 .related-values dd{font-size:.875rem;margin:0;line-height:1.5;overflow-wrap:anywhere}
 details{margin:20px 0;font-size:.875rem}
 summary{cursor:pointer;color:#315575}
-pre{background:#f2f6fa;color:#3c5871;border:1px solid #d9e4ef;border-radius:6px;padding:14px;font-size:.8125rem;line-height:1.6;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px}
 
 
 /* The table receives the remaining viewport height; its scrollbars stay inside. */

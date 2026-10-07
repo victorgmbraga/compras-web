@@ -396,7 +396,7 @@ async function openDetails(doc) {
   const grid=el('dl',undefined,'detail-grid');
   for(const field of fields){const column=state.schema.columns.find(c=>c.field===field),wrap=el('div');wrap.append(el('dt',column.title),el('dd',column.type==='decimal'?money(doc[field]):column.type==='date'?date(doc[field]):doc[field] ?? '—'));grid.append(wrap);}content.append(grid);
   if(doc.tipo_documento==='contrato'){
-    const raw=el('details'),summary=el('summary','Registro original da busca'),pre=el('pre',JSON.stringify(doc._raw,null,2));raw.append(summary,pre);content.append(raw);openDialog('details-dialog');return;
+    openDialog('details-dialog');return;
   }
   const section=el('section',undefined,'items-section'),toolbar=el('div',undefined,'items-toolbar'),retry=el('button','Tentar consultar itens','button small'),itemsTitle=el('h3','Itens da contratação');retry.hidden=true;toolbar.append(itemsTitle,retry);section.append(toolbar);
   const itemStatus=el('p','Preparando consulta de itens…','items-status'),list=el('div'),pager=el('div',undefined,'item-pager'),previous=el('button','Anterior','button small'),pageLabel=el('span','Página 1'),next=el('button','Próxima','button small');pager.hidden=true;pager.append(previous,pageLabel,next);section.append(itemStatus,list,pager);content.append(section);
@@ -427,7 +427,7 @@ async function openDetails(doc) {
   if(!doc._purchase){itemStatus.textContent='A fonte não forneceu CNPJ, ano e sequencial originais suficientes para consultar itens.';}
   else {retry.addEventListener('click',()=>itemPage(page));previous.addEventListener('click',()=>itemPage(page-1));next.addEventListener('click',()=>itemPage(page+1));}
   for(const [resource,title]of [['arquivos','Arquivos'],['atas','Atas de Registro de Preço'],['contratos','Contratos/Empenhos'],['historico','Histórico']])content.append(relatedSection(resource,title,doc,token,detailController.signal));
-  const raw=el('details'),summary=el('summary','Registro original da busca'),pre=el('pre',JSON.stringify(doc._raw,null,2));raw.append(summary,pre);content.append(raw);openDialog('details-dialog');
+  openDialog('details-dialog');
   if(doc._purchase)await itemPage(1);
 }
 async function exportCsv() {
