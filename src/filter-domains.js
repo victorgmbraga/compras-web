@@ -33,7 +33,7 @@ const ranges = {
   item_quantidade:'Quantidade estimada do item',item_valor_unitario_estimado:'Valor unitário estimado do item',item_valor_total_estimado:'Valor total estimado do item',
   ordem_classificacao:'Ordem de classificação',resultado_quantidade_homologado:'Quantidade homologada',resultado_valor_unitario_homologado:'Valor unitário homologado',
   resultado_valor_total_homologado:'Valor total homologado do resultado',resultado_percentual_desconto:'Percentual de desconto',
-  data_publicacao:'Publicação',data_homologacao:'Homologação do resultado',data_assinatura:'Assinatura do contrato',data_inicio_vigencia:'Início da vigência',
+  data_publicacao:'Publicação',data_homologacao:'Homologação do resultado',data_assinatura:'Assinatura',data_inicio_vigencia:'Início da vigência',
 };
 export function filterPresentation(name, documents) {
   const range=name.match(/^(.*)_(min|max|inicio|fim)$/);

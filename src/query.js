@@ -2,7 +2,7 @@ import { assert } from './errors.js';
 import { validateQuery } from './validation.js';
 import { project, identity, plain } from './adapter.js';
 import { operation } from './pncp.js';
-import { columnsFor, capabilities } from './schema.js';
+import { columnsFor, capabilities, documentNames } from './schema.js';
 
 export class QueryService {
   constructor(config, client) { this.config=config; this.client=client; }
@@ -21,7 +21,7 @@ export class QueryService {
   async collect(query, op) {
     const size=this.config.PNCP_PAGE_SIZE,head=await this.client.search(query,1,size,op),limit=this.config.PNCP_MAX_EXPORT_DOCUMENTS;
     const fmt=n=>new Intl.NumberFormat('pt-BR').format(n);
-    assert(head.total<=limit && head.total<=10000,'EXPORT_TOO_BROAD',`A busca retornou ${fmt(head.total)} ${query.document_type==='contrato'?'contratos':'contratações'}; o limite de exportação é ${fmt(limit)}. Delimite a pesquisa por texto, período de publicação, UF ou órgão.`,422,{source_total:head.total,limit});
+    assert(head.total<=limit && head.total<=10000,'EXPORT_TOO_BROAD',`A busca retornou ${fmt(head.total)} ${documentNames[query.document_type].plural}; o limite de exportação é ${fmt(limit)}. Delimite a pesquisa por texto, período de publicação, UF ou órgão.`,422,{source_total:head.total,limit});
     const documents=[],seen=new Set(),pages=Math.max(1,Math.ceil(head.total/size));
     for(let page=1;page<=pages;page++) {
       op.check();const current=page===1?head:await this.client.search(query,page,size,op);
@@ -90,5 +90,20 @@ export class QueryService {
       const result=await this.client.relatedPage(purchase,resource,page,size,op);
       return {api_version:'2.0',request_id:op.id,source:this.config.DEMO_MODE?'demo':'pncp',resource,...result,page,size,has_more:page<result.total_pages,complete:page===result.total_pages,snapshot_guaranteed:false,queried_at:new Date().toISOString(),upstream_requests:op.requests};
     }finally{op.finish();}
+  }
+  async documentDetails(document,signal,requestId) {
+    const op=operation(this.config,signal,requestId);
+    try{return {api_version:'2.0',document_type:document.type,...await this.client.document(document,op),queried_at:new Date().toISOString(),upstream_requests:op.requests};}finally{op.finish();}
+  }
+  async documentRelated(document,resource,page,size,signal,requestId) {
+    const op=operation(this.config,signal,requestId);
+    try {
+      const result=await this.client.documentRelatedPage(document,resource,page,size,op);
+      return {api_version:'2.0',request_id:op.id,document_type:document.type,source:this.config.DEMO_MODE?'demo':'pncp',resource,...result,page,size,has_more:page<result.total_pages,complete:page===result.total_pages,snapshot_guaranteed:false,queried_at:new Date().toISOString(),upstream_requests:op.requests};
+    }finally{op.finish();}
+  }
+  async contractChild(document,resource,sequence,signal,requestId) {
+    const op=operation(this.config,signal,requestId);
+    try{return {...await this.client.contractChild(document,resource,sequence,op),queried_at:new Date().toISOString()};}finally{op.finish();}
   }
 }

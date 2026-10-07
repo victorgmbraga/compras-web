@@ -25,15 +25,21 @@ export const columns = [
   column('url_pncp', 'Link PNCP'),
 ];
 export const reserved = ['tipos_documento', 'q', 'status', 'ordenacao', 'pagina', 'tam_pagina', 'total'];
-export const documentStatuses={edital:['todos','recebendo_proposta','propostas_encerradas'],contrato:['todos','vigente','nao_vigente']};
-const contractColumns=[...columns.filter(c=>!['valor_total_estimado','valor_total_homologado','tem_resultado'].includes(c.field)),
+export const documentStatuses={edital:['todos','recebendo_proposta','propostas_encerradas'],ata:['todos','vigente','nao_vigente'],contrato:['todos','vigente','nao_vigente']};
+export const documentNames={edital:{singular:'contratação',plural:'contratações',label:'Editais e Avisos de Contratações'},ata:{singular:'ata',plural:'atas',label:'Atas de Registro de Preços'},contrato:{singular:'contrato',plural:'contratos',label:'Contratos'}};
+const commonColumns=columns.filter(c=>!['modalidade_nome','situacao_compra_nome_pncp','valor_total_estimado','valor_total_homologado','tem_resultado'].includes(c.field));
+const contractColumns=[...commonColumns,
   column('tipo_contrato_nome','Tipo de contrato','text',{visible:true,domain:'tipos_contrato'}),
   column('fornecedor_nome','Fornecedor','text',{visible:true,domain:'fornecedores'}),column('fornecedor_ni','CPF/CNPJ do fornecedor'),
   column('valor_global','Valor global','decimal',{visible:true,native_range:['valor_global_min','valor_global_max']}),
   column('data_assinatura','Assinatura','date',{visible:true,native_range:['data_assinatura_inicio','data_assinatura_fim']}),
   column('data_inicio_vigencia','Início da vigência','date',{visible:true,native_range:['data_inicio_vigencia_inicio','data_inicio_vigencia_fim']}),
   column('data_fim_vigencia','Fim da vigência','date'),column('possui_nfe','Possui nota fiscal','boolean')];
-export const columnsFor=type=>type==='contrato'?contractColumns:columns;
+const ataColumns=[...commonColumns,column('modalidade_nome','Modalidade','text',{visible:true,domain:'modalidades'}),
+  column('data_assinatura','Assinatura','date',{visible:true,native_range:['data_assinatura_inicio','data_assinatura_fim']}),
+  column('data_inicio_vigencia','Início da vigência','date',{visible:true,native_range:['data_inicio_vigencia_inicio','data_inicio_vigencia_fim']}),
+  column('data_fim_vigencia','Fim da vigência','date',{visible:true}),column('cancelado','Cancelada','boolean',{visible:true}),column('permite_adesao','Permite adesão','boolean',{visible:true})];
+export const columnsFor=type=>({edital:columns,ata:ataColumns,contrato:contractColumns})[type];
 // Implementation availability and sampled live evidence are separate metadata.
 export const documentaryEnabled=['srp','codigo_ibge','tipos','normativos_base','amparos_legais','fontes_orcamentarias',
   'fontes','modos_disputa','indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional','possui_emenda_parlamentar'];
@@ -59,5 +65,5 @@ export function capabilities(config) {
   });
 }
 export function schema(config) {
-  return { source: config.DEMO_MODE ? 'demo' : 'pncp', api_version: '2.0', live: !config.DEMO_MODE, demo: config.DEMO_MODE, document_types: [{ id: 'edital', name: 'Contratações', enabled: true },{id:'contrato',name:'Contratos',enabled:true}, ...['ata', 'irp', 'pcaorgao'].map(id => ({ id, enabled: false, reason: 'Projeção ainda não implementada.' }))], columns, columns_by_document:{edital:columns,contrato:contractColumns}, capabilities: capabilities(config), statuses: documentStatuses.edital, statuses_by_document:documentStatuses, orders: ['-data', 'data', 'relevancia'], limits: { page_sizes: [10, 25, 50, 100], default_page_size: config.PNCP_PAGE_SIZE, search_window: 10000, export_documents: config.PNCP_MAX_EXPORT_DOCUMENTS, max_q_length: 128 } };
+  return { source: config.DEMO_MODE ? 'demo' : 'pncp', api_version: '2.0', live: !config.DEMO_MODE, demo: config.DEMO_MODE, document_types: [...Object.entries(documentNames).map(([id,names])=>({id,name:names.label,...names,enabled:true})), ...['irp', 'pcaorgao'].map(id => ({ id, enabled: false, reason: 'Projeção ainda não implementada.' }))], columns, columns_by_document:{edital:columns,ata:ataColumns,contrato:contractColumns}, capabilities: capabilities(config), statuses: documentStatuses.edital, statuses_by_document:documentStatuses, orders: ['-data', 'data', 'relevancia'], limits: { page_sizes: [10, 25, 50, 100], default_page_size: config.PNCP_PAGE_SIZE, search_window: 10000, export_documents: config.PNCP_MAX_EXPORT_DOCUMENTS, max_q_length: 128 } };
 }

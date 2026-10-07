@@ -4,9 +4,9 @@ Revisão: 7 de outubro de 2026.
 
 ## Situação atual
 
-Os **80 filtros do catálogo estão implementados**, sem capacidades pendentes: **71 para contratações (`edital`)**, **32 para contratos (`contrato`)** e **23 compartilhados**. Os outros sete argumentos são controles reservados ao adaptador, e não filtros a acrescentar em `pncp_filters`.
+Os **80 filtros do catálogo estão implementados**, sem capacidades pendentes: **71 para contratações (`edital`)**, **16 para atas (`ata`)** e **32 para contratos (`contrato`)**. Os outros sete argumentos são controles reservados ao adaptador, e não filtros a acrescentar em `pncp_filters`.
 
-A implementação abrange controles da interface, formatos JSON, compatibilidade documental, domínios, serialização nativa, pesquisa, CSV e demonstração. A consulta de contratos tem colunas e projeção próprias. A pesquisa autônoma de atas, IRP e PCA permanece sem projeção; atas vinculadas podem ser consultadas nos detalhes de contratações. Não há filtros exclusivos desses tipos no catálogo atual.
+A implementação abrange controles da interface, formatos JSON, compatibilidade documental, domínios, serialização nativa, pesquisa, CSV e demonstração. Os três tipos pesquisados têm colunas, projeção e painéis próprios. Atas aceitam os nove filtros gerais/documentais de UF, órgão, unidade, município, esfera, poder, ano, modalidade e instrumento convocatório, além de adesão e seis limites de publicação, assinatura e início da vigência. IRP e PCA permanecem sem projeção.
 
 `state: enabled` informa disponibilidade no aplicativo. `validation_status` e `evidence` registram o alcance da verificação, sem afirmar homologação integral da fonte:
 
@@ -51,25 +51,25 @@ Ao mudar o normativo, a interface reconcilia os amparos, preserva os compatívei
 
 ## Semântica de consulta
 
-Todos os critérios são enviados à busca nativa. A aplicação mantém a ordem e a paginação da fonte, sem refinamento local de resultados reais. Tabela e CSV representam documentos: uma linha por contratação ou contrato.
+Todos os critérios são enviados à busca nativa. A aplicação mantém a ordem e a paginação da fonte, sem refinamento local de resultados reais. Tabela e CSV representam documentos: uma linha por contratação, ata ou contrato.
 
 Filtros de itens, resultados e fornecedores de resultados selecionam contratações. Seus detalhes preservam todos os itens, inclusive os que não atendem aos critérios. Condições distintas podem corresponder a itens ou resultados diferentes; não existe promessa de correlação no mesmo registro filho. Preferência ou benefício aplicável ao item não equivale à sua aplicação no resultado.
 
-O seletor documental reinicia a pesquisa e os critérios, ajusta filtros, status e colunas e descarta respostas antigas. Contratos usam `todos`, `vigente` ou `nao_vigente`; contratações usam `todos`, `recebendo_proposta` ou `propostas_encerradas`. Os filtros incompatíveis são recusados pelo backend mesmo quando enviados diretamente.
+O seletor documental reinicia a pesquisa e os critérios, ajusta filtros, status e colunas e descarta respostas antigas. Atas e contratos usam `todos`, `vigente` ou `nao_vigente`; contratações usam `todos`, `recebendo_proposta` ou `propostas_encerradas`. Os filtros incompatíveis são recusados pelo backend mesmo quando enviados diretamente.
 
 Contratos projetam fornecedor, CPF/CNPJ, valor global, assinatura, vigência, tipo e nota fiscal. Seu sequencial não é usado como sequencial de compra para consultar itens. Detalhes e CSV mantêm os dados próprios do contrato e o link público correspondente.
 
 ## Demonstração e cobertura
 
-A demonstração contém 64 contratações com dois itens e resultados sintéticos, além de 32 contratos. Todos os filtros são simulados. Critérios sobre filhos são independentes; essa simulação não certifica correlação na API real. Os status de contratos usam a data de referência fixa `2026-10-07`; status de propostas e relevância não reproduzem a fonte.
+A demonstração contém 64 contratações com dois itens e resultados sintéticos, além de 24 atas e 32 contratos. Todos os filtros são simulados. Critérios sobre filhos são independentes; essa simulação não certifica correlação na API real. Os status de atas e contratos usam a data de referência fixa `2026-10-07`; status de propostas e relevância não reproduzem a fonte.
 
-A suíte verifica o envio individual dos 80 filtros na pesquisa e no CSV; formatos inválidos, contextos, todos os intervalos, zeros, ausência, precisão, IDs alfabéticos, domínios, aliases, seleção múltipla e campos de contrato. Os testes de interface cobrem edição de Não, troca documental e descarte de resposta atrasada. O Chromium percorre todos os 71 controles de contratações e todos os 32 de contratos, além de consultar detalhes e baixar CSV. Consulte [Testes e validação](validacao.md) para os resultados e comandos.
+A suíte verifica o envio individual dos 80 filtros na pesquisa e no CSV; formatos inválidos, contextos, todos os intervalos, zeros, ausência, precisão, IDs alfabéticos, domínios, aliases, seleção múltipla e campos de contrato. Os testes de interface cobrem edição de Não, troca documental e descarte de resposta atrasada. O Chromium percorre todos os 71 controles de contratações, os 16 de atas e os 32 de contratos, além de consultar detalhes e baixar CSV. Consulte [Testes e validação](validacao.md) para os resultados e comandos.
 
 ## Alcance da evidência externa
 
 Há controles reais dos filtros documentais e de critérios, categorias, benefícios, incentivo e margens aplicáveis. Eles verificaram campos do índice ou detalhes de contratações selecionadas; condições verdadeiras coexistiram com itens falsos nos detalhes. As respostas não formam um snapshot.
 
-Na rodada de 7 de outubro, foram sondados todos os 34 argumentos restantes de edital e os nove exclusivos de contrato, com texto `firewall`, status `todos`, ordem `data`, página 1 e tamanho 10. Houve buscas válidas para portes, naturezas jurídicas, unidades de medida, classificação, benefício ME/EPP aplicado, fim de homologação e parte dos limites de itens e resultados. Sub-rogação de órgão respondeu com zero registros. As demais tentativas incluíram HTTP 503.
+Na rodada de 7 de outubro, foram sondados todos os 34 argumentos restantes de edital e os nove do grupo Contrato, com texto `firewall`, status `todos`, ordem `data`, página 1 e tamanho 10. Houve buscas válidas para portes, naturezas jurídicas, unidades de medida, classificação, benefício ME/EPP aplicado, fim de homologação e parte dos limites de itens e resultados. Sub-rogação de órgão respondeu com zero registros. As demais tentativas incluíram HTTP 503.
 
 Em contrato, `valor_global_min=1` retornou dez registros; o primeiro controle, `28414217000167-2-000001/2022`, tinha `valor_global=9800.0`, assinatura e início de vigência em `2022-07-29`, tipo `7` e fornecedor `15566`. A projeção preserva esses campos e o tipo documental. Os formatos de países e os status de contratos também foram conferidos no código público atual do formulário e da pesquisa do PNCP.
 

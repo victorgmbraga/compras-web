@@ -50,7 +50,7 @@ export function validateQuery(input, config) {
   checkKeys(input, ['api_version','document_type','q','status','pncp_filters','order','page','size'], 'query');
   const q = { api_version: '2.0', document_type: 'edital', q: '', status: 'todos', pncp_filters: {}, order: '-data', page: 1, size: config.PNCP_PAGE_SIZE, ...input };
   assert(q.api_version === '2.0', 'INCOMPATIBLE_VERSION', 'Use api_version 2.0.');
-  assert(typeof q.document_type==='string' && Object.hasOwn(documentStatuses,q.document_type), 'DOCUMENT_TYPE_UNAVAILABLE', 'Escolha contratações (edital) ou contratos (contrato).', 409);
+  assert(typeof q.document_type==='string' && Object.hasOwn(documentStatuses,q.document_type), 'DOCUMENT_TYPE_UNAVAILABLE', 'Escolha editais (edital), atas (ata) ou contratos (contrato).', 409);
   assert(typeof q.q === 'string' && q.q.length <= 128, 'INVALID_QUERY_TEXT', 'A busca textual permite até 128 caracteres.');
   assert(documentStatuses[q.document_type].includes(q.status), 'INVALID_STATUS', 'Status temporal inválido para o tipo documental.');
   assert(['-data','data','relevancia'].includes(q.order) && (q.order !== 'relevancia' || q.q.trim()), 'INVALID_ORDER', 'Ordenação não habilitada ou relevância sem busca textual.');

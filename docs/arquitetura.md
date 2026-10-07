@@ -9,7 +9,7 @@ flowchart LR
     HTTP --> Query[Validação e serviço de consultas]
     Query --> Client[Cliente PNCP]
     Client --> Search[API Search: pesquisa, filtros e sugestões]
-    Client --> Items[API PNCP v1: itens, arquivos, atas, contratos e histórico]
+    Client --> Items[API PNCP v1: documentos, itens e listagens relacionadas]
     Client -. modo demonstração .-> Demo[Respostas sintéticas]
 ```
 
@@ -26,6 +26,7 @@ flowchart LR
 | [`src/pncp.js`](../src/pncp.js) | Cliente HTTPS, filas, ritmo de chamadas, tentativas, timeouts e leitura das respostas |
 | [`src/adapter.js`](../src/adapter.js) | Projeção dos documentos, precisão numérica, identidades e normalização de links |
 | [`src/related.js`](../src/related.js) | Projeção de arquivos, atas, contratos vinculados e histórico, com links e valores exatos |
+| [`src/document-details.js`](../src/document-details.js) | Identidades e caminhos por tipo, campos completos de atas/contratos e campos de registros relacionados |
 | [`src/errors.js`](../src/errors.js) | Erros com código, status HTTP e detalhes |
 | [`src/demo.js`](../src/demo.js) | Fonte sintética ativada explicitamente |
 | [`public/`](../public/) | HTML, estilos e interação da interface em JavaScript |
@@ -41,10 +42,10 @@ O servidor usa `node:http` sem framework web. Undici faz as requisições, `loss
 1. A interface carrega `/api/schema`, configura colunas e filtros e inicia a primeira pesquisa.
 2. `/api/query` valida o corpo, os tipos e as capacidades. Domínios fechados são conferidos antes da busca, com `/filters` ou catálogos auxiliares; listas parciais são tratadas separadamente.
 3. O cliente limita a concorrência e o ritmo das chamadas, aplica timeouts e lê JSON preservando a precisão numérica.
-4. A busca confere o tipo documental, o total e a quantidade de registros. O adaptador produz as colunas, a identidade e os identificadores de itens.
+4. A busca confere o tipo documental, o total e a quantidade de registros. O adaptador produz as colunas, a identidade e os identificadores originais de cada tipo documental. Atas preservam tanto o sequencial da compra quanto o sequencial da ata; contratos preservam seu próprio sequencial.
 5. A interface aplica a resposta se ela ainda corresponder à operação atual. Pesquisa, detalhes e exportação possuem controle de cancelamento; respostas atrasadas não substituem uma consulta mais recente.
 
-Cada troca de página chama novamente a fonte. Os documentos e sua ordem são preservados. Ao abrir uma contratação, a interface mostra a aba Detalhes e inicia as primeiras páginas de itens, arquivos, atas, contratos/empenhos e histórico em segundo plano. Uma fila por painel limita essas consultas a duas requisições simultâneas. As abas possuem contadores, navegação por teclado, paginação e recuperação de erro independentes; trocar de aba preserva os dados já consultados. Fechar o painel ou abrir outro documento cancela chamadas ativas e pendentes e descarta respostas antigas. Arquivos e histórico usam contagem separada; atas e contratos usam o total do envelope da resposta. A exportação percorre as páginas em sequência e verifica a consistência antes de produzir o arquivo.
+Cada troca de página chama novamente a fonte. Os documentos e sua ordem são preservados. Ao abrir uma contratação, a interface mostra a aba Detalhes e inicia as primeiras páginas de itens, arquivos, atas, contratos/empenhos e histórico em segundo plano. Uma fila por painel limita essas consultas a duas requisições simultâneas. As abas possuem contadores, navegação por teclado, paginação e recuperação de erro independentes; trocar de aba preserva os dados já consultados. Fechar o painel ou abrir outro documento cancela chamadas ativas e pendentes e descarta respostas antigas. Arquivos e histórico usam contagem separada; atas e contratos usam o total do envelope da resposta. Atas iniciam dados completos, partes envolvidas, contratos, arquivos e histórico; contratos iniciam dados completos, empenhos, instrumentos de cobrança, termos, arquivos e histórico. A consulta completa confere o controle PNCP contra a identidade solicitada antes de substituir os campos da busca. Falhas preservam os campos disponíveis e permitem nova tentativa. Termos usam contagem separada; empenhos, partes e contratos da ata usam envelopes paginados. Instrumentos de cobrança chegam em uma lista sem paginação: cada página consulta novamente essa lista e recorta apenas sua apresentação, com `pagination_source: local_slice`. Arquivos de termos e detalhes de empenhos/instrumentos são consultados sob demanda. A exportação percorre as páginas em sequência e verifica a consistência antes de produzir o arquivo.
 
 ## Estado, recursos e operação
 
@@ -58,10 +59,10 @@ Os arquivos do frontend e do Tabulator são servidos pelo próprio backend. O se
 
 ## Alcance e limitações atuais
 
-- Consultas de contratações (`edital`) e contratos (`contrato`) têm projeção e colunas próprias. Os 80 filtros estão implementados; `documents` controla a compatibilidade e `validation_status` informa a evidência disponível. Atas vinculadas aparecem nos detalhes de contratações; pesquisa autônoma de atas, IRP e PCA não tem projeção implementada.
+- Consultas de contratações (`edital`), atas (`ata`) e contratos (`contrato`) têm projeção, colunas e painéis próprios. Os 80 filtros estão implementados; `documents` controla a compatibilidade e `validation_status` informa a evidência disponível. IRP e PCA não têm projeção implementada.
 - A janela acessível é de 10.000 documentos. O total da fonte pode ser maior; exportações acima do limite são recusadas.
 - O PNCP pode mudar entre páginas. As conferências da exportação detectam algumas inconsistências, mas `snapshot_guaranteed` permanece `false`.
-- A demonstração contém 64 contratações com dois itens e resultados sintéticos, além de 32 contratos. Aplica todos os filtros com comparações decimais exatas e distingue `null` de `false`. Os detalhes preservam os itens e não usam o sequencial de contrato para consultar uma compra. Critérios sintéticos independentes não demonstram correlação do mesmo item/resultado na fonte real. Status temporal e relevância não têm simulação equivalente à API real.
+- A demonstração contém 64 contratações com dois itens e resultados sintéticos, além de 24 atas e 32 contratos. Atas e contratos simulam vigência com a referência fixa de 7 de outubro de 2026. Aplica todos os filtros com comparações decimais exatas e distingue `null` de `false`. Os detalhes preservam os itens e não usam o sequencial de contrato para consultar uma compra. Critérios sintéticos independentes não demonstram correlação do mesmo item/resultado na fonte real. Status de propostas e relevância não têm simulação equivalente à API real.
 - A suíte principal usa respostas sintéticas e DOM mínimo. A disponibilidade externa e a renderização completa precisam de verificações próprias, descritas em [Validação](validacao.md).
 
 Consulte [o contrato da API](consultas-pncp.md) para formatos de entrada e saída e [o guia Railway](railway.md) para operação em hospedagem.

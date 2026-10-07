@@ -5,6 +5,7 @@ import { AppError, assert, fail } from './errors.js';
 import { scalarText, plain, itemSituation } from './adapter.js';
 import { domainAliases, catalogDomains, referenceDomains, partialDomains } from './filter-domains.js';
 import { relatedResources, projectRelated } from './related.js';
+import { documentResources, nativeDocumentPath, projectDocument, recordFields, controlLink } from './document-details.js';
 
 export const delay = (ms, signal) => new Promise((resolve, reject) => {
   if (signal?.aborted) return reject(signal.reason);
@@ -207,6 +208,51 @@ export class PncpClient {
     if (!counted && result !== null && result.numeroPagina != null) assert(integer(result.numeroPagina, 'Número da página') === page, 'INVALID_UPSTREAM', 'PNCP retornou outra página da listagem.', 502);
     assert(data.length === Math.min(size, Math.max(0, total - (page - 1) * size)), 'SOURCE_CHANGED', 'A página não corresponde ao total informado pelo PNCP. Repita a consulta.', 409, {}, true);
     return { data: data.map(record => projectRelated(resource, record, purchase)), total, total_pages: pages };
+  }
+  async document(document,op) {
+    assert(['ata','contrato'].includes(document.type),'NOT_FOUND','Tipo de detalhe não disponível.',404);
+    const record=await this.get(nativeDocumentPath(document,this.config.PNCP_DETAIL_BASE_URL),op);
+    const expected=`https://pncp.gov.br/app/${document.type==='ata'?'atas':'contratos'}/${document.cnpj}/${document.ano}/${document.type==='ata'?`${BigInt(document.sequencial_compra)}/`:''}${BigInt(document.sequencial)}`;
+    assert(record && typeof record==='object' && !Array.isArray(record) && controlLink(record.numeroControlePNCP)===expected,'INVALID_UPSTREAM','PNCP retornou detalhes de outro documento ou sem identidade válida.',502);
+    return projectDocument(document.type,record);
+  }
+  async documentRelatedPage(document,resource,page,size,op) {
+    assert(documentResources[document.type]?.includes(resource),'NOT_FOUND','Listagem não disponível para este documento.',404);
+    if(document.type==='edital')return this.relatedPage(document,resource,page,size,op);
+    const path=`${nativeDocumentPath(document,this.config.PNCP_DETAIL_BASE_URL)}/${resource}`;
+    const counted=['arquivos','historico','termos'].includes(resource),unpaged=resource==='instrumentocobranca';
+    let total=counted?integer(await this.get(`${path}/quantidade`,op),'Quantidade de registros'):null;
+    if(counted)assert(page<=Math.max(1,Math.ceil(total/size)),'PAGE_OUT_OF_RANGE','Página além da listagem atual.',422,{last_page:Math.max(1,Math.ceil(total/size))});
+    const params=new URLSearchParams({pagina:String(page),tamanhoPagina:String(size)});
+    const result=total===0?[]:await this.get(unpaged?path:`${path}?${params}`,op,true);
+    let data=counted || unpaged?result || []:result===null?[]:result?.data;
+    if(!counted)total=unpaged?(Array.isArray(data)?data.length:0):result===null?0:integer(result?.totalRegistros,'Total de registros');
+    assert(Array.isArray(data) && data.every(v=>v && typeof v==='object' && !Array.isArray(v)),'INVALID_UPSTREAM','Listagem PNCP retornou formato inesperado.',502);
+    assert(total<=this.config.PNCP_MAX_DETAIL_ITEMS,'DETAIL_ITEM_LIMIT','Limite de registros da operação excedido.',422);
+    const pages=Math.max(1,Math.ceil(total/size));
+    assert(page<=pages,'PAGE_OUT_OF_RANGE','Página além da listagem atual.',422,{last_page:pages});
+    if(!counted && !unpaged && result!==null && result.numeroPagina!=null)assert(integer(result.numeroPagina,'Número da página')===page,'INVALID_UPSTREAM','PNCP retornou outra página da listagem.',502);
+    if(unpaged)data=data.slice((page-1)*size,page*size);
+    assert(data.length===Math.min(size,Math.max(0,total-(page-1)*size)),'SOURCE_CHANGED','A página não corresponde ao total informado pelo PNCP. Repita a consulta.',409,{},true);
+    return {data:data.map(record=>{
+      if(resource==='partesenvolvidas')return {fields:recordFields(resource,record)};
+      if(['termos','empenhos','instrumentocobranca'].includes(resource)){
+        const sequence=scalarText(record[{termos:'sequencialTermoContrato',empenhos:'sequencialEmpenho',instrumentocobranca:'sequencialInstrumentoCobranca'}[resource]]);
+        return {fields:recordFields(resource,record),sequencial:/^\d+$/.test(sequence || '') && BigInt(sequence)>0n?sequence:null};
+      }
+      return projectRelated(resource,record,document);
+    }),total,total_pages:pages,pagination_source:unpaged?'local_slice':'pncp'};
+  }
+  async contractChild(document,resource,sequence,op) {
+    assert(document.type==='contrato' && ['termos','empenhos','instrumentocobranca'].includes(resource) && /^\d+$/.test(sequence || '') && BigInt(sequence)>0n,'NOT_FOUND','Detalhe não encontrado.',404);
+    const path=`${nativeDocumentPath(document,this.config.PNCP_DETAIL_BASE_URL)}/${resource}/${sequence}`;
+    if(resource==='termos'){
+      const files=await this.get(`${path}/arquivos`,op,true);
+      assert(files===null || Array.isArray(files) && files.every(v=>v && typeof v==='object' && !Array.isArray(v)),'INVALID_UPSTREAM','Arquivos do termo retornaram formato inesperado.',502);
+      assert((files?.length ?? 0)<=this.config.PNCP_MAX_DETAIL_ITEMS,'DETAIL_ITEM_LIMIT','Limite de arquivos da operação excedido.',422);
+      return {files:(files || []).map(record=>projectRelated('arquivos',record,document))};
+    }
+    return {fields:recordFields(resource,await this.get(path,op))};
   }
   async close() { await this.dispatcher?.close(); }
 }

@@ -21,7 +21,7 @@ const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application
 function getParams(url, allowed) {
   for(const key of url.searchParams.keys())assert(allowed.includes(key) && url.searchParams.getAll(key).length===1,'UNKNOWN_PARAMETER',`Parâmetro inválido ou repetido: ${key}.`);
 }
-function documentType(url) {const type=url.searchParams.get('tipos_documento') ?? 'edital';assert(['edital','contrato'].includes(type),'DOCUMENT_TYPE_UNAVAILABLE','Escolha edital ou contrato.',409);return type;}
+function documentType(url) {const type=url.searchParams.get('tipos_documento') ?? 'edital';assert(['edital','ata','contrato'].includes(type),'DOCUMENT_TYPE_UNAVAILABLE','Escolha edital, ata ou contrato.',409);return type;}
 export function createApplication(config,{fetcher,logger=()=>{},liveReload=false}={}) {
   const devReload=liveReload?createDevReload():null;
   const client=new PncpClient(config,{fetcher:fetcher || (config.DEMO_MODE?demoFetch:undefined),logger});
@@ -70,6 +70,17 @@ export function createApplication(config,{fetcher,logger=()=>{},liveReload=false
           assert(Number.isSafeInteger(page) && page>0 && [10,25,50,100].includes(size) && BigInt(detail[3])>0n,'INVALID_PAGINATION','Paginação de detalhes inválida.');
           const purchase={cnpj:detail[1],ano:detail[2],sequencial:detail[3]};
           return json(res,200,await (detail[4]==='itens' ? service.details(purchase,page,size,controller.signal,id) : service.related(purchase,detail[4],page,size,controller.signal,id)));
+        }
+        const documentDetail=url.pathname.match(/^\/api\/(contratos|atas)\/(\d{14})\/(\d{4})\/(\d+)(?:\/(\d+))?(?:\/(arquivos|historico|termos|empenhos|instrumentocobranca|partesenvolvidas|contratos)(?:\/(\d+))?)?$/);
+        if(documentDetail && req.method==='GET'){
+          const [,kind,cnpj,ano,first,second,resource,child]=documentDetail;
+          assert(BigInt(first)>0n && (kind==='atas'?second && BigInt(second)>0n:!second),'INVALID_DOCUMENT_IDENTITY','Identificadores do documento inválidos.');
+          const document={type:kind==='atas'?'ata':'contrato',cnpj,ano,sequencial:second || first,...(kind==='atas'?{sequencial_compra:first}:{})};
+          if(child){getParams(url,[]);return json(res,200,await service.contractChild(document,resource,child,controller.signal,id));}
+          if(!resource){getParams(url,[]);return json(res,200,await service.documentDetails(document,controller.signal,id));}
+          getParams(url,['pagina','tamanhoPagina']);const page=Number(url.searchParams.get('pagina') ?? 1),size=Number(url.searchParams.get('tamanhoPagina') ?? 10);
+          assert(Number.isSafeInteger(page) && page>0 && [10,25,50,100].includes(size),'INVALID_PAGINATION','Paginação de detalhes inválida.');
+          return json(res,200,await service.documentRelated(document,resource,page,size,controller.signal,id));
         }
         fail('NOT_FOUND','Rota ou método não encontrado.',404);
       }

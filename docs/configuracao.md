@@ -12,7 +12,7 @@ Crie `.env` a partir do exemplo apenas quando precisar personalizar os padrões.
 | `PORT` | `8000` | Porta inteira entre 1 e 65.535 |
 | `DEMO_MODE` | `false` | `true` ativa dados sintéticos; `false` consulta o PNCP |
 | `PNCP_SEARCH_BASE_URL` | `https://pncp.gov.br/api/search` | Base para pesquisa, filtros e sugestões |
-| `PNCP_DETAIL_BASE_URL` | `https://pncp.gov.br/api/pncp/v1` | Base para itens, arquivos, atas, contratos vinculados e histórico |
+| `PNCP_DETAIL_BASE_URL` | `https://pncp.gov.br/api/pncp/v1` | Base para documentos, itens, arquivos e demais listagens dos detalhes |
 | `PNCP_VALIDATED_FILTERS` | Vazio | Nomes de filtros adicionais validados, separados por vírgula |
 
 As URLs base exigem HTTPS e não podem conter credenciais, query string ou fragmento. O cliente só segue redirecionamentos HTTPS para a mesma origem, com limite de três.
@@ -51,13 +51,13 @@ O cliente tenta novamente erros de transporte e respostas HTTP 429, 502, 503 e 5
 | `PNCP_MAX_OPERATION_BYTES` | `104857600` (100 MiB) | Soma dos bytes lidos das respostas da fonte na operação |
 | `PNCP_MAX_REQUESTS_PER_OPERATION` | `1000` | Orçamento de chamadas, incluindo domínios, tentativas e redirecionamentos |
 
-A interface usa 100 linhas por página de contratações e por página de itens, e dez registros por página nas demais listagens dos detalhes. Alterar `PNCP_PAGE_SIZE` não muda esses tamanhos visuais. A janela de busca é fixa em 10.000 documentos.
+A interface usa 100 linhas por página de documentos pesquisados e por página de itens, e dez registros por página nas demais listagens dos detalhes. Alterar `PNCP_PAGE_SIZE` não muda esses tamanhos visuais. A janela de busca é fixa em 10.000 documentos.
 
 Os limites numéricos exigem valores de pelo menos 1, exceto `PNCP_MAX_RETRIES`, que aceita zero; porta, tamanhos de página e limites `MAX_*` exigem inteiros. Os scripts de execução usam heap de 512 MiB. Dimensione a memória total com margem para buffers, respostas e CSV.
 
 ## Habilitar filtros adicionais
 
-`GET /api/schema` publica os 80 filtros implementados: 71 de contratações e 32 de contratos, com 23 compartilhados. Não é necessário preencher `PNCP_VALIDATED_FILTERS` para usá-los. A variável permanece por compatibilidade e declara conferência externa feita pelo operador (`validation_status: operator_declared`); não comprova o efeito remoto nem altera a compatibilidade documental. Nomes desconhecidos ou reservados continuam sendo rejeitados.
+`GET /api/schema` publica os 80 filtros implementados: 71 de contratações, 16 de atas e 32 de contratos. Não é necessário preencher `PNCP_VALIDATED_FILTERS` para usá-los. A variável permanece por compatibilidade e declara conferência externa feita pelo operador (`validation_status: operator_declared`); não comprova o efeito remoto nem altera a compatibilidade documental. Nomes desconhecidos ou reservados continuam sendo rejeitados.
 
 As capacidades publicam tipo, cardinalidade, contexto, provedor de domínio e evidência disponível. Domínios fechados exigem pertencimento ao catálogo antes da pesquisa e do CSV; listas parciais usam sugestões. Países preservam o ID alfabético do catálogo PNCP, como `BRA`, sem convertê-lo para código BCB. Reservas/remanescentes usam a enumeração fixa do portal. Consulte a [lista completa](consultas-pncp.md#filtros-habilitados-por-padrão) e o [alcance da verificação externa](viabilidade-filtros-pncp.md).
 

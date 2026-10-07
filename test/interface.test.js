@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { setImmediate as tick } from 'node:timers/promises';
 import { schema } from '../src/schema.js';
-import { demoFetch,demoContracts } from '../src/demo.js';
+import { demoFetch,demoContracts,demoAtas } from '../src/demo.js';
 import { PncpClient } from '../src/pncp.js';
 import { QueryService } from '../src/query.js';
 import { config, service, document, query } from './helpers.js';
@@ -33,8 +33,9 @@ async function interfaceFixture(options={}) {
   for(const match of html.matchAll(/<([a-z]+)[^>]*\bid="([^"]+)"[^>]*>/g)){const node=new Element(match[1]);node.id=match[2];node.hidden=match[0].includes(' hidden');}
   const dom={body:new Element('body'),getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),createTextNode:text=>text,addEventListener(){},querySelectorAll:selector=>selector==='dialog'?all.filter(n=>n.tagName==='dialog'):[],querySelector(){return null;}};
   const cfg=config({DEMO_MODE:true,...options.config});
-  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[],relatedRequests=[],exportRequests=[],domainRequests=[],suggestRequests=[];
+  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[],relatedRequests=[],documentRequests=[],childRequests=[],exportRequests=[],domainRequests=[],suggestRequests=[];
   const queryHandler=options.queryHandler,exportHandler=options.exportHandler,domainHandler=options.domainHandler,relatedHandler=options.relatedHandler,itemHandler=options.itemHandler;
+  const optionsDocumentHandler=options.documentHandler;
   let detailFailures=options.detailFailures || 0;
   const fetcher=async(url,options={})=>{
     try{
@@ -50,6 +51,15 @@ async function interfaceFixture(options={}) {
         if(exportHandler)return await exportHandler(input,options,backend);
         const result=await backend.export(input.query,options.signal);
         return new Response(result.csv,{headers:{'Content-Type':'text/csv','Content-Disposition':'attachment; filename="compras-demo.csv"','X-Exported-Rows':String(result.metadata.data.length),'X-PNCP-Started-At':result.metadata.started_at,'X-PNCP-Finished-At':result.metadata.finished_at}});
+      }
+      if(url.startsWith('/api/atas/') || url.startsWith('/api/contratos/')){
+        const parsed=new URL(url,'http://localhost'),parts=parsed.pathname.split('/').slice(2),[kind,cnpj,ano,first,...rest]=parts;
+        const type=kind==='atas'?'ata':'contrato',sequencial=type==='ata'?rest.shift():first,resource=rest.shift(),child=rest.shift();
+        const doc={type,cnpj,ano,sequencial,...(type==='ata'?{sequencial_compra:first}:{})};
+        if(child){childRequests.push(url);return Response.json(await backend.contractChild(doc,resource,child,options.signal));}
+        if(!resource){documentRequests.push(url);if(optionsDocumentHandler)return optionsDocumentHandler(url,options,backend);return Response.json(await backend.documentDetails(doc,options.signal));}
+        relatedRequests.push(url);if(relatedHandler)return relatedHandler(url,options,backend);
+        return Response.json(await backend.documentRelated(doc,resource,Number(parsed.searchParams.get('pagina')),10,options.signal));
       }
       if(url.startsWith('/api/contratacoes/')){
         if(!url.includes('/itens?')){
@@ -81,7 +91,7 @@ async function interfaceFixture(options={}) {
   const footer=()=>vm.runInContext('state.table.options.paginationCounter',context)();
   const draft=()=>JSON.parse(vm.runInContext('JSON.stringify(state.draft)',context));
   const setFilter=(name,value)=>vm.runInContext('setDraftFilter',context)(name,value);
-  return {nodes,all,requests,itemRequests,relatedRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable};
+  return {nodes,all,requests,itemRequests,relatedRequests,documentRequests,childRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
 
@@ -427,7 +437,7 @@ test('DETAILS-UI-06: quantidade e valores do PNCP preservam precisão, zero e au
 test('FILTERS-UI-04: catálogo completo distingue a compatibilidade com contratos',async()=>{
   const ui=await interfaceFixture(),groups=ui.nodes.get('native-field').children;
   assert.deepEqual(groups.map(g=>g.label),['Contratação','Item','Resultado do item','Fornecedor','Contrato']);
-  const contracts=groups.at(-1).children;assert.equal(contracts.length,9);assert(contracts.every(o=>o.disabled && o.textContent.endsWith('somente contratos')));
+  const contracts=groups.at(-1).children;assert.equal(contracts.length,9);assert(contracts.every(o=>o.disabled && /somente (contratos|atas e contratos)$/.test(o.textContent)));
   const srp=groups[0].children.find(o=>o.value==='srp');assert.equal(srp.disabled,false);assert.equal(srp.textContent,'Sistema de Registro de Preços');
   const country=groups[3].children.find(o=>o.value==='paises_fornecedor');assert.equal(country.disabled,false);
   assert(groups.flatMap(g=>g.children).every(o=>!o.textContent.includes('pendente')));
@@ -595,4 +605,71 @@ test('CONTRACTS-UI-03: resposta de contrato atrasada não substitui a pesquisa a
   const selector=ui.nodes.get('document-type');selector.value='contrato';await selector.listeners.change[0]();await settle();assert(finishContract);
   selector.value='edital';await selector.listeners.change[0]();await settle();await finishContract();await settle();
   assert.equal(ui.state().document_type,'edital');assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');assert.equal(ui.nodes.get('export-button').disabled,false);
+});
+
+test('ATAS-UI-01: trocar para atas ajusta status, colunas, filtros, contagem e CSV',async()=>{
+  const ui=await interfaceFixture();ui.nodes.get('document-type').value='ata';await ui.nodes.get('document-type').fire('change');
+  assert.equal(ui.state().document_type,'ata');assert.equal(ui.nodes.get('result-title').textContent,'24 atas');
+  assert(ui.tableColumns().some(c=>c.field==='cancelado'));assert(!ui.tableColumns().some(c=>c.field==='valor_total_estimado'));
+  assert.deepEqual(ui.nodes.get('draft-status').children.map(c=>c.value),['todos','vigente','nao_vigente']);
+  const fields=ui.nodes.get('native-field').children.flatMap(g=>g.children);assert.equal(fields.filter(f=>!f.disabled).length,16);assert.equal(fields.find(f=>f.value==='situacoes_item').disabled,true);
+  await ui.nodes.get('filters-button').fire('click');ui.nodes.get('draft-status').value='vigente';await ui.nodes.get('apply-filters').fire('click');assert.equal(ui.nodes.get('result-title').textContent,'12 atas');
+  await ui.nodes.get('export-button').fire('click');assert.equal(ui.exportRequests.at(-1).query.document_type,'ata');assert.equal(ui.exportRequests.at(-1).query.status,'vigente');
+  await ui.nodes.get('clear-button').fire('click');assert.equal(ui.state().document_type,'ata');assert.equal(ui.nodes.get('result-title').textContent,'24 atas');
+});
+
+test('ATAS-UI-02: o painel de ata carrega detalhes completos e quatro listas com identidades corretas',async()=>{
+  const ui=await interfaceFixture();await ui.openDocument(project(demoAtas[2]));
+  assert.equal(ui.itemRequests.length,0);assert.equal(ui.documentRequests.length,1);assert.equal(ui.relatedRequests.length,4);assert.equal(ui.documentRequests[0],'/api/atas/00000000000000/2026/3/3');
+  assert(ui.relatedRequests.every(r=>r.includes('/api/atas/00000000000000/2026/3/3/')));
+  const tabs=ui.nodes.get('details-content').children.find(n=>n.className==='detail-tabs');assert.deepEqual(tabs.children.map(b=>b.textContent),['Detalhes (22)','Partes envolvidas (1)','Contratos (2)','Arquivos (12)','Histórico (12)']);
+  assert.equal(ui.nodes.get('details-kind').textContent,'ATA DE REGISTRO DE PREÇOS');
+  const titles=ui.nodes.get('detail-panel-detalhes').children[0].children.map(f=>f.children[0].textContent);assert(titles.includes('Número da ata'));assert(titles.includes('Permite adesão'));assert(!titles.includes('Valor estimado'));assert(!titles.includes('Fornecedor'));
+  const origin=ui.nodes.get('detail-panel-detalhes').children[0].children.find(f=>f.children[0].textContent==='Contratação de origem');assert.match(origin.children[1].children[0].href,/\/editais\/00000000000000\/2026\/3$/);
+  await ui.nodes.get('detail-tab-partesenvolvidas').fire('click');const parties=ui.nodes.get('detail-panel-partesenvolvidas');assert.equal(parties.hidden,false);assert.equal(ui.relatedRequests.length,4);
+});
+
+test('CONTRACTS-UI-04: os dados nativos e cinco listas do contrato carregam antes da seleção das abas',async()=>{
+  const ui=await interfaceFixture();await ui.openDocument(project(demoContracts[0]));
+  assert.equal(ui.documentRequests.length,1);assert.equal(ui.relatedRequests.length,5);assert.equal(ui.itemRequests.length,0);
+  const tabs=ui.nodes.get('details-content').children.find(n=>n.className==='detail-tabs');assert.deepEqual(tabs.children.map(b=>b.textContent),['Detalhes (34)','Empenhos (1)','Instrumentos de cobrança (1)','Termos (1)','Arquivos (12)','Histórico (12)']);
+  assert(ui.relatedRequests.every(r=>r.startsWith('/api/contratos/00000000000000/2026/1/')));
+  const fields=ui.nodes.get('detail-panel-detalhes').children[0].children.map(w=>[w.children[0].textContent,w.children[1].textContent]);assert(fields.some(([label,value])=>label==='Valor da parcela' && value==='R$ 100,0000'));assert(fields.some(([label,value])=>label==='Processo' && value==='DEMO-1/2026'));assert(!fields.some(([label])=>label==='Modalidade'));
+});
+
+test('CONTRACTS-UI-05: arquivos de termos e detalhes de empenhos/instrumentos consultam somente o filho escolhido',async()=>{
+  const ui=await interfaceFixture();await ui.openDocument(project(demoContracts[0]));assert.equal(ui.childRequests.length,0);
+  for(const resource of ['termos','empenhos','instrumentocobranca']){
+    await ui.nodes.get(`detail-tab-${resource}`).fire('click');const card=ui.nodes.get(`detail-panel-${resource}`).children[3].children[0],button=card.children[2],extra=card.children[3];
+    await button.fire('click');assert.equal(extra.hidden,false);assert.equal(button.getAttribute('aria-expanded'),'true');assert(extra.children.length>0);
+    assert.equal(ui.childRequests.at(-1),`/api/contratos/00000000000000/2026/1/${resource}/1`);
+    await button.fire('click');assert.equal(extra.hidden,true);await button.fire('click');assert.equal(extra.hidden,false);
+  }
+  assert.equal(ui.childRequests.length,3);assert.equal(ui.relatedRequests.length,5);
+});
+
+test('DOCUMENTS-UI-01: falha de detalhes conserva a busca, permite tentar novamente e não impede as listas',async()=>{
+  let failed=true;const ui=await interfaceFixture({documentHandler:async(url,options,backend)=>{if(failed)return Response.json({error:{message:'Falha de detalhes.'}},{status:503});return Response.json(await backend.documentDetails(project(demoAtas[0])._document,options.signal));}});
+  await ui.openDocument(project(demoAtas[0]));const panel=ui.nodes.get('detail-panel-detalhes');assert.equal(ui.nodes.get('detail-tab-detalhes').dataset.state,'error');assert.equal(panel.children[0].children.length,14);assert.match(panel.children[1].textContent,/Falha de detalhes/);assert.equal(panel.children[2].hidden,false);assert.equal(ui.relatedRequests.length,4);assert.equal(ui.nodes.get('detail-tab-arquivos').dataset.state,'loaded');
+  failed=false;await panel.children[2].fire('click');assert.equal(ui.nodes.get('detail-tab-detalhes').textContent,'Detalhes (22)');assert.equal(ui.documentRequests.length,2);assert.equal(ui.relatedRequests.length,4);
+});
+
+test('DOCUMENTS-UI-02: fechar ou trocar o documento cancela detalhes pendentes e ignora respostas antigas',async()=>{
+  let finish,signal;const ui=await interfaceFixture({documentHandler:(url,options,backend)=>{if(url.startsWith('/api/atas/')){signal=options.signal;return new Promise(resolve=>{finish=()=>resolve(Response.json({fields:[{title:'Registro antigo',value:'Antigo'}],objeto:'Objeto antigo'}));});}return backend.documentDetails(project(demoContracts[0])._document,options.signal).then(Response.json);}});
+  const opening=ui.openDocument(project(demoAtas[0]));await settle();assert(signal);ui.nodes.get('details-dialog').close();assert.equal(signal.aborted,true);
+  await ui.openDocument(project(demoContracts[0]));finish();await opening;assert.equal(ui.nodes.get('details-kind').textContent,'CONTRATO');assert(!ui.all.some(n=>n.textContent==='Registro antigo'));assert.equal(ui.itemRequests.length,0);
+});
+
+test('DOCUMENTS-UI-03: ausência de identificadores originais preserva campos da busca sem fazer consultas',async()=>{
+  const ui=await interfaceFixture();await ui.openDocument(project({...demoAtas[0],numero_sequencial_compra_ata:null}));
+  assert.equal(ui.documentRequests.length,0);assert.equal(ui.relatedRequests.length,0);assert.equal(ui.itemRequests.length,0);
+  assert.equal(ui.nodes.get('detail-tab-detalhes').dataset.state,'unavailable');assert.equal(ui.nodes.get('detail-panel-detalhes').children[0].children.length,14);
+  for(const name of ['partesenvolvidas','contratos','arquivos','historico'])assert.equal(ui.nodes.get(`detail-tab-${name}`).dataset.state,'unavailable');
+});
+
+test('DOCUMENTS-UI-04: falha em arquivos de termo fica visível e uma nova tentativa consulta somente esse registro',async()=>{
+  let failed=true;const ui=await interfaceFixture({itemFetcher:url=>url.includes('/termos/1/arquivos') && failed?Promise.resolve(new Response(null,{status:503})):demoFetch(url)});
+  await ui.openDocument(project(demoContracts[0]));const card=ui.nodes.get('detail-panel-termos').children[3].children[0],button=card.children[2],extra=card.children[3];
+  await button.fire('click');assert.equal(extra.hidden,false);assert.equal(button.getAttribute('aria-expanded'),'true');assert.match(extra.children[0].textContent,/PNCP/);assert.equal(button.textContent,'Tentar novamente');
+  failed=false;await button.fire('click');assert.equal(extra.hidden,false);assert.equal(extra.children.length,2);assert.equal(ui.childRequests.length,2);assert.equal(ui.relatedRequests.length,5);
 });

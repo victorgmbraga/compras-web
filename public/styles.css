@@ -158,6 +158,8 @@ dialog select[multiple]{min-height:155px}
 .detail-grid div{min-width:0}
 .detail-grid dt{font-size:.75rem;color:#6c7e8f;margin-bottom:4px}
 .detail-grid dd{font-size:.875rem;margin:0;overflow-wrap:anywhere;line-height:1.5}
+.related-extra{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.related-extra .related-card{background:#f7fafc}
 .items-section{border:0}
 .items-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .items-section h3{font-size:1rem;margin:0;position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}

@@ -212,7 +212,7 @@
   {
     "name": "permite_adesao",
     "format": "booleano",
-    "context": "E C",
+    "context": "E C A",
     "description": "Indicação de permissão de adesão informada no registro."
   },
   {
@@ -266,38 +266,38 @@
   {
     "name": "data_publicacao_inicio",
     "format": "data",
-    "context": "E C",
+    "context": "E C A",
     "description": "Limite inicial da data de publicação no PNCP."
   },
   {
     "name": "data_publicacao_fim",
     "format": "data",
-    "context": "E C",
+    "context": "E C A",
     "description": "Limite final da data de publicação no PNCP."
   },
   {
     "name": "data_inicio_vigencia_inicio",
     "format": "data",
-    "context": "C",
-    "description": "Limite inicial aplicado à data de início da vigência do contrato."
+    "context": "C A",
+    "description": "Limite inicial aplicado à data de início da vigência do contrato ou da ata."
   },
   {
     "name": "data_inicio_vigencia_fim",
     "format": "data",
-    "context": "C",
+    "context": "C A",
     "description": "Limite final aplicado à data de início da vigência. Não filtra a data final da vigência."
   },
   {
     "name": "data_assinatura_inicio",
     "format": "data",
-    "context": "C",
-    "description": "Limite inicial da data de assinatura do contrato."
+    "context": "C A",
+    "description": "Limite inicial da data de assinatura do contrato ou da ata."
   },
   {
     "name": "data_assinatura_fim",
     "format": "data",
-    "context": "C",
-    "description": "Limite final da data de assinatura do contrato."
+    "context": "C A",
+    "description": "Limite final da data de assinatura do contrato ou da ata."
   },
   {
     "name": "data_homologacao_inicio",

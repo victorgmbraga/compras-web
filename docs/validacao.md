@@ -16,6 +16,8 @@ O comando usa `node --test --test-concurrency=1 test/*.test.js`. A suíte cobre:
 - Quantidade, paginação, campos e falhas dos itens.
 - Arquivos, atas, contratos/empenhos e histórico: rotas oficiais, contagens, HTTP 204, links, valores exatos, carregamento em segundo plano, paginação independente, nova tentativa e cancelamento.
 - Abas de detalhes: campos e rótulos, vínculos ARIA, navegação por teclado, contadores, até duas consultas simultâneas e descarte de chamadas pendentes ao fechar.
+- Pesquisa, status e CSV de atas; distinção entre sequencial da compra e da ata.
+- Dados completos de atas/contratos, identidade do documento, partes envolvidas, termos, empenhos, instrumentos de cobrança e arquivos de termos.
 - Cancelamento, timeouts, tentativas e orçamentos de recursos.
 - Handlers da interface com DOM mínimo, controle de respostas atrasadas e recuperação de erros.
 - Filtros documentais, enumerações singulares, catálogos auxiliares, domínios parciais e reconciliação de normativos/amparos.
@@ -35,9 +37,9 @@ curl --fail-with-body -sS http://localhost:8000/api/query \
   -d '{"api_version":"2.0","q":"firewall","size":10}'
 ```
 
-Confira HTTP 200, `status: "ok"` no healthcheck e `source` correspondente ao modo escolhido. Na pesquisa, confira `data`, totais e paginação. Em demonstração, a pesquisa por `firewall` retorna seis contratações; a pesquisa sem texto retorna 64 contratações ou 32 contratos. Com a fonte real, os resultados e totais variam.
+Confira HTTP 200, `status: "ok"` no healthcheck e `source` correspondente ao modo escolhido. Na pesquisa, confira `data`, totais e paginação. Em demonstração, a pesquisa por `firewall` retorna seis contratações; a pesquisa sem texto retorna 64 contratações, 24 atas ou 32 contratos, conforme o tipo escolhido. Com a fonte real, os resultados e totais variam.
 
-Pela interface, verifique pesquisa inicial, todos os filtros, paginação, itens, troca entre contratações e contratos, cancelamento e CSV de ambos os tipos. Abra os detalhes de uma contratação, confira o carregamento das cinco listagens em segundo plano e percorra suas abas por mouse e teclado. Confira downloads, links de atas/contratos, contadores e páginas de arquivos/histórico. Verifique também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de detalhes, sugestões e exportação.
+Pela interface, verifique pesquisa inicial, todos os filtros, paginação, itens, troca entre os três tipos, cancelamento e CSV de cada tipo. Abra os detalhes de uma contratação, confira o carregamento das cinco listagens em segundo plano e percorra suas abas por mouse e teclado. Confira downloads, links de atas/contratos, contadores e páginas de arquivos/histórico. Verifique também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de detalhes, sugestões e exportação.
 
 ## Build e distribuição
 
@@ -80,16 +82,16 @@ Revisão atual: 7 de outubro de 2026, Linux, Node.js 24.19.0.
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm test` | 135 testes passaram, sem falhas ou testes ignorados |
-| Build e distribuição em demonstração | Build concluído; saúde, esquema, estáticos, pesquisa, domínios, sugestões, itens, quatro listagens dos detalhes e CSV dos dois tipos verificados |
-| Chromium com Playwright 1.58.2 | 52 verificações passaram, incluindo todos os 71 controles de contratações e os 32 de contratos, abas, carregamento em segundo plano, contadores, teclado, paginação, status, CSV e responsividade; sem erros JavaScript não tratados |
-| Catálogo | 80 filtros implementados, 71 de edital e 32 de contrato; nenhum filtro pendente |
+| `npm test` | 155 testes passaram, sem falhas ou testes ignorados |
+| Build e distribuição em demonstração | Build concluído; saúde, esquema, estáticos, pesquisa, domínios, sugestões, itens, listagens dos três tipos, detalhes completos de atas/contratos, registros filhos e CSV verificados |
+| Chromium com Playwright 1.58.2 | 61 verificações passaram, incluindo todos os 71 controles de contratações, os 16 de atas e os 32 de contratos, abas, carregamento em segundo plano, contadores, teclado, paginação, status, CSV e responsividade; sem erros JavaScript não tratados |
+| Catálogo | 80 filtros implementados, 71 de edital, 16 de ata e 32 de contrato; nenhum filtro pendente |
 | Integração real | Respostas válidas para as quatro listagens de detalhes, incluindo duas páginas de atas, além de parte dos filtros e contratos; outras chamadas receberam HTTP 503. O alcance dos filtros está no respectivo guia |
 
 A cobertura funcional verifica todos os filtros na pesquisa e na exportação, tipos e intervalos inválidos antes da rede, pertinência aos domínios, IDs alfabéticos, espaços em unidades, zeros à esquerda, ausência distinta de false e precisão decimal além da faixa segura de inteiros. Contratos têm projeção e CSV próprios; o sequencial do contrato não inicia consultas de itens de uma compra.
 
-Os testes de interface verificam edição de Não, reconciliação legal, status e colunas por documento, limpeza de critérios ao trocar de tipo e descarte de respostas atrasadas. A demonstração preserva todos os itens nos detalhes e mantém uma linha por documento no CSV. O navegador percorre os controles completos, aplica combinações e baixa arquivos dos dois tipos.
+Os testes de interface verificam edição de Não, reconciliação legal, status e colunas por documento, limpeza de critérios ao trocar de tipo e descarte de respostas atrasadas. A demonstração preserva todos os itens nos detalhes e mantém uma linha por documento no CSV. O navegador percorre os controles completos, aplica combinações e baixa CSV dos três tipos. Atas e contratos carregam seus dados completos e abas específicas; arquivos de termos e detalhes de empenhos/instrumentos são consultados sob demanda.
 
-As quatro listagens de detalhes foram verificadas nos serviços reais usados pelo portal oficial: arquivos e histórico de `00394452000103-1-021678/2026`, contrato vinculado à contratação `18629840000183-1-000051/2026` e 11 atas em duas páginas de `88585518000185-1-000469/2026`. A conferência incluiu formatos, contagens, campos e URLs retornadas pela API da aplicação. Ela não baixou o conteúdo binário dos arquivos nem certifica disponibilidade contínua da fonte.
+As quatro listagens de detalhes foram verificadas nos serviços reais usados pelo portal oficial: arquivos e histórico de `00394452000103-1-021678/2026`, contrato vinculado à contratação `18629840000183-1-000051/2026` e 11 atas em duas páginas de `88585518000185-1-000469/2026`. A conferência incluiu formatos, contagens, campos e URLs retornadas pela API da aplicação. Os detalhes completos da ata `88585518000185-1-000469/2026-000001` e do contrato `18629840000183-2-000044/2026` também foram conferidos, assim como partes envolvidas da ata. Termos e instrumentos de cobrança retornaram registros válidos para `10870883000144-2-000030/2021` e `04892707000100-2-000006/2022`. Empenhos retornaram HTTP 404 nos contratos sondados; a aplicação preserva esse erro, sem presumir total zero. A conferência não baixou o conteúdo binário dos arquivos nem certifica disponibilidade contínua da fonte.
 
 As sondagens externas verificam respostas e controles selecionados, sem homologar todos os predicados e combinações. O formulário oficial do PNCP confirmou o uso do ID do catálogo de países, o catálogo de situações de resultados e os status vigente/nao_vigente. Falhas intermitentes impedem afirmar disponibilidade contínua ou correlação no mesmo item/resultado. Consulte [Implementação e verificação dos filtros](viabilidade-filtros-pncp.md).

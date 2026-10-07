@@ -1,6 +1,6 @@
 # Contrato da API e consultas ao PNCP
 
-A API da aplicação usa a versão `2.0` e habilita `edital` (contratações) e `contrato`. O servidor consulta `https://pncp.gov.br/api/search/` para pesquisas e `https://pncp.gov.br/api/pncp/v1` para itens e catálogos. Os endereços são configuráveis conforme o [guia de configuração](configuracao.md).
+A API da aplicação usa a versão `2.0` e habilita `edital` (editais e avisos de contratações), `ata` (atas de registro de preços) e `contrato`. O servidor consulta `https://pncp.gov.br/api/search/` para pesquisas e `https://pncp.gov.br/api/pncp/v1` para documentos, itens, listagens relacionadas e catálogos. Os endereços são configuráveis conforme o [guia de configuração](configuracao.md).
 
 ## Pesquisa
 
@@ -9,9 +9,9 @@ A API da aplicação usa a versão `2.0` e habilita `edital` (contratações) e 
 | Campo | Padrão | Valores aceitos |
 | --- | --- | --- |
 | `api_version` | `"2.0"` | `"2.0"` |
-| `document_type` | `"edital"` | `"edital"` ou `"contrato"` |
+| `document_type` | `"edital"` | `"edital"`, `"ata"` ou `"contrato"` |
 | `q` | `""` | Texto de até 128 caracteres |
-| `status` | `"todos"` | Em edital: `"todos"`, `"recebendo_proposta"`, `"propostas_encerradas"`; em contrato: `"todos"`, `"vigente"`, `"nao_vigente"` |
+| `status` | `"todos"` | Em edital: `"todos"`, `"recebendo_proposta"`, `"propostas_encerradas"`; em ata e contrato: `"todos"`, `"vigente"`, `"nao_vigente"` |
 | `pncp_filters` | `{}` | Objeto de filtros habilitados |
 | `order` | `"-data"` | `"-data"` (mais recentes), `"data"` (mais antigas), `"relevancia"` (exige texto não vazio) |
 | `page` | `1` | Inteiro positivo; `page × size` não pode superar 10.000 |
@@ -63,7 +63,7 @@ Todos os filtros restantes também estão implementados. A notação `min/max` e
 | Filtros | Formato e domínio |
 | --- | --- |
 | `orgaos_subrogados`, `unidades_subrogadas`, `fornecedores` | Listas de IDs numéricos em strings, obtidos por opções parciais ou sugestões; edital e contrato |
-| `permite_adesao` | Booleano; edital e contrato |
+| `permite_adesao` | Booleano; edital, ata e contrato |
 | `tipos_margens_preferencia` | ID único em string, conferido no domínio; edital e contrato |
 | `unidades_medida` | Lista de textos em `item_unidades_medida`, preservando caixa e espaços |
 | `item_quantidade_min/max`, `item_valor_unitario_estimado_min/max`, `item_valor_total_estimado_min/max` | Decimais não negativos em strings |
@@ -80,12 +80,12 @@ Todos os filtros restantes também estão implementados. A notação `min/max` e
 | `tipos_contrato` | Lista de IDs conferidos no domínio de contratos; exclusivo de contrato |
 | `possui_nfe` | Booleano exclusivo de contrato |
 | `fornecedores_subcontratados` | Lista de IDs numéricos em strings obtidos por opções parciais ou sugestões; exclusivo de contrato |
-| `data_assinatura_inicio/fim`, `data_inicio_vigencia_inicio/fim` | Datas reais `AAAA-MM-DD`; exclusivo de contrato; o segundo intervalo restringe a data de início da vigência |
+| `data_assinatura_inicio/fim`, `data_inicio_vigencia_inicio/fim` | Datas reais `AAAA-MM-DD`; ata e contrato; o segundo intervalo restringe a data de início da vigência |
 | `valor_global_min/max` | Decimais não negativos em strings; exclusivo de contrato |
 
 Filtros de itens, resultados e características de fornecedores nessa tabela são exclusivos de edital, exceto onde indicado. Confira `documents` no esquema para a compatibilidade dos demais campos. Intervalos invertidos são rejeitados antes da rede; decimais são comparados sem conversão para ponto flutuante.
 
-As listas devem conter de 1 a 100 strings; não envie nomes de órgãos no lugar dos IDs nem caracteres `|` dentro dos valores. Os intervalos devem ter início ou mínimo menor ou igual ao fim ou máximo. `status` representa o período de recebimento de propostas; `situacoes` é um filtro separado de situação da contratação.
+As listas devem conter de 1 a 100 strings; não envie nomes de órgãos no lugar dos IDs nem caracteres `|` dentro dos valores. Os intervalos devem ter início ou mínimo menor ou igual ao fim ou máximo. `status` representa o período de recebimento de propostas em editais e a vigência em atas/contratos; `situacoes` é um filtro separado de situação da contratação.
 
 Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false`, e não descartado. Omitir o argumento não restringe por aquela condição. Ausência de informação não é convertida em `false`; na demonstração, registros com `null` ficam fora tanto de Sim quanto de Não. `tem_nfe_contrato` é um vínculo da contratação; `possui_nfe` continua exclusivo de contratos e indisponível para `edital`. Não há exclusões automáticas de modos de disputa por modalidade: os critérios são enviados juntos à fonte.
 
@@ -95,7 +95,9 @@ Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false
 
 Filtros de itens selecionam **contratações** na busca nativa. Tabela e CSV continuam contendo uma linha por contratação. Os detalhes exibem todos os itens, inclusive os que não satisfazem os critérios. Uma condição verdadeira na busca pode coexistir com itens que a informam como falsa nos detalhes. Não há garantia de que condições diferentes incidam sobre o mesmo item; a aplicação não aplica um refinamento local para impor essa correlação. Os nomes enviados à busca continuam sendo `categorias_leilao` e `beneficios`, embora os domínios usem aliases.
 
-`GET /api/schema` informa `columns`, `columns_by_document`, `capabilities`, `statuses`, `statuses_by_document`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados ao adaptador e 80 filtros implementados, sem pendências. São 71 de edital e 32 de contrato, com 23 compartilhados. `columns` e `statuses` mantêm os padrões de edital; os mapas por documento fornecem os valores próprios de contrato. A compatibilidade de filtros é definida por `documents`.
+`GET /api/schema` informa `columns`, `columns_by_document`, `capabilities`, `statuses`, `statuses_by_document`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados ao adaptador e 80 filtros implementados, sem pendências. São 71 de edital, 16 de ata e 32 de contrato. `columns` e `statuses` mantêm os padrões de edital; os mapas por documento fornecem os valores próprios de cada tipo. A compatibilidade de filtros é definida por `documents`.
+
+Atas aceitam `ufs`, `orgaos`, `unidades`, `municipios`, `esferas`, `poderes`, `anos`, `modalidades`, `tipos`, `permite_adesao`, `data_publicacao_inicio/fim`, `data_assinatura_inicio/fim` e `data_inicio_vigencia_inicio/fim`. Filtros de itens, resultados e valores contratuais não são aplicáveis a atas.
 
 Cada capacidade também informa `label`, `group`, `input_hint`, `cardinality`, `domain_source`, `domain_kind`, `evidence` e `validation_status`. O tipo `enum` é singular: `tipos_item` e `tipos_margens_preferencia` usam uma string escolhida no domínio. `sampled_live` registra filtros com controles reais documentados; `integration_tested` registra cobertura da aplicação, sem homologação integral da fonte; `operator_declared` declara conferência externa via [PNCP_VALIDATED_FILTERS](configuracao.md#habilitar-filtros-adicionais).
 
@@ -120,11 +122,11 @@ Cada capacidade também informa `label`, `group`, `input_hint`, `cardinality`, `
 
 Com zero resultados, `data` é vazio e `last_page` é `1`. Uma página além do resultado atual gera `PAGE_OUT_OF_RANGE`.
 
-Os campos documentais são definidos em [`src/schema.js`](../src/schema.js). Cada documento também contém `_identity`, `_purchase` e `_raw`: identidade de negócio, identificadores para buscar itens e registro original convertido para JSON. Valores monetários projetados são strings decimais, e ausências são `null`. O tipo documental vem de `document_type`; `doc_type` é metadado do índice. Nos dados originais e itens, inteiros seguros podem ser números; decimais e inteiros fora da faixa segura são preservados como strings.
+Os campos documentais são definidos em [`src/schema.js`](../src/schema.js). Cada documento também contém `_identity`, `_document`, `_purchase` e `_raw`: identidade de negócio, identificadores originais por tipo, identificadores de itens (somente editais) e registro original convertido para JSON. Valores monetários projetados são strings decimais, e ausências são `null`. O tipo documental vem de `document_type`; `doc_type` é metadado do índice. Nos dados originais e itens, inteiros seguros podem ser números; decimais e inteiros fora da faixa segura são preservados como strings.
 
 ## Domínios e sugestões
 
-`GET /api/pncp/filters` aceita `tipos_documento=edital` ou `contrato`, `normativos_base` com IDs separados por pipe e `campo` com o nome de um filtro que possui domínio. Campos desconhecidos ou incompatíveis com o documento são rejeitados. Retorna `filters`, `warnings`, `raw`, `partial_domains`, `request_id` e `queried_at`. As opções são normalizadas para `{id, label}`. Opções de ano fora de `AAAA` são omitidas da lista normalizada com aviso; a resposta original fica em `raw`.
+`GET /api/pncp/filters` aceita `tipos_documento=edital`, `ata` ou `contrato`, `normativos_base` com IDs separados por pipe e `campo` com o nome de um filtro que possui domínio. Campos desconhecidos ou incompatíveis com o documento são rejeitados. Retorna `filters`, `warnings`, `raw`, `partial_domains`, `request_id` e `queried_at`. As opções são normalizadas para `{id, label}`. Opções de ano fora de `AAAA` são omitidas da lista normalizada com aviso; a resposta original fica em `raw`.
 
 Sem `campo`, ou com um filtro da busca, a origem é `/api/search/filters`. Para os campos abaixo, apenas o catálogo solicitado é consultado:
 
@@ -145,7 +147,7 @@ Ao adicionar ou remover normativos, a interface consulta novamente os amparos, p
 
 | Parâmetro | Regra |
 | --- | --- |
-| `tipos_documento` | `edital` ou `contrato`; padrão `edital` |
+| `tipos_documento` | `edital`, `ata` ou `contrato`; padrão `edital` |
 | `campo` | Nome de um filtro habilitado do tipo lista |
 | `q` | Texto entre 3 e 128 caracteres |
 | `tam_pagina` | Inteiro de 1 a 20; padrão `20` |
@@ -180,7 +182,7 @@ O painel tem largura de até 888 pixels e começa na aba **Detalhes**, com 12 ca
 | `contratos` | `numero`, `numero_controle_pncp`, `data_assinatura`, `vigencia_inicio`, `vigencia_fim`, `fornecedor_nome`, `valor_global`, `url` | `/orgaos/{cnpj}/contratos/contratacao/{ano}/{sequencial}` |
 | `historico` | `evento`, `nome`, `data_evento`, `justificativa` | `/orgaos/{cnpj}/compras/{ano}/{sequencial}/historico` e `/historico/quantidade` |
 
-Todos os serviços de página recebem `pagina` e `tamanhoPagina`. Arquivos e histórico retornam listas; atas e contratos retornam um objeto com `data` e `totalRegistros`. HTTP 204 na listagem equivale a uma página sem registros. Na listagem de **Contratos/Empenhos**, HTTP 404 do serviço PNCP também significa ausência de registros: a aplicação retorna uma lista vazia com total zero e a aba exibe `Contratos/Empenhos (0)`. Quantidade ausente, outros HTTP de erro, formato inesperado ou divergência entre página e total são reportados como erros. HTTP 404 nas demais listagens continua sendo erro.
+Todos os serviços de página recebem `pagina` e `tamanhoPagina`. Arquivos e histórico retornam listas; atas e contratos retornam um objeto com `data` e `totalRegistros`. HTTP 204 na listagem equivale a uma página sem registros. Na listagem de **Contratos/Empenhos**, HTTP 404 do serviço PNCP também significa ausência de registros: a aplicação retorna uma lista vazia com total zero e a aba exibe `Contratos/Empenhos (0)`. Quantidade ausente, outros HTTP de erro, formato inesperado ou divergência entre página e total são reportados como erros. HTTP 404 nas demais listagens, inclusive as listagens próprias de atas e contratos, continua sendo erro.
 
 A resposta da aplicação contém `api_version`, `request_id`, `source`, `resource`, `data`, `page`, `size`, `total`, `total_pages`, `has_more`, `complete`, `snapshot_guaranteed: false`, `queried_at` e `upstream_requests`. `complete` identifica a última página. `valor_global` preserva os decimais como string. `url` é `null` quando o link de download é inválido ou os identificadores do registro não permitem gerar um link de acesso. O link de ata usa o ano da compra presente no número de controle PNCP, que pode diferir de `anoAta`.
 
@@ -193,6 +195,38 @@ curl --fail-with-body -sS --get \
 ```
 
 Esse identificador é sintético, para uso com `npm run demo`. A demonstração fornece arquivos, atas, contratos/empenhos e eventos fictícios, incluindo listas vazias, cancelamento, mais de uma página e valores monetários exatos. Seus links de documentos/registro são ilustrativos e não garantem a existência desses dados no PNCP.
+
+## Detalhes de atas e contratos
+
+Os dados completos são consultados por `GET` nas seguintes rotas, sem parâmetros de query:
+
+| Tipo | Rota da aplicação | Serviço externo relativo a `PNCP_DETAIL_BASE_URL` |
+| --- | --- | --- |
+| Ata | `/api/atas/{cnpj}/{anoCompra}/{sequencialCompra}/{sequencialAta}` | `/orgaos/{cnpj}/compras/{anoCompra}/{sequencialCompra}/atas/{sequencialAta}` |
+| Contrato | `/api/contratos/{cnpj}/{ano}/{sequencial}` | `/orgaos/{cnpj}/contratos/{ano}/{sequencial}` |
+
+A pesquisa fornece `_document` com os identificadores originais e o tipo. Em atas, `numero_sequencial_compra_ata` identifica a compra e `numero_sequencial` identifica a ata; o ano da rota é o da compra. Quando a URL original de detalhamento é fornecida, seu ano tem precedência sobre `ano` da busca, após conferir CNPJ e os dois sequenciais. Uma URL conflitante torna a identidade indisponível. O ano da ata pode ser diferente. Em contratos, o sequencial é do contrato. `_purchase` é exclusivo de editais e não permite consultar itens com um sequencial de ata ou contrato.
+
+As respostas completas contêm `api_version`, `document_type`, `fields`, `objeto`, `link_sistema_origem`, `queried_at` e `upstream_requests`. Cada entrada de `fields` tem `field`, `title`, `type` e `value`; vínculos têm também `url`. Valores monetários são strings exatas, IDs preservam zeros e booleanos mantêm ausência distinta de `false`. Campos opcionais ausentes são omitidos. O controle PNCP precisa corresponder ao documento solicitado.
+
+Atas mostram identificação, órgão/unidade, modalidade, assinatura, vigência, cancelamento, adesão, contratação de origem e informações complementares. Contratos mostram identificação, órgão/unidade e sub-rogação, processo/categoria, fornecedor e subcontratado, assinatura, vigência, valores inicial/global/acumulado e parcelas, adesão, remanejamento, vínculos com contratação/ata, CIPI e informações complementares, conforme disponibilidade da fonte. Esses campos são consultados novamente ao abrir o painel. Uma falha mantém os campos disponíveis na busca, informa o erro e oferece nova tentativa.
+
+As listagens acrescentam `/{recurso}` à rota acima e aceitam somente `pagina` e `tamanhoPagina`. O padrão é página 1 e dez registros; os tamanhos permitidos são 10, 25, 50 e 100. O formato de paginação é o mesmo das listagens de contratações.
+
+| Tipo | Recursos | Dados e formato externo |
+| --- | --- | --- |
+| Ata | `partesenvolvidas` | `fields`: tipo de parte, órgão/CNPJ, unidade/código, município/UF e inclusão; envelope paginado |
+| Ata | `contratos` | Identificação, órgão, fornecedor, assinatura, vigência, valor e link dos contratos vinculados; envelope paginado |
+| Ata e contrato | `arquivos`, `historico` | Mesmo formato dos arquivos/histórico de contratações; contagem em `/{recurso}/quantidade` |
+| Contrato | `termos` | `fields` e `sequencial`: número, tipo, assinatura, objeto, prazo, vigência, valores, parcelas e observações; lista e contagem separada |
+| Contrato | `empenhos` | `fields` e `sequencial`: número, valor total, emenda, emissão, inclusão, situação e credor/fornecedor; envelope paginado |
+| Contrato | `instrumentocobranca` | `fields` e `sequencial`: número, tipo, datas, observações, chave NF-e e demais dados disponíveis; lista sem paginação externa |
+
+Os serviços externos usam o mesmo sufixo da rota completa do documento. Instrumentos de cobrança são consultados integralmente a cada página; o backend recorta sua apresentação e identifica `pagination_source: local_slice`. Os outros recursos identificam `pagination_source: pncp`. Esse recorte não altera a busca documental nem seus totais.
+
+O painel começa em **Detalhes** e carrega os dados completos e todas as primeiras páginas em segundo plano, com até duas requisições simultâneas. Atas têm abas **Detalhes**, **Partes envolvidas**, **Contratos**, **Arquivos** e **Histórico**; contratos têm **Detalhes**, **Empenhos**, **Instrumentos de cobrança**, **Termos**, **Arquivos** e **Histórico**. O contador de Detalhes corresponde aos campos exibidos; os demais correspondem aos totais das listagens. Cancelamento, teclado, paginação, erros e nova tentativa seguem o comportamento de contratações.
+
+Em contratos, `GET /api/contratos/{cnpj}/{ano}/{sequencial}/{recurso}/{sequencialRegistro}` consulta o filho escolhido, sem query: `empenhos` e `instrumentocobranca` retornam `fields`; `termos` consulta o sufixo externo `/termos/{sequencialRegistro}/arquivos` e retorna `files`, no formato dos arquivos. Esses dados carregam ao abrir **Ver detalhes** ou **Arquivos do termo** na lista. Não há exposição de JSON bruto no painel.
 
 ## Exportação
 
@@ -209,7 +243,7 @@ A coleta começa na página 1 e usa `PNCP_PAGE_SIZE`, independentemente de `page
 
 Mudança de total, documento duplicado ou sem identidade, página incompleta e limites de bytes interrompem a operação. O servidor monta todo o CSV em memória antes de responder. Um erro retorna JSON, portanto clientes devem verificar o status HTTP antes de tratar o corpo salvo como CSV.
 
-O CSV usa UTF-8 com BOM, vírgulas, quebras CRLF e todos os campos documentais na ordem de `columns_by_document[document_type]`. Em contratos, inclui tipo, fornecedor, CPF/CNPJ, valor global, assinatura, início/fim de vigência e nota fiscal. As células são delimitadas por aspas, e aspas internas são duplicadas. A exportação não inclui `_raw`, `_identity`, `_purchase` nem itens/resultados; mantém uma linha por documento.
+O CSV usa UTF-8 com BOM, vírgulas, quebras CRLF e todos os campos documentais na ordem de `columns_by_document[document_type]`. Em contratos, inclui tipo, fornecedor, CPF/CNPJ, valor global, assinatura, início/fim de vigência e nota fiscal. Em atas, inclui assinatura, vigência, cancelamento e adesão, sem valores estimados ou contratuais. As células são delimitadas por aspas, e aspas internas são duplicadas. A exportação não inclui `_raw`, `_identity`, `_purchase`, `_document` nem itens/resultados; mantém uma linha por documento.
 
 Cabeçalhos da resposta: `Content-Disposition`, `X-PNCP-Started-At`, `X-PNCP-Finished-At`, `X-PNCP-Source-Total`, `X-Exported-Rows` e `X-Snapshot-Guaranteed: false`. A coleta é nova e pode diferir da tabela, mesmo quando conclui com sucesso.
 

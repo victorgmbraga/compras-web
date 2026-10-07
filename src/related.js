@@ -27,9 +27,9 @@ export function projectRelated(resource, record, purchase) {
   assert(ata || record.orgaoEntidade == null || typeof record.orgaoEntidade === 'object' && !Array.isArray(record.orgaoEntidade), 'INVALID_UPSTREAM', 'Órgão do contrato inválido.', 502);
   const cnpj = ata ? purchase.cnpj : text(record.orgaoEntidade || {}, 'cnpj');
   return {
-    numero: text(record, ata ? 'numeroAtaRegistroPreco' : 'numeroContratoEmpenho'), numero_controle_pncp: control,
+    numero: text(record, ata ? 'numeroAtaRegistroPreco' : 'numeroContratoEmpenho'), ano: text(record, ata?'anoAta':'anoContrato'), numero_controle_pncp: control,
     data_assinatura: text(record, 'dataAssinatura'), vigencia_inicio: text(record, 'dataVigenciaInicio'), vigencia_fim: text(record, 'dataVigenciaFim'),
-    ...(ata ? { data_cancelamento: text(record, 'dataCancelamento') } : { valor_global: decimalText(record.valorGlobal), fornecedor_nome: text(record, 'nomeRazaoSocialFornecedor') }),
+    ...(ata ? { data_cancelamento: text(record, 'dataCancelamento') } : { orgao_nome:text(record.orgaoEntidade || {},'razaoSocial'), valor_global: decimalText(record.valorGlobal), fornecedor_nome: text(record, 'nomeRazaoSocialFornecedor') }),
     url: portalLink(resource, cnpj, year, sequence, purchase.sequencial),
   };
 }

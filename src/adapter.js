@@ -49,9 +49,24 @@ export function purchaseIdentity(raw) {
   const cnpj = scalarText(raw.orgao_cnpj), year = scalarText(raw.ano), sequence = scalarText(raw.numero_sequencial);
   return /^\d{14}$/.test(cnpj || '') && /^\d{4}$/.test(year || '') && /^\d+$/.test(sequence || '') && BigInt(sequence) > 0n ? { cnpj, ano: year, sequencial: sequence } : null;
 }
+export function documentIdentity(raw) {
+  const type=raw.document_type,cnpj=scalarText(raw.orgao_cnpj),ano=scalarText(raw.ano),sequencial=scalarText(raw.numero_sequencial);
+  const valid=v=>/^\d+$/.test(v || '') && BigInt(v)>0n;
+  if(!['edital','ata','contrato'].includes(type) || !/^\d{14}$/.test(cnpj || '') || !/^\d{4}$/.test(ano || '') || !valid(sequencial))return null;
+  if(type==='ata'){
+    const sequencial_compra=scalarText(raw.numero_sequencial_compra_ata);
+    if(!valid(sequencial_compra))return null;
+    // The original portal route carries the purchase year; ano can refer to the ata.
+    const route=new URL(safeLink(raw.item_url,true)).pathname.match(/^\/app\/atas\/(\d{14})\/(\d{4})\/(\d+)\/(\d+)\/?$/);
+    if(route && (route[1]!==cnpj || BigInt(route[3])!==BigInt(sequencial_compra) || BigInt(route[4])!==BigInt(sequencial)))return null;
+    return {type,cnpj,ano:route?.[2] || ano,sequencial_compra,sequencial};
+  }
+  return {type,cnpj,ano,sequencial};
+}
 export function project(raw) {
   const mapping = { id:'id',tipo_documento:'document_type',numero_controle_pncp:'numero_controle_pncp',objeto_compra:'description',titulo:'title',orgao_cnpj:'orgao_cnpj',orgao_nome:'orgao_nome',unidade_orgao_nome_unidade:'unidade_nome',unidade_orgao_codigo_unidade:'unidade_codigo',orgao_entidade_esfera_id:'esfera_id',orgao_entidade_poder_id:'poder_id',uf:'uf',municipio_nome:'municipio_nome',modalidade_nome:'modalidade_licitacao_nome',situacao_compra_nome_pncp:'situacao_nome',data_publicacao_pncp:'data_publicacao_pncp',data_atualizacao_pncp:'data_atualizacao_pncp' };
-  if(raw.document_type==='contrato')Object.assign(mapping,{tipo_contrato_nome:'tipo_contrato_nome',fornecedor_nome:'fornecedor_nome',fornecedor_ni:'fornecedor_ni',data_assinatura:'data_assinatura',data_inicio_vigencia:'data_inicio_vigencia',data_fim_vigencia:'data_fim_vigencia'});
+  if(['ata','contrato'].includes(raw.document_type))Object.assign(mapping,{data_assinatura:'data_assinatura',data_inicio_vigencia:'data_inicio_vigencia',data_fim_vigencia:'data_fim_vigencia'});
+  if(raw.document_type==='contrato')Object.assign(mapping,{tipo_contrato_nome:'tipo_contrato_nome',fornecedor_nome:'fornecedor_nome',fornecedor_ni:'fornecedor_ni'});
   const identifierFields=['id','numero_controle_pncp','orgao_cnpj','unidade_codigo','esfera_id','poder_id','fornecedor_ni'];
   const result = Object.fromEntries(Object.entries(mapping).map(([key, origin]) => {
     const value=raw[origin];
@@ -59,7 +74,11 @@ export function project(raw) {
     return [key,scalarText(value)];
   }));
   if(raw.tem_resultado!==undefined && raw.tem_resultado!==null && typeof raw.tem_resultado!=='boolean')fail('INVALID_UPSTREAM','tem_resultado não é booleano no PNCP.',502);
-  Object.assign(result, { valor_total_estimado: decimalText(raw.valor_total_estimado), valor_total_homologado: decimalText(raw.valor_total_homologado), tem_resultado: typeof raw.tem_resultado === 'boolean' ? raw.tem_resultado : null, link_sistema_origem: safeLink(raw.link_sistema_origem), url_pncp: safeLink(raw.item_url, true), _identity: identity(raw), _purchase: purchaseIdentity(raw), _raw: plain(raw) });
+  Object.assign(result, { valor_total_estimado: decimalText(raw.valor_total_estimado), valor_total_homologado: decimalText(raw.valor_total_homologado), tem_resultado: typeof raw.tem_resultado === 'boolean' ? raw.tem_resultado : null, link_sistema_origem: safeLink(raw.link_sistema_origem), url_pncp: safeLink(raw.item_url, true), _identity: identity(raw), _purchase: purchaseIdentity(raw), _document:documentIdentity(raw), _raw: plain(raw) });
+  if(raw.document_type==='ata')for(const field of ['cancelado','permite_adesao']){
+    assert(raw[field]==null || typeof raw[field]==='boolean','INVALID_UPSTREAM',`${field} não é booleano no PNCP.`,502);
+    result[field]=raw[field] ?? null;
+  }
   if(raw.document_type==='contrato'){
     assert(raw.possui_nfe==null || typeof raw.possui_nfe==='boolean','INVALID_UPSTREAM','possui_nfe não é booleano no PNCP.',502);
     Object.assign(result,{valor_global:decimalText(raw.valor_global),possui_nfe:raw.possui_nfe ?? null});

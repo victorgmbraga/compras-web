@@ -1,6 +1,6 @@
 # Compras Web
 
-Aplicação para pesquisar contratações e contratos públicos diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A interface usa Tabulator, e o servidor Node.js entrega tanto a página quanto a API da aplicação.
+Aplicação para pesquisar editais e avisos de contratações, atas de registro de preços e contratos públicos diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A interface usa Tabulator, e o servidor Node.js entrega tanto a página quanto a API da aplicação.
 
 Texto, filtros, ordenação e paginação são enviados ao PNCP. Cada pesquisa consulta novamente a fonte. Os resultados ficam em memória durante o uso; a aplicação não requer banco de dados nem volume persistente.
 
@@ -21,18 +21,18 @@ Para usar a aplicação sem acesso ao PNCP:
 npm run demo
 ```
 
-A demonstração é identificada na interface e usa 64 contratações fictícias, com dois itens e resultados sintéticos por contratação, e 32 contratos fictícios. Ela aplica os filtros do catálogo; status de contratos usam a referência fixa de 7 de outubro de 2026, enquanto status de propostas e relevância não reproduzem a API real. Falhas na fonte real são apresentadas como erros, sem ativar a demonstração automaticamente.
+A demonstração é identificada na interface e usa 64 contratações fictícias, com dois itens e resultados sintéticos por contratação, 24 atas e 32 contratos fictícios. Ela aplica os filtros do catálogo; status de atas e contratos usam a referência fixa de 7 de outubro de 2026, enquanto status de propostas e relevância não reproduzem a API real. Falhas na fonte real são apresentadas como erros, sem ativar a demonstração automaticamente.
 
 ## Usar a interface
 
-1. A página inicia uma pesquisa de contratações sem filtros e mostra até 100 documentos por página. Escolha **Contratações** ou **Contratos** no cabeçalho. A troca reinicia os critérios e ajusta as colunas. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
-2. Abra **Filtros** para selecionar condições documentais, sub-rogação, itens, resultados e fornecedores. Há intervalos de quantidade, valores, classificação, homologação e desconto; catálogos de países, portes e naturezas jurídicas; e condições de adesão, benefício e preferência. Em contratos, use também tipo, nota fiscal, fornecedor subcontratado, assinatura, início de vigência e valor global. Campos de outro tipo documental ficam indisponíveis nessa seleção. Órgãos, unidades e fornecedores usam os IDs fornecidos pelo PNCP.
+1. A página inicia uma pesquisa de contratações sem filtros e mostra até 100 documentos por página. Escolha **Editais e Avisos de Contratações**, **Atas de Registro de Preços** ou **Contratos** no cabeçalho. A troca reinicia os critérios e ajusta as colunas. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
+2. Abra **Filtros** para selecionar condições documentais, sub-rogação, itens, resultados e fornecedores. Há intervalos de quantidade, valores, classificação, homologação e desconto; catálogos de países, portes e naturezas jurídicas; e condições de adesão, benefício e preferência. Atas permitem filtros de assinatura, início de vigência e adesão. Em contratos, use também tipo, nota fiscal, fornecedor subcontratado, assinatura, início de vigência e valor global. Campos de outro tipo documental ficam indisponíveis nessa seleção. Órgãos, unidades e fornecedores usam os IDs fornecidos pelo PNCP.
 3. Use a paginação para consultar outras páginas. **Atualizar** repete os últimos critérios concluídos na página atual; novos critérios começam na primeira página. **Cancelar** interrompe a pesquisa em andamento. Uma falha mantém e identifica o resultado anterior.
-4. Clique em um documento para abrir seus detalhes. Os links **Abrir no PNCP** e **Sistema de origem**, quando disponíveis, ficam junto ao botão de fechar. Em contratações, as abas **Detalhes**, **Itens**, **Arquivos**, **Atas de Registro de Preço**, **Contratos/Empenhos** e **Histórico** têm contadores; as cinco listagens carregam sua primeira página automaticamente em segundo plano. Cada aba preserva sua paginação e permite repetir uma consulta que falhou. Arquivos têm links de download; atas e contratos têm links para o PNCP. Em contratos, os detalhes mostram fornecedor, valor global, assinatura e vigência.
+4. Clique em um documento para abrir seus detalhes. Os links **Abrir no PNCP** e **Sistema de origem**, quando disponíveis, ficam junto ao botão de fechar. Em contratações, as abas **Detalhes**, **Itens**, **Arquivos**, **Atas de Registro de Preço**, **Contratos/Empenhos** e **Histórico** têm contadores; as cinco listagens carregam sua primeira página automaticamente em segundo plano. Cada aba preserva sua paginação e permite repetir uma consulta que falhou. Arquivos têm links de download; atas e contratos têm links para o PNCP. Atas têm abas **Detalhes**, **Partes envolvidas**, **Contratos**, **Arquivos** e **Histórico**. Contratos têm **Detalhes**, **Empenhos**, **Instrumentos de cobrança**, **Termos**, **Arquivos** e **Histórico**. Seus dados completos e primeiras páginas carregam em segundo plano. Os detalhes incluem a contratação de origem, assinatura e vigência; atas mostram cancelamento e adesão, enquanto contratos mostram processo, fornecedor, valores e parcelas. Arquivos de termos e detalhes de empenhos/instrumentos podem ser abertos no registro selecionado.
 5. Use **Colunas** para escolher os campos visíveis. O menu de cada coluna oferece as ações de filtro e ordenação nativas disponíveis.
 6. **Exportar CSV** faz uma nova coleta com os últimos critérios concluídos e inicia o download. O arquivo contém todas as colunas documentais, independentemente da seleção visual.
 
-Os **80 filtros do catálogo estão implementados**, sem filtros pendentes: 71 aplicáveis a contratações e 32 a contratos, com 23 compartilhados. `/api/schema` publica tipos, contextos, domínios e alcance da validação. Nas condições Sim/Não, informação ausente não equivale a Não. Filtros de itens e resultados selecionam contratações; os detalhes mantêm todos os itens, e condições diferentes podem corresponder a registros filhos diferentes. Tabela e CSV têm uma linha por documento.
+Os **80 filtros do catálogo estão implementados**, sem filtros pendentes: 71 aplicáveis a contratações, 16 a atas e 32 a contratos. A compatibilidade é informada por documento. `/api/schema` publica tipos, contextos, domínios e alcance da validação. Nas condições Sim/Não, informação ausente não equivale a Não. Filtros de itens e resultados selecionam contratações; os detalhes mantêm todos os itens, e condições diferentes podem corresponder a registros filhos diferentes. Tabela e CSV têm uma linha por documento.
 
 O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 10.000 documentos; acima desse valor, a interface exibe um aviso. A exportação exige que o total caiba no limite configurado: delimite a pesquisa quando necessário. Alterações na fonte entre chamadas podem fazer o CSV diferir da tabela.
 
@@ -61,6 +61,11 @@ O modo de desenvolvimento observa `src/`, `public/`, `.env`, `package.json` e `p
 | GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/atas` | Atas de registro de preço vinculadas |
 | GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/contratos` | Contratos/empenhos vinculados |
 | GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/historico` | Eventos, documentos e justificativas |
+| GET | `/api/atas/{cnpj}/{anoCompra}/{sequencialCompra}/{sequencialAta}` | Dados completos da ata |
+| GET | `/api/atas/{cnpj}/{anoCompra}/{sequencialCompra}/{sequencialAta}/{recurso}` | Partes envolvidas, contratos, arquivos e histórico |
+| GET | `/api/contratos/{cnpj}/{ano}/{sequencial}` | Dados completos do contrato |
+| GET | `/api/contratos/{cnpj}/{ano}/{sequencial}/{recurso}` | Empenhos, instrumentos de cobrança, termos, arquivos e histórico |
+| GET | `/api/contratos/{cnpj}/{ano}/{sequencial}/{recurso}/{sequencialRegistro}` | Detalhes de empenhos/instrumentos ou arquivos de termos |
 | POST | `/api/export` | Nova coleta e download CSV |
 | GET | `/api/health` | Estado do processo e dados da última chamada ao PNCP |
 

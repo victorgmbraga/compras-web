@@ -19,7 +19,7 @@ test('HTTP-01: pipe codificado uma vez; false e zero preservados',()=>{
 });
 test('HTTP-03: desconhecidos, reservados, tipos documentais e status rejeitados antes da rede',async()=>{
   const s=service([]);
-  for(const input of [query({extra:true}),query({status:'vigente'}),query({pncp_filters:{foo:1}}),query({pncp_filters:{total:true}}),query({pncp_filters:{permite_adesao:'true'}}),query({document_type:'ata'})])await assert.rejects(s.service.execute(input),error=>error.status===400 || error.status===409);
+  for(const input of [query({extra:true}),query({status:'vigente'}),query({pncp_filters:{foo:1}}),query({pncp_filters:{total:true}}),query({pncp_filters:{permite_adesao:'true'}}),query({document_type:'irp'})])await assert.rejects(s.service.execute(input),error=>error.status===400 || error.status===409);
   assert.equal(s.requests.length,0);
 });
 test('HTTP-02: nomes não são aceitos como IDs e datas reais são verificadas',()=>{
