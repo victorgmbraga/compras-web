@@ -614,6 +614,7 @@ async function init() {
     height:'100%',layout:'fitDataFill',nestedFieldSeparator:false,movableColumns:true,
     pagination:true,paginationMode:'remote',paginationSize:TABLE_PAGE_SIZE,paginationInitialPage:state.query.page,paginationSizeSelector:false,paginationButtonCount:4,
     paginationCounter:()=>{resultInfo.hidden=false;return resultInfo;},
+    footerElement:'<a class="repository-link" href="https://github.com/victorgmbraga/contratos-web" target="_blank" rel="noopener noreferrer" aria-label="Repositório do Contratos Web no GitHub (abre em nova aba)" title="Repositório no GitHub"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg></a>',
     sortMode:'remote',filterMode:'remote',ajaxURL:'pncp-query',ajaxRequestFunc:requestTable,dataLoader:false,data:[],
     placeholder:state.placeholder,
     locale:'pt-br',langs:{'pt-br':{pagination:{page_size:'Linhas',page_title:'Página',first:paginationIcons.first,first_title:'Primeira página',last:paginationIcons.last,last_title:'Última página',prev:paginationIcons.prev,prev_title:'Página anterior',next:paginationIcons.next,next_title:'Próxima página',counter:{showing:'Exibindo',of:'de',rows:'contratações',pages:'páginas'}}}},
@@ -650,7 +651,11 @@ async function init() {
   window.addEventListener('pagehide',event=>{if(!event.persisted)filterOptionsCache.close();});
   document.addEventListener('scroll',hideWindowTooltip,true);
   updateCriteria();status('idle');
-  state.table.on('tableBuilt',()=>{tableReady=true;if(window.location?.href)return restoreQueryUrl();if(urlError)invalidQueryUrl(urlError);else return loadPage(state.query.page,'replace');});
+  state.table.on('tableBuilt',()=>{
+    const repositoryLink=document.querySelector('.tabulator-footer .repository-link');
+    repositoryLink?.parentElement.append(repositoryLink);
+    tableReady=true;if(window.location?.href)return restoreQueryUrl();if(urlError)invalidQueryUrl(urlError);else return loadPage(state.query.page,'replace');
+  });
 }
 const ready=init().catch(error=>{$('startup-error').hidden=false;$('startup-error').textContent=`Não foi possível iniciar a interface: ${error.message}. Recarregue a página.`;notice('Falha ao carregar o esquema da aplicação.','error');});
 

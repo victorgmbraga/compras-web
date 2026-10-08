@@ -45,6 +45,9 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 Lucide icons: chevron-left and chevron-right (derived from Feather)
 Source: https://github.com/lucide-icons/lucide
 
+Feather icon: github
+Source: https://github.com/feathericons/feather
+
 The MIT License (MIT)
 
 Copyright (c) 2013-present Cole Bemis

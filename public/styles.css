@@ -107,6 +107,9 @@ p{line-height:1.55}
 .tabulator .tabulator-footer .tabulator-page-size{font-size:.8125rem;padding:4px;border-color:var(--line);border-radius:4px}
 .tabulator .tabulator-footer .tabulator-page-counter{flex:1;min-width:0;text-align:left;white-space:normal}
 .tabulator .tabulator-footer .tabulator-paginator{display:flex;align-items:center;justify-content:flex-end;gap:4px;font-size:.8125rem;flex:0 0 auto}
+.tabulator .tabulator-footer .repository-link{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border:1px solid var(--line);border-radius:4px;color:#4a647e;transition:background .12s,color .12s}
+.tabulator .tabulator-footer .repository-link:hover{background:#eef3f9;color:var(--navy);text-decoration:none}
+.tabulator .tabulator-footer .repository-link svg{width:18px;height:18px;stroke-width:2}
 .tabulator-menu{border:1px solid #ccd9e7;border-radius:6px;box-shadow:0 5px 20px #173b6520;font-size:.875rem;max-width:300px}
 .tabulator-menu .tabulator-menu-item{padding:9px 12px}
 .tabulator .tabulator-placeholder .tabulator-placeholder-contents{font-size:1rem;color:#76889b;font-weight:400;max-width:90%;white-space:normal;line-height:1.65}
@@ -199,7 +202,7 @@ dialog select[multiple]{min-height:155px}
 
   .tabulator .tabulator-footer .tabulator-footer-contents{flex-wrap:wrap}
   .tabulator .tabulator-footer .tabulator-page-counter{flex-basis:100%}
-  .tabulator .tabulator-footer .tabulator-paginator{flex-basis:100%}
+  .tabulator .tabulator-footer .tabulator-paginator{flex-basis:calc(100% - 40px)}
 }
 @media(max-width:600px){
   .item-values{grid-template-columns:1fr}
@@ -240,7 +243,7 @@ dialog select[multiple]{min-height:155px}
   .dialog-header h2{font-size:1.1rem}
   .tabulator .tabulator-footer{padding:6px}
   .tabulator .tabulator-footer .tabulator-footer-contents{flex-wrap:wrap;gap:4px}
-  .tabulator .tabulator-footer .tabulator-paginator{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;white-space:normal;gap:4px;font-size:.75rem;min-width:0}
+  .tabulator .tabulator-footer .tabulator-paginator{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;white-space:normal;gap:4px;font-size:.75rem;min-width:0;flex-basis:calc(100% - 36px)}
   .tabulator .tabulator-footer .tabulator-page{flex-basis:30px;width:30px;height:30px;font-size:.75rem}
   .tabulator .tabulator-footer .tabulator-page-size{max-width:64px}
 }
