@@ -148,8 +148,8 @@
       "borderRightColor": "rgb(58, 83, 109)",
       "borderRightWidth": "0px",
       "borderRadius": "0px",
-      "display": "block",
-      "gap": "normal",
+      "display": "flex",
+      "gap": "5px",
       "minHeight": "0px"
     },
     ".tabulator-row": {

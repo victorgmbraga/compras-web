@@ -18,6 +18,7 @@ const paginationIcons={
   next:'<svg class="pagination-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg>',
   last:'<svg class="pagination-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 18 6-6-6-6"/><path d="M17 6v12"/></svg>',
 };
+const filterHeaderIcon='<svg class="header-filter-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M7 12h10m-7 5h4"/></svg>';
 const fmtInt = value => new Intl.NumberFormat('pt-BR').format(value);
 const time = value => value ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : '—';
 const date = value => value ? (/^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0,10).split('-').reverse().join('/') : value) : '—';
@@ -184,7 +185,7 @@ function tableColumnDefinitions() {
   const columns=state.schema.columns;
   return [columns.find(c=>c.field==='titulo'),...columns.filter(c=>c.field!=='titulo')].map(column=>{
     const definition={title:column.title,field:column.field,width:column.width || 180,minWidth:85,visible:!!column.visible,formatter:colFormatter(column),variableHeight:column.field==='objeto_compra',headerSort:false,tooltip:false};
-    if(column.domain || column.native_range)definition.headerMenu=columnMenu;
+    if(column.domain || column.native_range){definition.headerMenu=columnMenu;definition.headerMenuIcon=filterHeaderIcon;}
     return definition;
   });
 }

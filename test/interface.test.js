@@ -182,6 +182,7 @@ test('HEADER-UI-03: botão de menu do cabeçalho aparece somente em colunas filt
   const columns=Object.fromEntries(ui.tableColumns().map(column=>[column.field,column]));
   for(const field of ['titulo','objeto_compra','data_atualizacao_pncp','orgao_cnpj','tem_resultado'])assert.equal('headerMenu' in columns[field],false,field);
   for(const field of ['orgao_nome','uf','data_publicacao_pncp','valor_total_estimado'])assert.equal(typeof columns[field].headerMenu,'function',field);
+  for(const field of ['orgao_nome','uf','data_publicacao_pncp','valor_total_estimado'])assert.match(columns[field].headerMenuIcon,/header-filter-icon/);
 });
 
 test('EXPORT-UI-01: um clique baixa o CSV dos últimos critérios concluídos sem modal',async()=>{

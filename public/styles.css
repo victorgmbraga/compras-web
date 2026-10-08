@@ -81,7 +81,9 @@ p{line-height:1.55}
 .tabulator .tabulator-header{background:#eff4fa;border-color:#d5e0eb;color:#3a536d;font-weight:600}
 .tabulator .tabulator-header .tabulator-col{background:#eff4fa;border-right:1px solid #dbe4ee}
 .tabulator .tabulator-header .tabulator-col .tabulator-col-content{padding:7px 8px}
-.tabulator .tabulator-header .tabulator-col .tabulator-col-title{padding-right:5px;line-height:1.4}
+.tabulator .tabulator-header .tabulator-col .tabulator-col-title{display:flex;align-items:center;gap:5px;padding-right:5px;line-height:1.4}
+.tabulator .tabulator-header .tabulator-col .tabulator-header-popup-button{order:2;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;padding:0;color:#54718b}
+.tabulator .tabulator-header .tabulator-col .tabulator-header-popup-button .header-filter-icon{width:14px;height:14px;stroke-width:2}
 .tabulator-row{background:white;border-bottom:1px solid #e9eef4;min-height:42px;color:#364c64}
 .tabulator-row.tabulator-row-even{background:#fbfcfe}
 .tabulator-row:hover{background:#eff7fd!important;cursor:pointer}
