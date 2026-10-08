@@ -50,6 +50,8 @@ try {
   for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);
   assert.equal(await page.locator('.result-toolbar').count(),0);
   assert.equal(await page.locator('.tabulator-footer .result-info').count(),1);
+  const popupFields=await page.locator('.tabulator-header-popup-button').evaluateAll(buttons=>buttons.map(button=>button.closest('.tabulator-col')?.getAttribute('tabulator-field')));
+  assert(!popupFields.includes('titulo'));assert(!popupFields.includes('objeto_compra'));assert(!popupFields.includes('data_atualizacao_pncp'));assert(popupFields.includes('orgao_nome'));
   assert.equal(await page.locator('.source-footer').count(),0);check('Ordenação e ações no cabeçalho, informações no rodapé da tabela');
   await search('janela-ui');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='4.143.240 contratações');
   assert.match(await page.locator('.tabulator-page-counter').innerText(),/Exibindo 1-100 de\s+4\.143\.240 contratações/);

@@ -177,6 +177,13 @@ test('HEADER-UI-02: atualizar, colunas e exportar usam somente ícones com nomes
   }
 });
 
+test('HEADER-UI-03: botão de menu do cabeçalho aparece somente em colunas filtráveis',async()=>{
+  const ui=await interfaceFixture();
+  const columns=Object.fromEntries(ui.tableColumns().map(column=>[column.field,column]));
+  for(const field of ['titulo','objeto_compra','data_atualizacao_pncp','orgao_cnpj','tem_resultado'])assert.equal('headerMenu' in columns[field],false,field);
+  for(const field of ['orgao_nome','uf','data_publicacao_pncp','valor_total_estimado'])assert.equal(typeof columns[field].headerMenu,'function',field);
+});
+
 test('EXPORT-UI-01: um clique baixa o CSV dos últimos critérios concluídos sem modal',async()=>{
   const ui=await interfaceFixture();ui.nodes.get('search').value='firewall';await ui.nodes.get('search-form').fire('submit');
   const completed=ui.state();ui.nodes.get('search').value='texto ainda não pesquisado';

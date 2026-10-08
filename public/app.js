@@ -182,7 +182,11 @@ function renderFilterOptions() {
 }
 function tableColumnDefinitions() {
   const columns=state.schema.columns;
-  return [columns.find(c=>c.field==='titulo'),...columns.filter(c=>c.field!=='titulo')].map(column=>({title:column.title,field:column.field,width:column.width || 180,minWidth:85,visible:!!column.visible,formatter:colFormatter(column),variableHeight:column.field==='objeto_compra',headerSort:false,headerMenu:columnMenu,tooltip:false}));
+  return [columns.find(c=>c.field==='titulo'),...columns.filter(c=>c.field!=='titulo')].map(column=>{
+    const definition={title:column.title,field:column.field,width:column.width || 180,minWidth:85,visible:!!column.visible,formatter:colFormatter(column),variableHeight:column.field==='objeto_compra',headerSort:false,tooltip:false};
+    if(column.domain || column.native_range)definition.headerMenu=columnMenu;
+    return definition;
+  });
 }
 function renderColumnChoices() {
   $('column-list').replaceChildren();
