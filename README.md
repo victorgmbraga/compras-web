@@ -4,7 +4,7 @@ Aplicação para pesquisar editais e avisos de contratações, atas de registro 
 
 Texto, filtros, ordenação e paginação são enviados ao PNCP. Cada pesquisa consulta novamente a fonte. Os resultados ficam em memória durante o uso; a aplicação não requer banco de dados nem volume persistente.
 
-As listas de opções dos filtros de editais, atas e contratos são pré-carregadas em segundo plano na inicialização e armazenadas no `localStorage` por **4 horas**, sem renovar a validade nas leituras. Reabrir os filtros ou a aplicação reutiliza essas listas. Amparos dependentes de normativos têm cache separado; sugestões por texto continuam consultando o PNCP, pois algumas listas iniciais são parciais. Se o armazenamento estiver bloqueado, o cache funciona em memória durante a sessão.
+As listas de opções dos filtros de editais, atas e contratos são pré-carregadas em segundo plano na inicialização e armazenadas no `localStorage` por **4 horas**, sem renovar a validade nas leituras. Listas grandes são compactadas sem descartar opções para reduzir o uso da quota do navegador. Reabrir os filtros ou a aplicação reutiliza essas listas. Amparos dependentes de normativos têm cache separado; sugestões por texto continuam consultando o PNCP, pois algumas listas iniciais são parciais. Se o armazenamento estiver bloqueado, o cache funciona em memória durante a sessão.
 
 ## Executar no navegador
 

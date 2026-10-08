@@ -96,3 +96,47 @@ test('OPTIONS-10: encerramento cancela a chamada ativa e os trabalhos enfileirad
   const first=f.cache.get({type:'edital'}),second=f.cache.get({type:'ata'});await tick();f.cache.close();
   for(const result of await Promise.allSettled([first,second]))assert.equal(result.reason.name,'AbortError');assert.equal(f.calls.length,1);assert.equal(f.storage.data.size,0);
 });
+
+const largeOptions=()=>({filters:{orgaos:Array.from({length:15000},(_,i)=>({id:String(i).padStart(14,'0'),label:`Órgão público ${i} — unidade de aquisição e contratação`,active:i%2===0})),ufs:[{id:'SP',label:'São Paulo'}]},warnings:[{domain:'orgaos',message:'Lista parcial'}],partial_domains:['orgaos']});
+
+test('OPTIONS-11: listas grandes comprimidas preservam todas as opções e são reutilizadas após reinicialização',async()=>{
+  const storage=memoryStorage(),value=largeOptions(),first=fixture({storage,handler:()=>value});
+  assert.deepEqual(await first.cache.get({type:'contrato'}),value);
+  const [key,text]=[...storage.data.entries()][0],entry=JSON.parse(text);
+  assert.equal(entry.encoding,'gzip-base64');assert(text.length<JSON.stringify(value).length/3);
+  const restored=fixture({storage});assert.deepEqual(await restored.cache.get({type:'contrato',field:'orgaos'}),value);assert.equal(restored.calls.length,0);
+  assert.equal(JSON.parse(storage.getItem(key)).expires_at,entry.expires_at);
+});
+
+test('OPTIONS-12: migra listas antigas grandes antes de carregar contrato, sem estender a validade ou exceder a quota',async()=>{
+  const storage=memoryStorage(),value=largeOptions();
+  for(const type of ['edital','ata'])await fixture({storage,handler:()=>({filters:{ufs:[{id:'SP',label:'São Paulo'}]}})}).cache.get({type});
+  for(const [key,text] of storage.data){const entry=JSON.parse(text);storage.setItem(key,JSON.stringify({...entry,value}));}
+  const limit=[...storage.data.values()].reduce((total,text)=>total+text.length,0),quotaStorage={...storage,setItem(key,text){
+    const usage=[...storage.data.entries()].reduce((total,[storedKey,value])=>total+(storedKey===key?0:value.length),text.length);
+    if(usage>limit)throw new Error('QuotaExceededError');storage.setItem(key,text);
+  }};
+  let time=2000;const first=fixture({storage:quotaStorage,now:()=>time,handler:()=>value});
+  await first.cache.preload();assert.equal(first.calls.filter(call=>call.field===null).length,1);assert.equal(first.calls.find(call=>call.field===null).type,'contrato');assert.equal(storage.data.size,8);
+  for(const [key,text] of storage.data){const entry=JSON.parse(text),context=JSON.parse(decodeURIComponent(key.slice(key.indexOf('%5B'))));assert.equal(entry.encoding,'gzip-base64');if(context[0]==='search' && ['edital','ata'].includes(context[1]))assert.equal(entry.fetched_at,1000);}
+  const restored=fixture({storage:quotaStorage,now:()=>time});await restored.cache.preload();assert.equal(restored.calls.length,0);
+  time=1000+FILTER_OPTIONS_TTL;await restored.cache.get({type:'edital'});assert.equal(restored.calls.length,1);
+});
+
+test('OPTIONS-13: cache comprimido corrompido é substituído e mantém a expiração de quatro horas',async()=>{
+  const storage=memoryStorage();let time=1000;const first=fixture({storage,now:()=>time,handler:largeOptions});await first.cache.get({type:'contrato'});
+  const [key,text]=[...storage.data.entries()][0],entry=JSON.parse(text);
+  for(const bad of [{...entry,encoding:'unknown'},{...entry,value:'not-base64!'},{...entry,value:btoa('not gzip')}]){
+    storage.setItem(key,JSON.stringify(bad));const restored=fixture({storage,now:()=>time,handler:largeOptions});await restored.cache.get({type:'contrato'});assert.equal(restored.calls.length,1);
+  }
+  time+=FILTER_OPTIONS_TTL;const expired=fixture({storage,now:()=>time,handler:largeOptions});await expired.cache.get({type:'contrato'});assert.equal(expired.calls.length,1);
+});
+
+test('OPTIONS-14: navegador sem compactação nativa mantém opções completas no formato JSON compatível',async()=>{
+  const original=globalThis.CompressionStream;globalThis.CompressionStream=undefined;
+  try {
+    const storage=memoryStorage(),value=largeOptions(),first=fixture({storage,handler:()=>value});await first.cache.get({type:'contrato'});
+    assert.equal(JSON.parse([...storage.data.values()][0]).encoding,undefined);
+    const restored=fixture({storage});assert.deepEqual(await restored.cache.get({type:'contrato'}),value);assert.equal(restored.calls.length,0);
+  } finally {globalThis.CompressionStream=original;}
+});

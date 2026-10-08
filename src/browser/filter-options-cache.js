@@ -2,6 +2,24 @@ import { assert } from '../errors.js';
 
 export const FILTER_OPTIONS_TTL = 4 * 60 * 60 * 1000;
 export const FILTER_OPTIONS_PREFIX = 'contratos-web:filter-options:v1:';
+const COMPRESSION_THRESHOLD = 64 * 1024;
+
+async function encodeEntry(entry) {
+  const text = JSON.stringify(entry.value);
+  if (text.length < COMPRESSION_THRESHOLD || typeof CompressionStream !== 'function' || typeof DecompressionStream !== 'function') return entry;
+  const bytes = new Uint8Array(await new Response(new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
+  return { ...entry, encoding: 'gzip-base64', value: btoa(binary) };
+}
+
+async function decodeValue(entry) {
+  if (entry.encoding === undefined) return normalizeResult(entry.value);
+  assert(entry.encoding === 'gzip-base64' && typeof entry.value === 'string' && typeof DecompressionStream === 'function', 'INVALID_UPSTREAM', 'Formato de cache de opções inválido.');
+  const bytes = Uint8Array.from(atob(entry.value), character => character.charCodeAt(0));
+  const text = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  return normalizeResult(JSON.parse(text));
+}
 
 function normalizeResult(result) {
   const filters = result?.filters;
@@ -49,8 +67,17 @@ export function createFilterOptionsCache(service, schema, { getStorage = () => g
     memory.delete(key);
     try { storage?.removeItem(key); } catch { /* An in-memory cache still works. */ }
   }
-  function read(key) {
+  async function persist(key, entry) {
+    if (!storage) return;
+    try {
+      const stored = await encodeEntry(entry);
+      controller.signal.throwIfAborted();
+      storage.setItem(key, JSON.stringify(stored));
+    } catch { /* Quota or unavailable storage must not break filters. */ }
+  }
+  async function read(key) {
     let entry = memory.get(key);
+    const fromStorage = !entry;
     if (!entry) {
       try { const text = storage?.getItem(key); if (text) entry = JSON.parse(text); }
       catch { discard(key); return null; }
@@ -59,8 +86,12 @@ export function createFilterOptionsCache(service, schema, { getStorage = () => g
     try {
       const time = now();
       assert(entry.version === 1 && Number.isSafeInteger(entry.fetched_at) && entry.fetched_at >= 0 && entry.fetched_at <= time && entry.expires_at === entry.fetched_at + FILTER_OPTIONS_TTL && time < entry.expires_at, 'EXPIRED_OPTIONS', 'Opções expiradas.');
-      const value = normalizeResult(entry.value);
-      memory.set(key, entry);
+      const value = await decodeValue(entry);
+      const normalized = { version: 1, fetched_at: entry.fetched_at, expires_at: entry.expires_at, value };
+      // Upgrade large legacy entries without querying PNCP or extending their TTL.
+      if (fromStorage && entry.encoding === undefined && JSON.stringify(value).length >= COMPRESSION_THRESHOLD) await persist(key, normalized);
+      assert(now() < entry.expires_at, 'EXPIRED_OPTIONS', 'Opções expiradas.');
+      memory.set(key, normalized);
       return value;
     } catch { discard(key); return null; }
   }
@@ -78,8 +109,9 @@ export function createFilterOptionsCache(service, schema, { getStorage = () => g
         const value = normalizeResult(await service.call('domains', payload, { signal: controller.signal }));
         controller.signal.throwIfAborted();
         const fetched = now(), entry = { version: 1, fetched_at: fetched, expires_at: fetched + FILTER_OPTIONS_TTL, value };
+        await persist(key, entry);
+        controller.signal.throwIfAborted();
         memory.set(key, entry);
-        try { storage?.setItem(key, JSON.stringify(entry)); } catch { /* Quota or unavailable storage must not break filters. */ }
         return value;
       } });
     }).finally(() => pending.delete(key));
@@ -88,19 +120,23 @@ export function createFilterOptionsCache(service, schema, { getStorage = () => g
   }
   async function get(payload, { signal } = {}) {
     signal?.throwIfAborted(); controller.signal.throwIfAborted();
-    const { key, payload: request } = describe(payload), cached = read(key);
+    const { key, payload: request } = describe(payload), cached = await read(key);
+    signal?.throwIfAborted(); controller.signal.throwIfAborted();
     const value = cached ?? await waitFor(load(key, request), signal);
     signal?.throwIfAborted();
     return structuredClone(value);
   }
-  function preload() {
+  async function preload() {
     const documents = schema.document_types.filter(document => document.enabled);
     const requests = documents.map(document => ({ type: document.id }));
     for (const cap of schema.capabilities.filter(cap => cap.domain && !cap.reserved && ['catalog', 'reference'].includes(cap.domain_source))) {
       const document = documents.find(document => cap.documents.includes(document.id));
       if (document) requests.push({ type: document.id, field: cap.name });
     }
-    return Promise.allSettled(requests.map(request => get(request)));
+    const results = [];
+    // Migrate cached entries before loading the next type, freeing storage quota.
+    for (const request of requests) results.push(...await Promise.allSettled([get(request)]));
+    return results;
   }
   function close() {
     controller.abort(new DOMException('Carregamento de opções encerrado.', 'AbortError'));
