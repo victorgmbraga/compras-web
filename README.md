@@ -115,6 +115,7 @@ O [guia Railway](docs/railway.md) explica como publicar o serviço e obter um do
 ## Documentação
 
 - [Arquitetura e organização do código](docs/arquitetura.md)
+- [Viabilidade de execução no navegador sem backend próprio](docs/viabilidade-browser.md)
 - [Configuração, rede e limites](docs/configuracao.md)
 - [Contrato da API e consultas ao PNCP](docs/consultas-pncp.md)
 - [Testes e validação](docs/validacao.md)
