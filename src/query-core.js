@@ -104,12 +104,13 @@ export class QueryService {
     const op=operation(this.config,signal,requestId);
     try{return {api_version:'2.0',document_type:document.type,...await this.client.document(document,op),queried_at:new Date().toISOString(),upstream_requests:op.requests};}finally{op.finish();}
   }
-  async documentRelated(document,resource,page,size,signal,requestId) {
+  async documentRelated(document,resource,page,size,signal,requestId,paginationMode) {
     validateDocument(document);validateDetailPage(page,size);
+    assert(paginationMode===undefined || paginationMode==='until_empty' && document.type==='contrato' && resource==='historico','INVALID_PAGINATION','Paginação sem total disponível somente no histórico de contratos.');
     const op=operation(this.config,signal,requestId);
     try {
-      const result=await this.client.documentRelatedPage(document,resource,page,size,op);
-      return {api_version:'2.0',request_id:op.id,document_type:document.type,source:this.config.DEMO_MODE?'demo':'pncp',resource,...result,page,size,has_more:page<result.total_pages,complete:page===result.total_pages,snapshot_guaranteed:false,queried_at:new Date().toISOString(),upstream_requests:op.requests};
+      const result=await this.client.documentRelatedPage(document,resource,page,size,op,paginationMode);
+      return {api_version:'2.0',request_id:op.id,document_type:document.type,source:this.config.DEMO_MODE?'demo':'pncp',resource,...result,page,size,has_more:result.has_more ?? page<result.total_pages,complete:result.complete ?? page===result.total_pages,snapshot_guaranteed:false,queried_at:new Date().toISOString(),upstream_requests:op.requests};
     }finally{op.finish();}
   }
   async contractChild(document,resource,sequence,signal,requestId) {

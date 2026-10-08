@@ -64,7 +64,7 @@ async function interfaceFixture(options={}) {
         result=options.documentHandler?await options.documentHandler(payload,callOptions,core):await core.documentDetails(payload.document,callOptions.signal);break;
       case 'documentRelated':case 'related':
         relatedRequests.push(payload);
-        result=options.relatedHandler?await options.relatedHandler(payload,callOptions,core):await core.documentRelated(payload.document,payload.resource,payload.page,payload.size,callOptions.signal);break;
+        result=options.relatedHandler?await options.relatedHandler(payload,callOptions,core):await core.documentRelated(payload.document,payload.resource,payload.page,payload.size,callOptions.signal,undefined,payload.pagination_mode);break;
       case 'contractChild':
         childRequests.push(payload);result=await core.contractChild(payload.document,payload.resource,payload.sequence,callOptions.signal);break;
       default:throw new Error(`Unexpected method: ${method}`);
@@ -677,6 +677,24 @@ test('CONTRACTS-UI-07: emenda parlamentar booleana carrega os detalhes e exibe N
     assert(field);assert.equal(field.children[1].textContent,label);assert.equal(ui.nodes.get('detail-tab-detalhes').dataset.state,'loaded');assert.equal(panel.children[2].hidden,true);
     assert.equal(ui.documentRequests.length,1);assert.equal(ui.relatedRequests.length,5);
   }
+});
+
+test('CONTRACTS-UI-08: histórico com total desconhecido preserva navegação manual e para somente na página vazia',async()=>{
+  let counts=0;const ui=await interfaceFixture({itemFetcher:(url,init)=>{
+    const u=new URL(url);
+    if(u.pathname.endsWith('/contratos/2026/1/historico/quantidade')){counts++;return Response.json(1);}
+    if(u.pathname.endsWith('/contratos/2026/1/historico'))return Response.json(Array.from({length:[2,1,0][Number(u.searchParams.get('pagina'))-1]},(_,i)=>({tipoLogManutencaoNome:`Evento ${i+1}`})));
+    return demoFetch(url,init);
+  }});
+  await ui.openDocument(project(demoContracts[0]));await ui.nodes.get('detail-tab-historico').fire('click');
+  const tab=ui.nodes.get('detail-tab-historico'),panel=ui.nodes.get('detail-panel-historico'),pager=panel.children[4];
+  assert.equal(tab.textContent,'Histórico (?)');assert.equal(tab.dataset.state,'loaded');assert.equal(panel.children[0].textContent,'Histórico (?)');assert.equal(panel.children[1].children[0].hidden,true);
+  assert.match(panel.children[2].textContent,/Quantidade desconhecida/);assert.equal(panel.children[3].children.length,2);assert.equal(pager.hidden,false);assert.equal(pager.children[1].textContent,'Página 1');assert.equal(pager.children[0].disabled,true);assert.equal(pager.children[2].disabled,false);
+  await pager.children[2].fire('click');assert.equal(pager.children[1].textContent,'Página 2');assert.equal(panel.children[3].children.length,1);assert.equal(pager.children[2].disabled,false);assert.equal(tab.textContent,'Histórico (?)');
+  assert.equal(ui.relatedRequests.at(-1).pagination_mode,'until_empty');
+  await pager.children[2].fire('click');assert.equal(pager.children[1].textContent,'Página 3');assert.equal(pager.children[2].disabled,true);assert.equal(pager.children[0].disabled,false);assert.equal(pager.hidden,false);assert.match(panel.children[3].children[0].textContent,/Nenhum registro/);assert.match(panel.children[2].textContent,/Fim do histórico/);assert.equal(counts,1);
+  await pager.children[0].fire('click');assert.equal(pager.children[1].textContent,'Página 2');assert.equal(panel.children[3].children.length,1);assert.equal(pager.children[2].disabled,false);
+  await ui.openDocument(project(demoContracts[1]));assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (12)');assert.equal(ui.relatedRequests.at(-1).pagination_mode,undefined);
 });
 
 test('DOCUMENTS-UI-01: falha de detalhes conserva a busca, permite tentar novamente e não impede as listas',async()=>{

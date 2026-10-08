@@ -52,6 +52,8 @@ npm run preview
 
 Abra `http://localhost:8000` para consultas reais e `/?demo=1` para demonstração explícita. Teste também `npm run demo` no desenvolvimento. As consultas sintéticas iniciais retornam 64 contratações, 24 atas e 32 contratos; `firewall` retorna seis contratações.
 
+O histórico de contratos tem testes de contagem divergente (inclusive zero), total/páginas desconhecidos, continuação após páginas incompletas, término em página vazia, retorno à página anterior e reinício ao abrir outro documento. Núcleo, RPC e interface preservam os eventos sem relaxar a validação das outras listagens. O teste no navegador exercita esse fluxo com respostas controladas no Worker.
+
 ## Diagnóstico da integração real
 
 Sirva o build final e abra `pncp-diagnostic.html`. Execute **Verificar acesso** e **Salvar evidência**. O diagnóstico consulta diretamente o PNCP na página e no Worker, registra origem/data/navegador, status e cabeçalhos legíveis de uma consulta da página e resultados tipados da matriz de recursos. Inclui pesquisas dos três tipos, página seguinte, ordenação/UF, filtros, sugestões, quatro catálogos auxiliares, detalhes e registros filhos. Exemplos públicos são fixos, com filhos escolhidos da listagem quando disponíveis.

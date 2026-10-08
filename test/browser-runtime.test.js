@@ -65,6 +65,15 @@ test('BROWSER-05: HTTP 204/404 preserva vazio apenas nos recursos permitidos', a
   } finally { await empty.close(); }
 });
 
+test('BROWSER-18: RPC preserva total desconhecido e paginação até vazio no histórico do contrato',async()=>{
+  const runtime=createRuntime(settings(),{fetcher:async url=>{const u=new URL(url);return json(u.pathname.endsWith('/quantidade')?20:Number(u.searchParams.get('pagina'))===1?[{tipoLogManutencaoNome:'Evento'}]:[]);}});
+  try {
+    const first=await runtime.run('1','documentRelated',{document:contract,resource:'historico',page:1,size:10});assert.equal(first.total,null);assert.equal(first.total_pages,null);assert.equal(first.has_more,true);assert.equal(first.complete,false);
+    const last=await runtime.run('2','documentRelated',{document:contract,resource:'historico',page:2,size:10,pagination_mode:'until_empty'});assert.deepEqual(last.data,[]);assert.equal(last.total,null);assert.equal(last.has_more,false);assert.equal(last.complete,true);
+    await assert.rejects(runtime.run('3','documentRelated',{document:contract,resource:'arquivos',page:1,size:10,pagination_mode:'until_empty'}),e=>e.code==='INVALID_PAGINATION');
+  }finally{await runtime.close();}
+});
+
 test('BROWSER-06: 429, 503, JSON inválido e orçamento de leitura não viram listas vazias', async () => {
   for (const status of [429,503]) {
     const runtime = createRuntime(settings(), { fetcher: async () => new Response(null, { status, headers: { 'Retry-After': '2' } }) });

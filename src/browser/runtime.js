@@ -27,7 +27,7 @@ export function createRuntime(input, options = {}) {
         const allowed = {
           schema: [], execute: ['query'], domains: ['type','normatives','field'], suggest: ['type','field','q','size'],
           details: ['document','page','size'], related: ['document','resource','page','size'],
-          documentDetails: ['document'], documentRelated: ['document','resource','page','size'],
+          documentDetails: ['document'], documentRelated: ['document','resource','page','size','pagination_mode'],
           contractChild: ['document','resource','sequence'], export: ['query'],
         };
         checkKeys(payload, allowed[method], 'operação');
@@ -40,7 +40,7 @@ export function createRuntime(input, options = {}) {
           case 'details': result = await service.details(payload.document, payload.page, payload.size, signal, id); break;
           case 'related': result = await service.related(payload.document, payload.resource, payload.page, payload.size, signal, id); break;
           case 'documentDetails': result = await service.documentDetails(payload.document, signal, id); break;
-          case 'documentRelated': result = await service.documentRelated(payload.document, payload.resource, payload.page, payload.size, signal, id); break;
+          case 'documentRelated': result = await service.documentRelated(payload.document, payload.resource, payload.page, payload.size, signal, id, payload.pagination_mode); break;
           case 'contractChild': result = await service.contractChild(payload.document, payload.resource, payload.sequence, signal, id); break;
           case 'export': {
             const { chunks, metadata } = await service.export(payload.query, signal, id, { onProgress });

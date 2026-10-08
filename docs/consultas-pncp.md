@@ -13,7 +13,7 @@ O Worker consulta `https://pncp.gov.br/api/search/` para pesquisa, filtros e sug
 | `details` | `{document, page, size}` | Quantidade e página de itens de contratação |
 | `related` | `{document, resource, page, size}` | Listagem vinculada a uma contratação |
 | `documentDetails` | `{document}` | Campos completos de ata ou contrato |
-| `documentRelated` | `{document, resource, page, size}` | Listagem dos detalhes de qualquer tipo documental |
+| `documentRelated` | `{document, resource, page, size, pagination_mode?}` | Listagem dos detalhes de qualquer tipo documental |
 | `contractChild` | `{document, resource, sequence}` | Detalhes do registro filho de contrato |
 | `export` | `{query}` | Buffers CSV, nome, MIME e metadados compactos |
 
@@ -211,7 +211,7 @@ Nos detalhes de contratos, `emendaParlamentar` é booleano: `false` exibe **Não
 
 Atas mostram identificação, órgão/unidade, modalidade, assinatura, vigência, cancelamento, adesão, contratação de origem e informações complementares. Contratos mostram identificação, órgão/unidade e sub-rogação, processo/categoria, fornecedor e subcontratado, assinatura, vigência, valores inicial/global/acumulado e parcelas, adesão, remanejamento, vínculos com contratação/ata, CIPI e informações complementares, conforme disponibilidade da fonte. Esses campos são consultados novamente ao abrir o painel. Uma falha mantém os campos disponíveis na busca, informa o erro e oferece nova tentativa.
 
-`documentRelated` recebe os identificadores originais, `resource`, `page` e `size`. A interface pede página 1 e dez registros; os tamanhos permitidos são 10, 25, 50 e 100. O formato de paginação é o mesmo das listagens de contratações.
+`documentRelated` recebe os identificadores originais, `resource`, `page` e `size`. A interface pede página 1 e dez registros; os tamanhos permitidos são 10, 25, 50 e 100. O formato de paginação é o mesmo das listagens de contratações, com a exceção de histórico de contrato com contagem inconsistente descrita abaixo.
 
 | Tipo | Recursos | Dados e formato externo |
 | --- | --- | --- |
@@ -223,6 +223,12 @@ Atas mostram identificação, órgão/unidade, modalidade, assinatura, vigência
 | Contrato | `instrumentocobranca` | `fields` e `sequencial`: número, tipo, datas, observações, chave NF-e e demais dados disponíveis; lista sem paginação externa |
 
 Os serviços externos usam o mesmo sufixo da rota completa do documento. Instrumentos de cobrança são consultados integralmente a cada página; o Worker recorta sua apresentação e identifica `pagination_source: local_slice`. Os outros recursos identificam `pagination_source: pncp`. Esse recorte não altera a busca documental nem seus totais.
+
+Se a página do **Histórico** de um contrato divergir da contagem do PNCP, os eventos recuperados são preservados e a resposta usa `total: null`, `total_pages: null` e `pagination_mode: "until_empty"`. A aba exibe **Histórico (?)** e informa **Quantidade desconhecida**. A página é consultada mesmo quando a contagem informa zero ou aponta um número menor de páginas.
+
+Nesse modo, a interface envia `pagination_mode: "until_empty"` nas consultas seguintes do mesmo painel, sem consultar novamente a contagem. `has_more` é `true` enquanto a página contém registros, inclusive páginas incompletas; significa que é possível tentar a próxima página, não que ela certamente contém registros. Uma página vazia (lista vazia ou HTTP 204) retorna `has_more: false` e `complete: true`, mostra o fim do histórico e desabilita **Próxima**, mantendo **Anterior** disponível quando aplicável. O total continua desconhecido. O indicador mostra somente **Página N**, sem inventar um número de páginas. Abrir outro documento reinicia esse estado.
+
+`pagination_mode` é opcional e aceita somente `"until_empty"`, exclusivamente para `historico` de `contrato`. Contagens coerentes conservam a paginação normal. Formatos ou registros inválidos, respostas maiores que a página solicitada, falhas HTTP/de transporte e contagens ilegíveis continuam sendo erros; a exceção não se aplica ao histórico de atas/contratações, às demais listas, à busca ou ao CSV.
 
 Nas listas `empenhos` e `instrumentocobranca` de contratos, HTTP 404 retorna `data: []`, `total: 0`, `total_pages: 1`, `has_more: false` e `complete: true` na página 1. As abas exibem **Empenhos (0)** e **Instrumentos de cobrança (0)**, com mensagem de lista vazia e sem botão de nova tentativa. Páginas além da primeira são recusadas como `PAGE_OUT_OF_RANGE`. Outros erros HTTP, falhas de transporte e respostas inválidas continuam sendo erros; HTTP 404 em `contractChild` também continua sendo erro.
 

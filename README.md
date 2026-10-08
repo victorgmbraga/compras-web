@@ -45,6 +45,8 @@ O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 
 
 HTTP 404 do PNCP nas listas **Empenhos** e **Instrumentos de cobrança** de um contrato indica ausência de registros: as abas exibem `(0)` e uma mensagem de lista vazia. Essa regra não se aplica aos detalhes de registros individuais nem a outras falhas de consulta.
 
+Quando a contagem do **Histórico** de um contrato diverge dos eventos retornados pelo PNCP, o sistema exibe os registros e informa **Quantidade desconhecida**, com a aba **Histórico (?)**. Use **Próxima** até encontrar uma página vazia; páginas incompletas ainda permitem avançar. **Anterior** permite retornar aos registros. Essa exceção não altera as demais listagens, a pesquisa ou o CSV.
+
 ## Desenvolver e validar
 
 | Comando | Finalidade |

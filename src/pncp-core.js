@@ -211,16 +211,17 @@ export class PncpClient {
     assert(record && typeof record==='object' && !Array.isArray(record) && controlLink(record.numeroControlePNCP)===expected,'INVALID_UPSTREAM','PNCP retornou detalhes de outro documento ou sem identidade válida.',502);
     return projectDocument(document.type,record);
   }
-  async documentRelatedPage(document,resource,page,size,op) {
+  async documentRelatedPage(document,resource,page,size,op,paginationMode) {
     assert(documentResources[document.type]?.includes(resource),'NOT_FOUND','Listagem não disponível para este documento.',404);
     if(document.type==='edital')return this.relatedPage(document,resource,page,size,op);
     const path=`${nativeDocumentPath(document,this.config.PNCP_DETAIL_BASE_URL)}/${resource}`;
-    const counted=['arquivos','historico','termos'].includes(resource),unpaged=resource==='instrumentocobranca';
-    let total=counted?integer(await this.get(`${path}/quantidade`,op),'Quantidade de registros'):null;
-    if(counted)assert(page<=Math.max(1,Math.ceil(total/size)),'PAGE_OUT_OF_RANGE','Página além da listagem atual.',422,{last_page:Math.max(1,Math.ceil(total/size))});
+    const counted=['arquivos','historico','termos'].includes(resource),unpaged=resource==='instrumentocobranca',contractHistory=document.type==='contrato' && resource==='historico';
+    let total=counted && paginationMode!=='until_empty'?integer(await this.get(`${path}/quantidade`,op),'Quantidade de registros'):null;
+    if(counted && !contractHistory)assert(page<=Math.max(1,Math.ceil(total/size)),'PAGE_OUT_OF_RANGE','Página além da listagem atual.',422,{last_page:Math.max(1,Math.ceil(total/size))});
     const params=new URLSearchParams({pagina:String(page),tamanhoPagina:String(size)});
     let result;
-    try { result=total===0?[]:await this.get(unpaged?path:`${path}?${params}`,op,true); }
+    // Contract history counts can underreport even zero; always inspect the requested page.
+    try { result=total===0 && !contractHistory?[]:await this.get(unpaged?path:`${path}?${params}`,op,true); }
     catch(error) {
       if(document.type!=='contrato' || !['empenhos','instrumentocobranca'].includes(resource) || !(error instanceof AppError) || error.code!=='PNCP_HTTP_ERROR' || error.details.upstream_status!==404)throw error;
       result=null;
@@ -228,12 +229,17 @@ export class PncpClient {
     let data=counted || unpaged?result || []:result===null?[]:result?.data;
     if(!counted)total=unpaged?(Array.isArray(data)?data.length:0):result===null?0:integer(result?.totalRegistros,'Total de registros');
     assert(Array.isArray(data) && data.every(v=>v && typeof v==='object' && !Array.isArray(v)),'INVALID_UPSTREAM','Listagem PNCP retornou formato inesperado.',502);
-    assert(total<=this.config.PNCP_MAX_DETAIL_ITEMS,'DETAIL_ITEM_LIMIT','Limite de registros da operação excedido.',422);
-    const pages=Math.max(1,Math.ceil(total/size));
-    assert(page<=pages,'PAGE_OUT_OF_RANGE','Página além da listagem atual.',422,{last_page:pages});
+    assert(!contractHistory || data.length<=size,'INVALID_UPSTREAM','Histórico PNCP retornou mais registros que o tamanho solicitado.',502);
+    const pages=total===null?null:Math.max(1,Math.ceil(total/size));
     if(!counted && !unpaged && result!==null && result.numeroPagina!=null)assert(integer(result.numeroPagina,'Número da página')===page,'INVALID_UPSTREAM','PNCP retornou outra página da listagem.',502);
     if(unpaged)data=data.slice((page-1)*size,page*size);
-    assert(data.length===Math.min(size,Math.max(0,total-(page-1)*size)),'SOURCE_CHANGED','A página não corresponde ao total informado pelo PNCP. Repita a consulta.',409,{},true);
+    const matches=total!==null && data.length===Math.min(size,Math.max(0,total-(page-1)*size));
+    const unknownTotal=contractHistory && (paginationMode==='until_empty' || page>pages || !matches);
+    if(!unknownTotal){
+      assert(total<=this.config.PNCP_MAX_DETAIL_ITEMS,'DETAIL_ITEM_LIMIT','Limite de registros da operação excedido.',422);
+      assert(page<=pages,'PAGE_OUT_OF_RANGE','Página além da listagem atual.',422,{last_page:pages});
+      assert(matches,'SOURCE_CHANGED','A página não corresponde ao total informado pelo PNCP. Repita a consulta.',409,{},true);
+    }
     return {data:data.map(record=>{
       if(resource==='partesenvolvidas')return {fields:recordFields(resource,record)};
       if(['termos','empenhos','instrumentocobranca'].includes(resource)){
@@ -241,7 +247,7 @@ export class PncpClient {
         return {fields:recordFields(resource,record),sequencial:/^\d+$/.test(sequence || '') && BigInt(sequence)>0n?sequence:null};
       }
       return projectRelated(resource,record,document);
-    }),total,total_pages:pages,pagination_source:unpaged?'local_slice':'pncp'};
+    }),total:unknownTotal?null:total,total_pages:unknownTotal?null:pages,pagination_source:unpaged?'local_slice':'pncp',...(unknownTotal?{pagination_mode:'until_empty',has_more:data.length>0,complete:data.length===0}:{})};
   }
   async contractChild(document,resource,sequence,op) {
     assert(document.type==='contrato' && ['termos','empenhos','instrumentocobranca'].includes(resource) && typeof sequence==='string' && sequence.length<=256 && /^\d+$/.test(sequence) && BigInt(sequence)>0n,'NOT_FOUND','Detalhe não encontrado.',404);

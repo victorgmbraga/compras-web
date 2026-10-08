@@ -135,3 +135,37 @@ test('DOCUMENTS-15: emenda parlamentar de contrato preserva booleanos e ausênci
   for(const value of [undefined,null])assert(!projectDocument('contrato',{emendaParlamentar:value}).fields.some(f=>f.field==='emendaParlamentar'));
   for(const value of ['false','true',0,1,{},[]])assert.throws(()=>projectDocument('contrato',{emendaParlamentar:value}),e=>e.code==='INVALID_UPSTREAM');
 });
+
+test('DOCUMENTS-16: histórico de contrato com contagem divergente conserva registros e avança até página vazia',async()=>{
+  for(const total of [0,1,11,99]){
+    const f=fixture(u=>u.pathname.endsWith('/quantidade')?json(total):json(Array.from({length:[2,1,0][Number(u.searchParams.get('pagina'))-1]},(_,i)=>({tipoLogManutencaoNome:`Evento ${i+1}`}))));
+    for(const page of [1,2,3]){
+      const result=await f.service.documentRelated(contract,'historico',page,10,undefined,undefined,page>1?'until_empty':undefined);
+      assert.equal(result.data.length,[2,1,0][page-1]);assert.equal(result.total,null);assert.equal(result.total_pages,null);assert.equal(result.pagination_mode,'until_empty');
+      assert.equal(result.has_more,page<3);assert.equal(result.complete,page===3);assert.equal(result.upstream_requests,page===1?2:1);
+    }
+    assert.equal(f.requests.filter(u=>u.pathname.endsWith('/quantidade')).length,1);assert.equal(f.requests.at(-1).searchParams.get('pagina'),'3');
+  }
+});
+
+test('DOCUMENTS-17: exceção do histórico mantém contagens coerentes e a validação das outras listagens',async()=>{
+  const empty=fixture(u=>u.pathname.endsWith('/quantidade')?json(0):json([]));
+  const zero=await empty.service.documentRelated(contract,'historico',1,10);assert.equal(zero.total,0);assert.equal(zero.total_pages,1);assert.equal(zero.complete,true);assert.equal(empty.requests.length,2);
+  const records=fixture(u=>u.pathname.endsWith('/quantidade')?json(1):json([{tipoLogManutencaoNome:'Evento'}]));
+  const coherent=await records.service.documentRelated(contract,'historico',1,10);assert.equal(coherent.total,1);assert.equal(coherent.has_more,false);
+  const beyond=await records.service.documentRelated(contract,'historico',2,10);assert.equal(beyond.total,null);assert.equal(beyond.data.length,1);assert.equal(beyond.has_more,true);
+  const later=fixture(u=>u.pathname.endsWith('/quantidade')?json(12):json(Array.from({length:u.searchParams.get('pagina')==='1'?10:1},()=>({}))));
+  assert.equal((await later.service.documentRelated(contract,'historico',1,10)).total,12);assert.equal((await later.service.documentRelated(contract,'historico',2,10)).total,null);
+  for(const [d,resource]of [[ata,'historico'],[contract,'arquivos'],[contract,'termos']])await assert.rejects(fixture(u=>u.pathname.endsWith('/quantidade')?json(10):json([{}])).service.documentRelated(d,resource,1,10),e=>e.code==='SOURCE_CHANGED');
+  const edital={...contract,type:'edital'};await assert.rejects(fixture(u=>u.pathname.endsWith('/quantidade')?json(10):json([{}])).service.documentRelated(edital,'historico',1,10),e=>e.code==='SOURCE_CHANGED');
+  for(const payload of [{},[null],Array.from({length:11},()=>({}))])await assert.rejects(fixture(u=>u.pathname.endsWith('/quantidade')?json(10):json(payload)).service.documentRelated(contract,'historico',1,10),e=>e.code==='INVALID_UPSTREAM');
+  await assert.rejects(fixture(()=>json('inválido')).service.documentRelated(contract,'historico',1,10),e=>e.code==='INVALID_UPSTREAM');
+  await assert.rejects(fixture(()=>new Response(null,{status:500})).service.documentRelated(contract,'historico',2,10,undefined,undefined,'until_empty'),e=>e.code==='PNCP_HTTP_ERROR');
+  const noContent=await fixture(()=>new Response(null,{status:204})).service.documentRelated(contract,'historico',3,10,undefined,undefined,'until_empty');assert.equal(noContent.total,null);assert.equal(noContent.has_more,false);assert.equal(noContent.complete,true);
+});
+
+test('DOCUMENTS-18: modo sem total é exclusivo de históricos de contrato e validado antes da rede',async()=>{
+  const f=fixture(()=>json([]));
+  for(const [d,resource,mode]of [[contract,'historico','inválido'],[contract,'historico',null],[contract,'arquivos','until_empty'],[ata,'historico','until_empty'],[{...contract,type:'edital'},'historico','until_empty']])await assert.rejects(f.service.documentRelated(d,resource,1,10,undefined,undefined,mode),e=>e.code==='INVALID_PAGINATION');
+  assert.equal(f.requests.length,0);
+});

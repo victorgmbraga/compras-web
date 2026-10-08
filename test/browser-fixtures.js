@@ -1,6 +1,8 @@
 import { demoFetch, demoDocuments } from '../src/demo.js';
 export async function uiDemoFetch(url,init) {
   const u=new URL(url);
+  if(u.pathname.endsWith('/contratos/2026/2/historico/quantidade'))return Response.json(1);
+  if(u.pathname.endsWith('/contratos/2026/2/historico'))return Response.json(Array.from({length:[2,1,0][Number(u.searchParams.get('pagina'))-1] ?? 0},(_,i)=>({tipoLogManutencaoNome:`Evento ${i+1}`,categoriaLogManutencaoNome:'Contrato'})));
   if(u.searchParams.get('q')==='benchmark-ui') {
     const size=Number(u.searchParams.get('tam_pagina')),page=Number(u.searchParams.get('pagina'));
     const items=Array.from({length:Math.min(size,10000-(page-1)*size)},(_,i)=>({...demoDocuments[i%demoDocuments.length],id:`benchmark-${(page-1)*size+i+1}`,numero_controle_pncp:`benchmark-${(page-1)*size+i+1}`}));

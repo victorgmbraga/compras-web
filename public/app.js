@@ -376,7 +376,7 @@ function relatedSection(resource,title,doc,token,signal,schedule,updateCount) {
   const pager=el('div',undefined,'item-pager'),previous=el('button','Anterior','button small'),label=el('span','Página 1'),next=el('button','Próxima','button small');pager.hidden=true;pager.append(previous,label,next);
   previous.setAttribute('aria-label',`Página anterior de ${title}`);next.setAttribute('aria-label',`Próxima página de ${title}`);retry.setAttribute('aria-label',`Consultar ${title} novamente`);
   status.setAttribute('role','status');section.append(heading,toolbar,status,list,pager);
-  let loaded=false,page=1,hasMore=false,controller=null,seq=0;
+  let loaded=false,page=1,hasMore=false,untilEmpty=false,controller=null,seq=0;
   const showFields=(card,fields)=>{const values=el('dl',undefined,'related-values');for(const [name,value]of fields){const field=el('div');field.append(el('dt',name),el('dd',value ?? '—'));values.append(field);}card.append(values);};
   async function load(target) {
     controller?.abort();controller=new AbortController();const request=++seq;
@@ -385,8 +385,8 @@ function relatedSection(resource,title,doc,token,signal,schedule,updateCount) {
     if(!loaded)updateCount(null,'loading');
     try {
       const requestSignal=AbortSignal.any([signal,controller.signal]);
-      const result=await schedule(async()=>{status.textContent='Consultando o PNCP…';return service.call('documentRelated',{document:detailIdentity(doc),resource,page:target,size:10},{signal:requestSignal});},requestSignal);
-      if(!current())return;loaded=true;page=result.page;hasMore=result.has_more;list.replaceChildren();
+      const result=await schedule(async()=>{status.textContent='Consultando o PNCP…';return service.call('documentRelated',{document:detailIdentity(doc),resource,page:target,size:10,...(untilEmpty?{pagination_mode:'until_empty'}:{})},{signal:requestSignal});},requestSignal);
+      if(!current())return;loaded=true;page=result.page;hasMore=result.has_more;untilEmpty ||= result.pagination_mode==='until_empty';list.replaceChildren();
       for(const record of result.data) {
         const card=el('article',undefined,'related-card');
         if(record.fields) {
@@ -423,11 +423,13 @@ function relatedSection(resource,title,doc,token,signal,schedule,updateCount) {
         list.append(card);
       }
       if(!result.data.length)list.append(el('p',`Nenhum registro em ${title}.`,'panel-note'));
-      heading.textContent=`${title} (${fmtInt(result.total)})`;
+      const unknownTotal=result.total===null;
+      heading.textContent=`${title} (${unknownTotal?'?':fmtInt(result.total)})`;
       updateCount(result.total,'loaded');
       const first=result.data.length?(page-1)*result.size+1:0,last=result.data.length?first+result.data.length-1:0;
-      status.textContent=`${result.total===0?'0 registros':`Registros ${fmtInt(first)}–${fmtInt(last)} de ${fmtInt(result.total)}`} · Consulta às ${time(result.queried_at)}.`;
-      label.textContent=`Página ${page} de ${fmtInt(result.total_pages)}`;pager.hidden=result.total_pages<=1;previous.disabled=page<=1;next.disabled=!hasMore;
+      const summary=unknownTotal?`${result.data.length?`${fmtInt(result.data.length)} ${result.data.length===1?'registro':'registros'} nesta página`:'Fim do histórico: nenhum registro nesta página'} · Quantidade desconhecida: contagem inconsistente do PNCP` : result.total===0?'0 registros':`Registros ${fmtInt(first)}–${fmtInt(last)} de ${fmtInt(result.total)}`;
+      status.textContent=`${summary} · Consulta às ${time(result.queried_at)}.`;
+      label.textContent=unknownTotal?`Página ${page}`:`Página ${page} de ${fmtInt(result.total_pages)}`;pager.hidden=!unknownTotal && result.total_pages<=1;previous.disabled=page<=1;next.disabled=!hasMore;
     }catch(error){if(current() && error.name!=='AbortError'){
       if(error.code==='PAGE_OUT_OF_RANGE' && Number.isSafeInteger(error.details?.last_page) && error.details.last_page>=1 && error.details.last_page<target)return load(error.details.last_page);
       status.textContent=error.message;retry.hidden=false;previous.disabled=page<=1;next.disabled=!hasMore;
@@ -466,7 +468,7 @@ async function openDetails(doc) {
       event.preventDefault();activate(target,true);
     });
     nav.append(button);content.append(panel);tabs.push({button,panel});
-    return (count,phase)=>{button.textContent=`${title} (${count===null?phase==='loading'?'…':'—':fmtInt(count)})`;button.dataset.state=phase;};
+    return (count,phase)=>{button.textContent=`${title} (${count===null?phase==='loading'?'…':phase==='loaded'?'?':'—':fmtInt(count)})`;button.dataset.state=phase;};
   }
   const common=['numero_controle_pncp','orgao_nome','orgao_cnpj','unidade_orgao_nome_unidade','uf','municipio_nome'];
   const fieldNames=[...common,...(kind==='edital'?['modalidade_nome','situacao_compra_nome_pncp','data_publicacao_pncp','data_atualizacao_pncp','valor_total_estimado','valor_total_homologado']:kind==='ata'?['modalidade_nome','data_publicacao_pncp','data_atualizacao_pncp','data_assinatura','data_inicio_vigencia','data_fim_vigencia','cancelado','permite_adesao']:['tipo_contrato_nome','fornecedor_nome','fornecedor_ni','valor_global','data_assinatura','data_inicio_vigencia','data_fim_vigencia','data_publicacao_pncp','data_atualizacao_pncp'])];
