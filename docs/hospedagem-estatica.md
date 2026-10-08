@@ -9,11 +9,11 @@ Requer Node.js 22.12 ou superior apenas na máquina de build.
 ```sh
 npm ci
 npm test
-npm run build:browser
-npm run preview:browser
+npm run build
+npm run preview
 ```
 
-Abra `http://localhost:8000` para a fonte real, ou `http://localhost:8000/?demo=1` para demonstração explícita. `preview:browser` serve arquivos e não executa o servidor da aplicação. O artefato pode ser servido por qualquer servidor estático que entregue MIME correto: `text/javascript` para módulos e Worker, `text/css` e `application/json`. A abertura por `file://` não é suportada.
+Abra `http://localhost:8000` para a fonte real, ou `http://localhost:8000/?demo=1` para demonstração explícita. `preview` serve arquivos e não executa o servidor da aplicação. O artefato pode ser servido por qualquer servidor estático que entregue MIME correto: `text/javascript` para módulos e Worker, `text/css` e `application/json`. A abertura por `file://` não é suportada.
 
 Configure antes do build em [`public/browser-config.json`](../public/browser-config.json), conforme [Configuração](configuracao.md). Esse arquivo é público; não inclua segredos. `{}` usa o PNCP real e os limites padrão. A demonstração não substitui automaticamente uma falha da fonte real.
 
@@ -33,7 +33,7 @@ O workflow não publica automaticamente a cada push. A configuração da conta p
 
 ## Cloudflare Pages ou servidor estático próprio
 
-Na Cloudflare Pages, selecione build `npm run build:browser`, diretório de saída `dist-browser` e Node.js 24 na máquina de build. Nenhuma Pages Function é necessária. O artefato inclui `_headers`, com CSP, `nosniff`, `no-referrer`, atualização de HTML/configuração e cache imutável para bundles com hash.
+Na Cloudflare Pages, selecione build `npm run build`, diretório de saída `dist-browser` e Node.js 24 na máquina de build. Nenhuma Pages Function é necessária. O artefato inclui `_headers`, com CSP, `nosniff`, `no-referrer`, atualização de HTML/configuração e cache imutável para bundles com hash.
 
 Em Nginx, Apache ou outro servidor, configure os mesmos cabeçalhos. A CSP esperada permite scripts e Worker da própria origem e `connect-src 'self' https://pncp.gov.br`. A diretiva `frame-ancestors 'self'` precisa de cabeçalho HTTP. A CSP no HTML é uma alternativa parcial, pois `<meta>` não protege a resposta do Worker nem define `frame-ancestors`.
 
@@ -47,15 +47,6 @@ Teste Chromium, Firefox e Safari usados pelo público, incluindo dispositivo mó
 
 Publicações devem substituir HTML/configuração e disponibilizar os novos bundles em conjunto. Os nomes com hash impedem reutilização indevida de scripts alterados. Preserve temporariamente assets antigos quando a hospedagem permitir, para abas já abertas. HTML e configuração devem ser revalidados; não instale Service Worker para cache de consultas. Versões incompatíveis da ponte são rejeitadas na inicialização. Após atualizar, verifique a página numa nova aba e repita uma pesquisa.
 
-## Retorno ao modo Node.js
+## Recuperar uma publicação anterior
 
-Conserve a implantação Node.js operacional durante a homologação. Seus consumidores HTTP continuam usando o domínio anterior e as rotas descritas em [Consultas PNCP](consultas-pncp.md).
-
-Para retornar, direcione a URL operacional para essa implantação ou execute:
-
-```sh
-npm ci
-npm start
-```
-
-Use as variáveis do servidor, sem copiar `browser-config.json` para `.env`. A [implantação Railway](railway.md) e o Dockerfile continuam disponíveis para esse modo. Se o PNCP bloquear CORS ou recursos obrigatórios da origem estática, mantenha a implantação Node.js enquanto a limitação for resolvida; inserir um proxy mudaria o objetivo de hospedagem sem backend próprio.
+Guarde os artefatos estáticos aprovados. Para desfazer uma publicação, restaure HTML, configuração e bundles de um mesmo artefato, mantendo seus nomes e caminhos. Verifique o carregamento em uma nova aba e repita o diagnóstico no domínio publicado.

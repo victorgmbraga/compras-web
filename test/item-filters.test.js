@@ -1,19 +1,19 @@
+import { csvBytes } from './helpers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PncpClient} from '../src/pncp.js';
-import {QueryService} from '../src/query.js';
+import {PncpClient} from '../src/pncp-core.js';
+import {QueryService} from '../src/query-core.js';
 import {demoFetch} from '../src/demo.js';
-import {createApplication} from '../src/server.js';
 import {config,query,service,document,json} from './helpers.js';
 
 const itemBooleans=['incentivo_produtivo_basico','aplicabilidade_margem_preferencia_normal','aplicabilidade_margem_preferencia_adicional'];
 const demo=()=>{const cfg=config({DEMO_MODE:true});return new QueryService(cfg,new PncpClient(cfg,{fetcher:demoFetch}));};
 
 test('ITEM-FILTER-01: emenda parlamentar distingue omissão, Sim, Não e informação ausente',async()=>{
-  const s=demo(),all=await s.export(query());assert.equal(all.metadata.total,64);assert(all.metadata.data.some(d=>d._raw.possui_emenda_parlamentar===null));
+  const s=demo(),all=await s.execute(query({size:100}));assert.equal(all.total,64);assert(all.data.some(d=>d._raw.possui_emenda_parlamentar===null));
   for(const value of [true,false]){
     const input=query({pncp_filters:{possui_emenda_parlamentar:value}}),page=await s.execute(input),csv=await s.export(input);
-    assert.equal(page.total,16);assert.equal(csv.metadata.data.length,16);assert(csv.metadata.data.every(d=>d._raw.possui_emenda_parlamentar===value));
+    assert.equal(page.total,16);assert.equal(csv.metadata.exported_rows,16);assert(page.data.every(d=>d._raw.possui_emenda_parlamentar===value));
     assert.equal(csv.metadata.effective_filters.possui_emenda_parlamentar,value);
   }
 });
@@ -31,18 +31,18 @@ test('ITEM-FILTER-02: listas selecionam contratações pelos itens e preservam u
 test('ITEM-FILTER-03: booleanos refletem a contratação e os detalhes mantêm itens diferentes',async()=>{
   const s=demo(),fields=['incentivoProdutivoBasico','aplicabilidadeMargemPreferenciaNormal','aplicabilidadeMargemPreferenciaAdicional'];
   for(const [index,name]of itemBooleans.entries())for(const value of [true,false]){
-    const csv=await s.export(query({pncp_filters:{[name]:value}}));assert.equal(csv.metadata.data.length,16);assert(csv.metadata.data.every(d=>d._raw[name]===value));
-    const details=await s.details(csv.metadata.data[0]._purchase,1,100);assert.equal(details.data.length,2);
+    const input=query({pncp_filters:{[name]:value}}),page=await s.execute(input),csv=await s.export(input);assert.equal(csv.metadata.exported_rows,16);assert(page.data.every(d=>d._raw[name]===value));
+    const details=await s.details(page.data[0]._purchase,1,100);assert.equal(details.data.length,2);
     assert(details.data.some(item=>item[fields[index]]===value));
     assert(details.data.some(item=>item[fields[index]]!==value));
-    await assert.rejects(s.details(csv.metadata.data[0]._purchase,2,1),error=>error.code==='INVALID_PAGINATION');
+    await assert.rejects(s.details(page.data[0]._purchase,2,1),error=>error.code==='INVALID_PAGINATION');
   }
 });
 
 test('ITEM-FILTER-04: combinação não reduz os detalhes nem presume um único item correspondente',async()=>{
   const s=demo(),pncp_filters={criterios_julgamento:['7'],categorias_leilao:['1'],beneficios:['1'],incentivo_produtivo_basico:true,aplicabilidade_margem_preferencia_normal:true,aplicabilidade_margem_preferencia_adicional:true,possui_emenda_parlamentar:true};
-  const csv=await s.export(query({pncp_filters}));assert.equal(csv.metadata.data.length,6);assert.equal(csv.csv.toString('utf8').split('\r\n').length,8);
-  const details=await s.details(csv.metadata.data[0]._purchase,1,100);assert.equal(details.total_items,2);
+  const csv=await s.export(query({pncp_filters}));assert.equal(csv.metadata.exported_rows,6);assert.equal(csvBytes(csv).toString('utf8').split('\r\n').length,8);
+  const details=await s.details((await s.execute(query({pncp_filters}))).data[0]._purchase,1,100);assert.equal(details.total_items,2);
   assert(details.data.some(item=>item.criterioJulgamentoId===7));assert(details.data.some(item=>item.tipoBeneficio===1));
   assert(!details.data.some(item=>item.criterioJulgamentoId===7 && item.tipoBeneficio===1));
 });
@@ -70,13 +70,6 @@ test('ITEM-FILTER-06: entradas inválidas e contexto de contratos são rejeitado
   assert.equal(s.requests.length,0);
 });
 
-test('ITEM-FILTER-07: API combina os sete filtros e exporta contratações em vez de itens',async t=>{
-  const app=createApplication(config({DEMO_MODE:true}));await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(()=>app.close());
-  const base=`http://127.0.0.1:${app.server.address().port}`,pncp_filters={criterios_julgamento:['7'],categorias_leilao:['1'],beneficios:['1'],...Object.fromEntries(itemBooleans.map(name=>[name,true])),possui_emenda_parlamentar:true},input=query({pncp_filters});
-  const post=(route,body)=>fetch(base+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const response=await post('/api/query',input);assert.equal(response.status,200);const result=await response.json();assert.equal(result.total,6);
-  const csv=await post('/api/export',{query:input});assert.equal(csv.status,200);assert.equal(csv.headers.get('X-Exported-Rows'),'6');assert.equal((await csv.text()).split('\r\n').length,8);
-});
 
 test('ITEM-FILTER-08: detalhes da demonstração mantêm quantidade e páginas coerentes fora do conjunto',async()=>{
   const s=demo(),purchase={cnpj:'00000000000000',ano:'2026',sequencial:'65'};

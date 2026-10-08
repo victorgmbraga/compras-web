@@ -1,8 +1,0 @@
-node_modules
-dist
-dist-browser
-dist-browser-test
-.playwright
-.env
-.git
-test

@@ -1,6 +1,6 @@
 # Implementação e verificação dos filtros do PNCP
 
-Revisão: 7 de outubro de 2026.
+Revisão: 8 de outubro de 2026.
 
 ## Situação atual
 
@@ -30,7 +30,7 @@ Não é necessário preencher `PNCP_VALIDATED_FILTERS` para usar os filtros. A v
 | Fornecedor | Fornecedor, município, país, porte e natureza jurídica do fornecedor do resultado |
 | Contrato | Tipo, nota fiscal, fornecedor contratado/subcontratado, assinatura, início de vigência e valor global |
 
-O [contrato da API](consultas-pncp.md#filtros-habilitados-por-padrão) lista os nomes e formatos. [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém o inventário completo; `/api/schema` publica os metadados vigentes.
+O [contrato do serviço do navegador](consultas-pncp.md#filtros-habilitados-por-padrão) lista os nomes e formatos. [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém o inventário completo; o método `schema` do Worker publica os metadados vigentes.
 
 ## Formatos e domínios
 
@@ -55,7 +55,7 @@ Todos os critérios são enviados à busca nativa. A aplicação mantém a ordem
 
 Filtros de itens, resultados e fornecedores de resultados selecionam contratações. Seus detalhes preservam todos os itens, inclusive os que não atendem aos critérios. Condições distintas podem corresponder a itens ou resultados diferentes; não existe promessa de correlação no mesmo registro filho. Preferência ou benefício aplicável ao item não equivale à sua aplicação no resultado.
 
-O seletor documental reinicia a pesquisa e os critérios, ajusta filtros, status e colunas e descarta respostas antigas. Atas e contratos usam `todos`, `vigente` ou `nao_vigente`; contratações usam `todos`, `recebendo_proposta` ou `propostas_encerradas`. Os filtros incompatíveis são recusados pelo backend mesmo quando enviados diretamente.
+O seletor documental reinicia a pesquisa e os critérios, ajusta filtros, status e colunas e descarta respostas antigas. Atas e contratos usam `todos`, `vigente` ou `nao_vigente`; contratações usam `todos`, `recebendo_proposta` ou `propostas_encerradas`. Os filtros incompatíveis são recusados pelo serviço do Worker mesmo quando enviados diretamente.
 
 Contratos projetam fornecedor, CPF/CNPJ, valor global, assinatura, vigência, tipo e nota fiscal. Seu sequencial não é usado como sequencial de compra para consultar itens. Detalhes e CSV mantêm os dados próprios do contrato e o link público correspondente.
 
@@ -69,10 +69,6 @@ A suíte verifica o envio individual dos 80 filtros na pesquisa e no CSV; format
 
 Há controles reais dos filtros documentais e de critérios, categorias, benefícios, incentivo e margens aplicáveis. Eles verificaram campos do índice ou detalhes de contratações selecionadas; condições verdadeiras coexistiram com itens falsos nos detalhes. As respostas não formam um snapshot.
 
-Na rodada de 7 de outubro, foram sondados todos os 34 argumentos restantes de edital e os nove do grupo Contrato, com texto `firewall`, status `todos`, ordem `data`, página 1 e tamanho 10. Houve buscas válidas para portes, naturezas jurídicas, unidades de medida, classificação, benefício ME/EPP aplicado, fim de homologação e parte dos limites de itens e resultados. Sub-rogação de órgão respondeu com zero registros. As demais tentativas incluíram HTTP 503.
-
-Em contrato, `valor_global_min=1` retornou dez registros; o primeiro controle, `28414217000167-2-000001/2022`, tinha `valor_global=9800.0`, assinatura e início de vigência em `2022-07-29`, tipo `7` e fornecedor `15566`. A projeção preserva esses campos e o tipo documental. Os formatos de países e os status de contratos também foram conferidos no código público atual do formulário e da pesquisa do PNCP.
-
-Pela API real da aplicação, `paises_fornecedor=["BRA"]` retornou HTTP 200, total 2.182 e dez documentos; `situacoes_resultado=["1"]` retornou HTTP 200, total 2.175 e dez documentos. O catálogo de situações respondeu HTTP 200. O domínio de reservas respondeu sem chamada externa, e uma consulta de contratos vigentes com escopo de órgão/unidade/ano respondeu HTTP 200 com zero registros. A consulta e o CSV desse escopo de contratos, unidades de medida, quantidade homologada e reserva receberam HTTP 503; uma tentativa separada do catálogo de países recebeu timeout. Essas respostas certificam o caminho da aplicação e os controles descritos, sem conferir todos os registros filhos das páginas.
+A integração direta do navegador está registrada em [`evidencias-browser-implementacao.json`](evidencias-browser-implementacao.json): pesquisas dos três tipos, filtros, sugestões, catálogos, detalhes e listagens foram consultados no Firefox. O [guia de validação](validacao.md) informa os recursos com respostas positivas, listas vazias ou erros nas amostras e as verificações ainda necessárias na origem publicada.
 
 Uma resposta válida, zero registros ou mudança de total não prova isoladamente o predicado. A homologação integral de todos os filtros, valores, combinações, limites e correlações continua limitada pelos erros intermitentes e pela ausência de controles positivos para algumas condições. Isso é registrado como limite de evidência, sem deixar a implementação do catálogo pendente. Não há garantia de disponibilidade contínua, estabilidade da indexação ou snapshot; falhas reais são exibidas como erros e nunca ativam a demonstração automaticamente.

@@ -1,3 +1,4 @@
+import { csvBytes } from './helpers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRuntime, errorRecord } from '../src/browser/runtime.js';
@@ -73,21 +74,21 @@ test('BROWSER-06: 429, 503, JSON inválido e orçamento de leitura não viram li
   }
 });
 
-test('BROWSER-07: CSV transferível coincide byte a byte com Node nos três tipos e não envia documentos', async () => {
+test('BROWSER-07: CSV transferível coincide byte a byte com o núcleo nos três tipos e não envia documentos', async () => {
   for (const type of ['edital','ata','contrato']) {
     const input = { document_type: type, q: '', pncp_filters: {} }, progress = [];
     const runtime = createRuntime(settings({ DEMO_MODE: true }));
-    const node = service([], { handler: (url, _n, init) => demoFetch(url.href, init) }, { DEMO_MODE: true });
+    const core = service([], { handler: (url, _n, init) => demoFetch(url.href, init) }, { DEMO_MODE: true });
     try {
       const result = await runtime.run('1', 'export', { query: input }, p => progress.push(p));
-      const reference = await node.service.export(input);
-      assert.deepEqual(Buffer.concat(result.chunks.map(b => Buffer.from(b))), reference.csv);
+      const reference = await core.service.export(input);
+      assert.deepEqual(Buffer.concat(result.chunks.map(b => Buffer.from(b))), csvBytes(reference));
       assert.equal(Object.hasOwn(result.metadata, 'data'), false);
-      assert.equal(result.metadata.exported_rows, reference.metadata.data.length);
+      assert.equal(result.metadata.exported_rows, reference.metadata.exported_rows);
       assert.equal(result.metadata.snapshot_guaranteed, false);
       assert.equal(progress.at(-1).rows, result.metadata.exported_rows);
-      assert.equal(progress.at(-1).bytes, reference.csv.byteLength);
-    } finally { await runtime.close(); await node.client.close(); }
+      assert.equal(progress.at(-1).bytes, csvBytes(reference).byteLength);
+    } finally { await runtime.close(); await core.client.close(); }
   }
 });
 
@@ -157,9 +158,9 @@ test('BROWSER-12: erros inesperados não expõem diagnóstico interno pela ponte
 
 test('BROWSER-13: CSV preserva aspas, CRLF e acentos no limite exato de bytes', async () => {
   const records = [document(1, { description: 'Aquisição "ação"\r\nSão Paulo', valor_total_estimado: '9007199254740993.00000000001' })];
-  const node = service(records);
+  const core = service(records);
   try {
-    const { csv } = await node.service.export({});
+    const csv = csvBytes(await core.service.export({}));
     for (const difference of [0,-1]) {
       const runtime = createRuntime(settings({ PNCP_MAX_EXPORT_BYTES: csv.byteLength + difference }), fixture(records));
       try {
@@ -170,7 +171,7 @@ test('BROWSER-13: CSV preserva aspas, CRLF e acentos no limite exato de bytes', 
         }
       }finally{await runtime.close();}
     }
-  }finally{await node.client.close();}
+  }finally{await core.client.close();}
 });
 
 test('BROWSER-14: cancelar CSV no progresso impede páginas seguintes e permite reutilizar o Worker', async () => {

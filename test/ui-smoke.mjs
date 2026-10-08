@@ -1,27 +1,24 @@
-// UI verification against Node.js or the static artifact; see docs/validacao.md.
+// UI verification against the static artifact; see docs/validacao.md.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import { launchTestBrowser } from './browser-launch.js';
-import { createApplication } from '../src/server.js';
-import { loadConfig } from '../src/config.js';
-import { uiDemoFetch } from './browser-fixtures.js';
+import { defaults } from '../src/settings.js';
 import { createStaticServer } from './static-server.js';
 import { schema } from '../src/schema.js';
-const config={...loadConfig({}),DEMO_MODE:true,PNCP_REQUESTS_PER_SECOND:100000};
-const staticMode=process.env.COMPRAS_QA_STATIC==='1';
-const app=staticMode ? createStaticServer(new URL('../dist-browser-test/',import.meta.url)) : createApplication(config,{fetcher:uiDemoFetch});
+const config={...defaults,DEMO_MODE:true,PNCP_REQUESTS_PER_SECOND:100000};
+const app=createStaticServer(new URL('../dist-browser-test/',import.meta.url));
 await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));
 const browser=await launchTestBrowser(),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],checks=[];
 page.on('pageerror',error=>errors.push(error.message));
-const serviceEvent=staticMode?'service':'request';
+const serviceEvent='service';
 const localApiRequests=[];
 page.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/api/'))localApiRequests.push(r.url());});
-if(staticMode){
+{
   await page.exposeFunction('__observeService',message=>page.emit('service',message));
   await page.addInitScript(()=>{const NativeWorker=window.Worker;window.Worker=class extends NativeWorker {postMessage(message,...args){window.__observeService(message);return super.postMessage(message,...args);}};});
 }
 function waitQuery(predicate){
-  return staticMode?page.waitForEvent('service',{predicate:m=>m.method==='execute' && predicate(m.payload.query)}).then(m=>m.payload.query):page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && predicate(r.postDataJSON())).then(r=>r.postDataJSON());
+  return page.waitForEvent('service',{predicate:m=>m.method==='execute' && predicate(m.payload.query)}).then(m=>m.payload.query);
 }
 const check=name=>{checks.push(name);console.log('PASS '+name);};
 async function search(text) {await page.locator('#search').fill(text);await page.locator('#search-button').click();}
@@ -76,7 +73,7 @@ try {
   await page.locator('.tabulator-page[data-page="next"]').click();await page.waitForFunction(()=>/101\s*[-–]\s*164\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de próxima página avança');
   await page.locator('.tabulator-page[data-page="prev"]').click();await page.waitForFunction(()=>/1\s*[-–]\s*100\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de página anterior retorna');
   await search('firewall');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='6 contratações');assert.equal(await page.locator('.tabulator-page.active').getAttribute('data-page'),'1');check('Novos critérios voltam à página 1');
-  const tabRequests=[];const observeTabs=request=>{if(staticMode?['details','documentRelated'].includes(request.method) && request.payload.document.type==='edital':request.url().includes('/api/contratacoes/'))tabRequests.push(request);};page.on(serviceEvent,observeTabs);
+  const tabRequests=[];const observeTabs=request=>{if(['details','documentRelated'].includes(request.method) && request.payload.document.type==='edital')tabRequests.push(request);};page.on(serviceEvent,observeTabs);
   await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});assert.equal(await page.locator('#detail-tab-detalhes').getAttribute('aria-selected'),'true');assert.equal(await page.locator('#detail-panel-detalhes dt').count(),12);check('Detalhes abre com seis abas e os doze campos solicitados');
   await page.waitForFunction(()=>[...document.querySelectorAll('.detail-tab')].every(button=>button.dataset.state==='loaded'));assert.equal(tabRequests.length,5);check('Cinco listagens carregam em background antes da troca de abas');
   assert.equal(await page.locator('#details-content .detail-links').count(),0);assert.equal(await page.locator('.details-actions #details-links a').count(),1);assert.equal(Math.round((await page.locator('#details-dialog').boundingBox()).width),888);check('Links junto ao botão de fechar e painel ampliado em 20%');
@@ -155,7 +152,7 @@ try {
   assert(await page.locator('.tabulator-col[tabulator-field="valor_global"]').isVisible());assert.equal(await page.locator('.tabulator-col[tabulator-field="valor_total_estimado"]').count(),0);check('Troca para contratos consulta a fonte e apresenta as colunas próprias');
   await page.locator('#filters-button').click();await page.locator('#draft-status').selectOption('vigente');await page.locator('#apply-filters').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='16 contratos');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratos');check('Status Vigentes usa o domínio temporal de contratos e limpar mantém o tipo');
-  const detailRequests=[];const observe=r=>{if(staticMode?r.method==='details':r.url().includes('/itens'))detailRequests.push(r);};page.on(serviceEvent,observe);
+  const detailRequests=[];const observe=r=>{if(r.method==='details')detailRequests.push(r);};page.on(serviceEvent,observe);
   await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});
   await page.waitForFunction(()=>[...document.querySelectorAll('.detail-tab')].every(button=>button.dataset.state==='loaded'));
   assert.equal(await page.locator('#detail-panel-detalhes dt').count(),34);assert.match(await page.locator('#details-content').innerText(),/Valor inicial/);assert.equal(await page.locator('.items-section').count(),0);assert.equal(detailRequests.length,0);check('Contrato carrega os dados nativos e cinco listas sem confundir seu sequencial com a compra');
@@ -173,7 +170,7 @@ try {
   assert.deepEqual(await page.locator('#document-type option').evaluateAll(nodes=>nodes.map(n=>n.textContent)),['Editais e Avisos de Contratações','Atas de Registro de Preços','Contratos']);
   await page.locator('#document-type').selectOption('ata');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='24 atas');
   assert(await page.locator('.tabulator-col[tabulator-field="cancelado"]').isVisible());assert.equal(await page.locator('.tabulator-col[tabulator-field="valor_global"]').count(),0);check('Os três tipos oficiais estão disponíveis e atas apresentam colunas próprias');
-  const ataRequests=[];const observeAta=r=>{if(staticMode?['documentDetails','documentRelated'].includes(r.method) && r.payload.document.type==='ata':r.url().includes('/api/atas/'))ataRequests.push(r);};page.on(serviceEvent,observeAta);
+  const ataRequests=[];const observeAta=r=>{if(['documentDetails','documentRelated'].includes(r.method) && r.payload.document.type==='ata')ataRequests.push(r);};page.on(serviceEvent,observeAta);
   await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});await page.waitForFunction(()=>[...document.querySelectorAll('.detail-tab')].every(button=>button.dataset.state==='loaded'));
   assert.equal(ataRequests.length,5);assert.equal(await page.locator('#detail-panel-detalhes dt').count(),22);assert.match(await page.locator('#detail-panel-detalhes').innerText(),/Número da ata/);assert.equal(await page.locator('#detail-tab-itens').count(),0);assert.equal(await page.locator('#detail-tab-termos').count(),0);check('Ata carrega seus dados completos e quatro listas em background');
   await page.locator('#detail-tab-partesenvolvidas').click();assert.match(await page.locator('#detail-panel-partesenvolvidas').innerText(),/Gerenciadora/);await page.locator('#detail-tab-contratos').click();assert.match(await page.locator('#detail-panel-contratos').innerText(),/Valor global/);assert.equal(ataRequests.length,5);check('Partes envolvidas e contratos vinculados da ata aparecem sem repetir consultas');
@@ -189,10 +186,10 @@ try {
   await search('csv-lenta-ui');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='164 contratações');
   let cancelledDownloads=0;const observeDownload=()=>cancelledDownloads++;page.on('download',observeDownload);
   await page.locator('#export-button').click();
-  if(staticMode)await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Coletando'));
+  await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Coletando'));
   assert(await page.locator('#cancel-export-button').isVisible());await page.locator('#cancel-export-button').click();
   await page.waitForFunction(()=>!document.querySelector('#export-button').disabled);await page.waitForTimeout(600);
-  assert.equal(cancelledDownloads,0);assert.match(await page.locator('#notice').innerText(),/Exportação cancelada/);page.off('download',observeDownload);check(staticMode?'Progresso e botão Cancelar CSV interrompem a coleta sem baixar arquivo parcial':'Cancelar CSV interrompe a coleta sem baixar arquivo parcial');
+  assert.equal(cancelledDownloads,0);assert.match(await page.locator('#notice').innerText(),/Exportação cancelada/);page.off('download',observeDownload);check('Progresso e botão Cancelar CSV interrompem a coleta sem baixar arquivo parcial');
   await search('lenta-ui');assert.equal(await page.locator('#search-button').isVisible(),false);assert(await page.locator('#cancel-button').isVisible());
   await page.locator('#cancel-button').click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Consulta cancelada'));
   assert(await page.locator('#search-button').isVisible());assert.equal(await page.locator('#cancel-button').isVisible(),false);check('Cancelar substitui Pesquisar durante o carregamento e restaura o botão ao cancelar');
@@ -211,7 +208,7 @@ try {
   }
   await page.setViewportSize({width:390,height:844});await page.locator('#filters-button').click();assert(await page.locator('#filters-dialog').isVisible());await page.locator('#filters-dialog .close-dialog[aria-label="Fechar"]').click();check('Cabeçalho em linha única com rolagem acessível e painéis sem overflow da página');
   if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:process.env.COMPRAS_QA_SCREENSHOT_DIR+'/mobile.png',fullPage:true});
-  if(staticMode){assert.deepEqual(localApiRequests,[]);check('Distribuição estática executa todas as ações sem API local');}
+  {assert.deepEqual(localApiRequests,[]);check('Distribuição estática executa todas as ações sem API local');}
   assert.deepEqual(errors,[]);check('Sem erros JavaScript não tratados');
   console.log(JSON.stringify({checks:checks.length,passed:checks,errors}));
 }finally{await browser.close();await app.close();}

@@ -1,6 +1,6 @@
 # Compras Web
 
-Aplicação para pesquisar editais e avisos de contratações, atas de registro de preços e contratos públicos diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A distribuição estática executa consultas, filtros e geração de CSV no navegador, em um Web Worker. A hospedagem entrega somente arquivos; não precisa executar Node.js, API própria ou proxy. A distribuição Node.js permanece disponível como alternativa e para consumidores da API HTTP.
+Aplicação para pesquisar editais e avisos de contratações, atas de registro de preços e contratos públicos diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A distribuição estática executa consultas, filtros e geração de CSV no navegador, em um Web Worker. A hospedagem entrega somente arquivos; não precisa executar Node.js, API própria ou proxy.
 
 Texto, filtros, ordenação e paginação são enviados ao PNCP. Cada pesquisa consulta novamente a fonte. Os resultados ficam em memória durante o uso; a aplicação não requer banco de dados nem volume persistente.
 
@@ -10,13 +10,13 @@ Para desenvolver e gerar os arquivos, requer **Node.js 22.12 ou superior**, com 
 
 ```sh
 npm ci
-npm run dev:browser
+npm run dev
 ```
 
 Abra `http://localhost:8000`. Para usar dados fictícios explicitamente:
 
 ```sh
-npm run demo:browser
+npm run demo
 ```
 
 A demonstração identifica sua fonte e contém 64 contratações, 24 atas e 32 contratos, incluindo itens e listagens relacionadas. Ela também pode ser escolhida com `?demo=1` na URL da versão estática. Falhas de acesso ao PNCP nunca ativam a demonstração automaticamente.
@@ -24,21 +24,11 @@ A demonstração identifica sua fonte e contém 64 contratações, 24 atas e 32 
 Para gerar e verificar a distribuição:
 
 ```sh
-npm run build:browser
-npm run preview:browser
+npm run build
+npm run preview
 ```
 
 Publique **o conteúdo de `dist-browser/`** em uma hospedagem estática. Funciona na raiz e em `/compras-web/`, com assets locais. Não abra o HTML por `file://`. A configuração pública está em [`public/browser-config.json`](public/browser-config.json); consulte [Configuração](docs/configuracao.md) e [Hospedagem estática](docs/hospedagem-estatica.md).
-
-## Alternativa Node.js
-
-```sh
-npm start
-# ou dados fictícios
-npm run demo
-```
-
-Abra `http://localhost:8000`. Esse modo mantém a API HTTP e consulta o PNCP pelo servidor. Para personalizar porta, proxy e limites, use [`.env.example`](.env.example) e o [guia de configuração](docs/configuracao.md). Os dois modos compartilham filtros, projeções, validações e conferências de coleta.
 
 ## Usar a interface
 
@@ -57,97 +47,30 @@ O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 
 
 | Comando | Finalidade |
 | --- | --- |
-| `npm run dev:browser` | Desenvolvimento estático com Vite |
-| `npm run demo:browser` | Desenvolvimento estático com fonte fictícia |
-| `npm run build:browser` | Compila aplicação e Worker em `dist-browser/` |
-| `npm run preview:browser` | Serve somente o artefato estático para verificação |
-| `npm run test:browser` | Testa interface estática, CORS controlado, artefato e CSV de 10.000 documentos |
-| `npm run test:ui` | Testa a interface no modo Node.js |
-| `npm run dev` | Servidor com reinício e recarga automática ao alterar a aplicação |
-| `npm run dev -- --demo` | Desenvolvimento com dados fictícios |
-| `npm test` | Suíte automatizada com o runner nativo do Node.js |
-| `npm run build` | Recria a distribuição em `dist/` |
-| `npm run benchmark:demo` | Mede pesquisa, paginação e exportação com fonte sintética |
+| `npm start` ou `npm run dev` | Desenvolvimento com Vite e recarga automática |
+| `npm run demo` | Desenvolvimento com fonte fictícia |
+| `npm run build` | Compila aplicação e Worker em `dist-browser/` |
+| `npm run preview` | Serve o artefato estático para verificação local |
+| `npm test` | Testa núcleo, filtros, interface e comunicação com o Worker |
+| `npm run test:browser` | Testa layout, CORS, artefato estático e CSV de 10.000 documentos |
 
-O modo de desenvolvimento Node.js observa `src/`, `public/`, `.env`, `package.json` e `package-lock.json`. As tarefas do editor Zed estão em [`.zed/tasks.json`](.zed/tasks.json). O [guia de validação](docs/validacao.md) descreve a cobertura, a verificação HTTP e o teste opcional em navegador, incluindo suas limitações atuais.
-
-## API da distribuição Node.js
-
-As rotas abaixo existem somente quando o servidor Node.js é utilizado. A versão estática chama métodos locais no Worker e acessa diretamente o PNCP.
-
-| Método | Rota | Finalidade |
-| --- | --- | --- |
-| GET | `/api/schema` | Colunas, filtros disponíveis, ordenações e limites |
-| POST | `/api/query` | Consulta de uma página |
-| GET | `/api/pncp/filters` | Opções dos domínios de filtros |
-| GET | `/api/pncp/suggest` | Sugestões para filtros de lista habilitados |
-| GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/itens` | Quantidade e página de itens |
-| GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/arquivos` | Arquivos da contratação e links de download |
-| GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/atas` | Atas de registro de preço vinculadas |
-| GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/contratos` | Contratos/empenhos vinculados |
-| GET | `/api/contratacoes/{cnpj}/{ano}/{sequencial}/historico` | Eventos, documentos e justificativas |
-| GET | `/api/atas/{cnpj}/{anoCompra}/{sequencialCompra}/{sequencialAta}` | Dados completos da ata |
-| GET | `/api/atas/{cnpj}/{anoCompra}/{sequencialCompra}/{sequencialAta}/{recurso}` | Partes envolvidas, contratos, arquivos e histórico |
-| GET | `/api/contratos/{cnpj}/{ano}/{sequencial}` | Dados completos do contrato |
-| GET | `/api/contratos/{cnpj}/{ano}/{sequencial}/{recurso}` | Empenhos, instrumentos de cobrança, termos, arquivos e histórico |
-| GET | `/api/contratos/{cnpj}/{ano}/{sequencial}/{recurso}/{sequencialRegistro}` | Detalhes de empenhos/instrumentos ou arquivos de termos |
-| POST | `/api/export` | Nova coleta e download CSV |
-| GET | `/api/health` | Estado do processo e dados da última chamada ao PNCP |
-
-Exemplo de corpo JSON para `POST /api/query`:
-
-```json
-{
-  "api_version": "2.0",
-  "document_type": "edital",
-  "q": "firewall",
-  "status": "todos",
-  "pncp_filters": {"ufs": ["DF"]},
-  "order": "-data",
-  "page": 1,
-  "size": 100
-}
-```
-
-O contrato completo, os tipos dos filtros e os formatos das respostas estão em [Consultas ao PNCP](docs/consultas-pncp.md). `/api/health` verifica o processo; para confirmar o acesso ao PNCP, execute também uma pesquisa.
-
-Não é necessário preencher `PNCP_VALIDATED_FILTERS` para usar o catálogo. O [guia dos filtros](docs/viabilidade-filtros-pncp.md) registra a implementação e a evidência disponível. A homologação de todas as combinações na fonte real continua limitada pela disponibilidade do PNCP. Ao alterar o normativo legal, a interface confere os amparos selecionados e remove os incompatíveis antes de aplicar a pesquisa.
+Node.js é usado apenas nessas ferramentas. A aplicação publicada executa no navegador; não há servidor da aplicação, API própria ou dependências a instalar na hospedagem. As tarefas do editor Zed estão em [`.zed/tasks.json`](.zed/tasks.json).
 
 ## Distribuir e publicar
 
-A versão estática usa `npm run build:browser` e publica `dist-browser/`, conforme o [guia de hospedagem estática](docs/hospedagem-estatica.md). Antes de substituir uma implantação operacional, execute `pncp-diagnostic.html` no domínio HTTPS de destino e confira os navegadores utilizados. Consulte o [alcance dos testes](docs/validacao.md).
+Execute `npm run build` e publique **o conteúdo de `dist-browser/`** por HTTPS. O [guia de hospedagem estática](docs/hospedagem-estatica.md) descreve GitHub Pages, Cloudflare Pages, cabeçalhos e atualização dos arquivos. O workflow de GitHub Pages é manual.
 
-Para executar a distribuição Node.js:
-
-```sh
-npm run build
-cd dist
-npm ci --omit=dev
-npm start
-```
-
-O build remove o conteúdo anterior de `dist/`. A `.env` local não é copiada: configure as variáveis no destino ou crie ali a configuração necessária.
-
-O [Dockerfile](Dockerfile) usa Node.js 24 e executa a aplicação com usuário sem privilégios:
-
-```sh
-docker build -t compras-web-pncp .
-docker run --rm -p 8000:8000 compras-web-pncp
-```
-
-Para personalizar o contêiner, use `-e NOME=valor` ou `--env-file .env`; ao reutilizar a configuração local, acrescente `-e HOST=0.0.0.0` para aceitar conexões externas ao contêiner.
-
-O [guia Railway](docs/railway.md) explica como publicar o serviço e obter um domínio HTTPS. Os limites de chamadas são por processo; a configuração fornecida usa uma réplica. Os comandos de execução limitam o heap a 512 MiB, e o consumo total inclui buffers e outras alocações.
+A configuração pública é `browser-config.json`. Cada navegador precisa acessar diretamente o PNCP com CORS válido. Use `pncp-diagnostic.html` no domínio publicado para verificar essa integração. O [guia de validação](docs/validacao.md) distingue os testes sintéticos das medições reais.
 
 ## Documentação
 
 - [Arquitetura e organização do código](docs/arquitetura.md)
-- [Viabilidade de execução no navegador sem backend próprio](docs/viabilidade-browser.md)
-- [Plano de implementação da versão para navegador](docs/plano-implementacao-browser.md)
+- [Execução no navegador e alcance da homologação](docs/viabilidade-browser.md)
+- [Implementação e verificações para publicação](docs/plano-implementacao-browser.md)
 - [Configuração, rede e limites](docs/configuracao.md)
-- [Contrato da API e consultas ao PNCP](docs/consultas-pncp.md)
+- [Serviço do navegador, filtros e consultas ao PNCP](docs/consultas-pncp.md)
+- [Implementação e verificação dos filtros](docs/viabilidade-filtros-pncp.md)
 - [Testes e validação](docs/validacao.md)
-- [Hospedagem estática sem backend](docs/hospedagem-estatica.md)
-- [Publicação no Railway](docs/railway.md)
+- [Hospedagem estática](docs/hospedagem-estatica.md)
 
 Os avisos de licença do Tabulator, de lossless-json e dos ícones usados na interface estão em [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

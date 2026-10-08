@@ -1,10 +1,10 @@
+import { csvBytes } from './helpers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { schema } from '../src/schema.js';
 import { validateQuery } from '../src/validation.js';
-import { PncpClient, operation, normalizeCatalog } from '../src/pncp.js';
-import { QueryService } from '../src/query.js';
-import { createApplication } from '../src/server.js';
+import { PncpClient, operation, normalizeCatalog } from '../src/pncp-core.js';
+import { QueryService } from '../src/query-core.js';
 import { demoFetch } from '../src/demo.js';
 import { config, query, service, document, json } from './helpers.js';
 
@@ -41,7 +41,7 @@ test('FILTER-03: consulta, CSV e demonstração exercitam os seis filtros docume
     const r=await s.execute(query({pncp_filters:{[name]:values}}));assert.equal(r.total,64);assert(r.data.every(d=>[d._raw[raw]].flat().some(v=>values.includes(v))));
   }
   const pncp_filters={srp:true,codigo_ibge:'5300108',tipos:['1'],normativos_base:['1'],amparos_legais:['1','19'],fontes_orcamentarias:['4']};
-  const csv=await s.export(query({pncp_filters}));assert.equal(csv.metadata.data.length,32);assert.equal(csv.csv.toString('utf8').split('\r\n').length,34);assert(csv.metadata.data.every(d=>d._raw.srp===true));
+  const csv=await s.export(query({pncp_filters}));assert.equal(csv.metadata.exported_rows,32);assert.equal(csvBytes(csv).toString('utf8').split('\r\n').length,34);assert((await s.execute(query({pncp_filters,size:100}))).data.every(d=>d._raw.srp===true));
 });
 
 test('FILTER-04: IDs fechados e amparo incompatível são recusados antes da busca',async()=>{
@@ -73,39 +73,8 @@ test('FILTER-07: margem de preferência confere a opção única no domínio rem
   await s.service.execute(query({pncp_filters:{tipos_margens_preferencia:'1'}}));assert.equal(s.requests.at(-1).searchParams.get('tipos_margens_preferencia'),'1');
 });
 
-test('FILTER-08: API conecta catálogos, distingue sugestões e bloqueia campos arbitrários',async t=>{
-  const app=createApplication(config({DEMO_MODE:true,PNCP_VALIDATED_FILTERS:'municipios_fornecedor'}));
-  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(()=>app.close());
-  const base=`http://127.0.0.1:${app.server.address().port}`;
-  for(const [field,id]of [['paises_fornecedor','BRA'],['portes_fornecedor','1'],['naturezas_juridicas','0000']]){
-    const response=await fetch(`${base}/api/pncp/filters?campo=${field}`);assert.equal(response.status,200);const body=await response.json();assert.equal(body.filters[field][0].id,id);assert.deepEqual(body.partial_domains,[]);
-  }
-  assert.equal((await fetch(base+'/api/pncp/filters?campo=../../private')).status,400);
-  assert.equal((await fetch(base+'/api/pncp/filters?campo=tipos_contrato')).status,400);
-  const filters=await (await fetch(base+'/api/pncp/filters')).json();assert(filters.partial_domains.includes('municipios_fornecedor'));
-  const enumSuggest=await fetch(base+'/api/pncp/suggest?campo=tipos_item&q=servico');assert.equal(enumSuggest.status,400);
-});
 
 test('FILTER-09: falha de proxy com código numérico mantém erro de transporte',async()=>{
   const cfg=config(),client=new PncpClient(cfg,{fetcher:async()=>{throw new TypeError('fetch failed',{cause:{code:403}});}}),op=operation(cfg);
   try{await assert.rejects(client.get('https://pncp.gov.br/api/search/',op),e=>e.code==='PNCP_TRANSPORT_ERROR' && e.status===503);}finally{op.finish();}
-});
-
-test('FILTER-10: sugestões parciais encaminham município do fornecedor e preservam unidade textual',async t=>{
-  const seen=[];
-  const app=createApplication(config({PNCP_VALIDATED_FILTERS:'municipios_fornecedor,unidades_medida'}),{fetcher:async url=>{
-    const u=new URL(url);seen.push(u);
-    if(u.pathname.endsWith('/suggest'))return json({items:u.searchParams.get('campo')==='unidades_medida'?[{id:'Unidade ',nome:'Unidade '},{id:'UNIDADE',nome:'UNIDADE'}]:[{id:'999999',nome:'São Paulo'}]});
-    if(u.pathname.endsWith('/filters'))return json({filters:{item_unidades_medida:[{id:'UNIDADE'}]}});
-    return json({items:[document(1)],total:1});
-  }});
-  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(()=>app.close());
-  const base=`http://127.0.0.1:${app.server.address().port}`;
-  for(const campo of ['municipios_fornecedor','unidades_medida']){
-    const r=await fetch(base+`/api/pncp/suggest?campo=${campo}&q=Unidade&tam_pagina=20`);assert.equal(r.status,200);const body=await r.json();
-    if(campo==='unidades_medida')assert.deepEqual(body.items.map(o=>o.id),['Unidade ','UNIDADE']);else assert.equal(body.items[0].id,'999999');
-    assert.equal(seen.at(-1).searchParams.get('campo'),campo);
-  }
-  const r=await fetch(base+'/api/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(query({pncp_filters:{municipios_fornecedor:['999999'],unidades_medida:['Unidade ']}}))});
-  assert.equal(r.status,200);assert.equal(seen.at(-1).searchParams.get('unidades_medida'),'Unidade ');assert(!seen.some(u=>u.pathname.endsWith('/filters')));
 });

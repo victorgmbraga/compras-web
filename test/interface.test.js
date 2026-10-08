@@ -1,13 +1,12 @@
+import { createApplicationUI } from '../public/app.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createApplicationUI } from '../public/app.js';
-import { createHttpService } from '../public/http-service.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { schema } from '../src/schema.js';
 import { demoFetch,demoContracts,demoAtas } from '../src/demo.js';
-import { PncpClient } from '../src/pncp.js';
-import { QueryService } from '../src/query.js';
+import { PncpClient } from '../src/pncp-core.js';
+import { QueryService } from '../src/query-core.js';
 import { config, service, document, query } from './helpers.js';
 import { project } from '../src/adapter.js';
 
@@ -34,53 +33,51 @@ async function interfaceFixture(options={}) {
   for(const match of html.matchAll(/<([a-z]+)[^>]*\bid="([^"]+)"[^>]*>/g)){const node=new Element(match[1]);node.id=match[2];node.hidden=match[0].includes(' hidden');}
   const dom={body:new Element('body'),getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),createTextNode:text=>text,addEventListener(){},querySelectorAll:selector=>selector==='dialog'?all.filter(n=>n.tagName==='dialog'):[],querySelector(){return null;}};
   const cfg=config({DEMO_MODE:true,...options.config});
-  const backend=new QueryService(cfg,new PncpClient(cfg,{fetcher:options.itemFetcher || demoFetch})),requests=[],itemRequests=[],relatedRequests=[],documentRequests=[],childRequests=[],exportRequests=[],domainRequests=[],suggestRequests=[];
-  const queryHandler=options.queryHandler,exportHandler=options.exportHandler,domainHandler=options.domainHandler,relatedHandler=options.relatedHandler,itemHandler=options.itemHandler;
-  const optionsDocumentHandler=options.documentHandler;
-  let detailFailures=options.detailFailures || 0;
-  const fetcher=async(url,options={})=>{
-    try{
-      if(url==='/api/schema')return Response.json(schema(cfg));
-      if(url.startsWith('/api/pncp/filters')){
-        domainRequests.push(url);if(domainHandler)return domainHandler(url,options,backend);
-        const p=new URL(url,'http://localhost').searchParams;return Response.json(await backend.domains(p.get('tipos_documento') || 'edital',p.get('normativos_base')?.split('|'),options.signal,null,p.get('campo')));
-      }
-      if(url.startsWith('/api/pncp/suggest')){suggestRequests.push(url);const p=new URL(url,'http://localhost').searchParams;return Response.json(await backend.suggest(p.get('tipos_documento') || 'edital',p.get('campo'),p.get('q'),Number(p.get('tam_pagina')),options.signal));}
-      if(url==='/api/query'){const input=JSON.parse(options.body);requests.push(input);if(queryHandler)return await queryHandler(input,options,backend);return Response.json(await backend.execute(input,options.signal));}
-      if(url==='/api/export') {
-        const input=JSON.parse(options.body);exportRequests.push(input);
-        if(exportHandler)return await exportHandler(input,options,backend);
-        const result=await backend.export(input.query,options.signal);
-        return new Response(result.csv,{headers:{'Content-Type':'text/csv','Content-Disposition':'attachment; filename="compras-demo.csv"','X-Exported-Rows':String(result.metadata.data.length),'X-PNCP-Started-At':result.metadata.started_at,'X-PNCP-Finished-At':result.metadata.finished_at}});
-      }
-      if(url.startsWith('/api/atas/') || url.startsWith('/api/contratos/')){
-        const parsed=new URL(url,'http://localhost'),parts=parsed.pathname.split('/').slice(2),[kind,cnpj,ano,first,...rest]=parts;
-        const type=kind==='atas'?'ata':'contrato',sequencial=type==='ata'?rest.shift():first,resource=rest.shift(),child=rest.shift();
-        const doc={type,cnpj,ano,sequencial,...(type==='ata'?{sequencial_compra:first}:{})};
-        if(child){childRequests.push(url);return Response.json(await backend.contractChild(doc,resource,child,options.signal));}
-        if(!resource){documentRequests.push(url);if(optionsDocumentHandler)return optionsDocumentHandler(url,options,backend);return Response.json(await backend.documentDetails(doc,options.signal));}
-        relatedRequests.push(url);if(relatedHandler)return relatedHandler(url,options,backend);
-        return Response.json(await backend.documentRelated(doc,resource,Number(parsed.searchParams.get('pagina')),10,options.signal));
-      }
-      if(url.startsWith('/api/contratacoes/')){
-        if(!url.includes('/itens?')){
-          relatedRequests.push(url);if(relatedHandler)return relatedHandler(url,options,backend);
-          const [,cnpj,ano,sequencial,resource]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/(\w+)/),params=new URL(url,'http://localhost').searchParams;
-          return Response.json(await backend.related({cnpj,ano,sequencial},resource,Number(params.get('pagina')),10,options.signal));
-        }
-        itemRequests.push(url);if(detailFailures-->0)return Response.json({error:{code:'PNCP_HTTP_ERROR',message:'Falha temporária dos itens.'}},{status:503});
-        if(itemHandler)return itemHandler(url,options,backend);
-        const [,cnpj,ano,sequencial]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/itens/),params=new URL(url,'http://localhost').searchParams;
-        return Response.json(await backend.details({cnpj,ano,sequencial},Number(params.get('pagina')),100,options.signal));
-      }
-      throw new Error(`Unexpected request: ${url}`);
-    }catch(error){if(error.name==='AbortError')throw error;return Response.json({error:{code:error.code,message:error.message,details:error.details}},{status:error.status || 500});}
+  const provider=async(url,init)=>{
+    const result=await (options.itemFetcher || demoFetch)(url,init);
+    return result instanceof Response?result:Response.json(result);
   };
+  const core=new QueryService(cfg,new PncpClient(cfg,{fetcher:provider})),requests=[],itemRequests=[],relatedRequests=[],documentRequests=[],childRequests=[],exportRequests=[],domainRequests=[],suggestRequests=[];
+  let detailFailures=options.detailFailures || 0;
+  const service={async call(method,payload={},callOptions={}) {
+    callOptions.signal?.throwIfAborted();
+    let result;
+    switch(method) {
+      case 'schema':result=schema(cfg);break;
+      case 'execute':
+        requests.push(payload.query);
+        result=options.queryHandler?await options.queryHandler(payload.query,callOptions,core):await core.execute(payload.query,callOptions.signal);break;
+      case 'export':
+        exportRequests.push(payload);
+        result=options.exportHandler?await options.exportHandler(payload,callOptions,core):await core.export(payload.query,callOptions.signal);break;
+      case 'domains':
+        domainRequests.push(payload);
+        result=options.domainHandler?await options.domainHandler(payload,callOptions,core):await core.domains(payload.type,payload.normatives,callOptions.signal,null,payload.field);break;
+      case 'suggest':
+        suggestRequests.push(payload);result=await core.suggest(payload.type,payload.field,payload.q,payload.size,callOptions.signal);break;
+      case 'details':
+        itemRequests.push(payload);
+        if(detailFailures-->0)throw Object.assign(new Error('Falha temporária dos itens.'),{code:'PNCP_HTTP_ERROR'});
+        result=options.itemHandler?await options.itemHandler(payload,callOptions,core):await core.details(payload.document,payload.page,payload.size,callOptions.signal);break;
+      case 'documentDetails':
+        documentRequests.push(payload);
+        result=options.documentHandler?await options.documentHandler(payload,callOptions,core):await core.documentDetails(payload.document,callOptions.signal);break;
+      case 'documentRelated':case 'related':
+        relatedRequests.push(payload);
+        result=options.relatedHandler?await options.relatedHandler(payload,callOptions,core):await core.documentRelated(payload.document,payload.resource,payload.page,payload.size,callOptions.signal);break;
+      case 'contractChild':
+        childRequests.push(payload);result=await core.contractChild(payload.document,payload.resource,payload.sequence,callOptions.signal);break;
+      default:throw new Error(`Unexpected method: ${method}`);
+    }
+    callOptions.signal?.throwIfAborted();
+    if(result?.error)throw Object.assign(new Error(result.error.message),result.error);
+    return method==='export'?{mime:'text/csv; charset=utf-8',filename:'compras-demo.csv',...result}:result;
+  }};
   class Table {
     constructor(selector,options){this.options=options;this.size=options.paginationSize;this.handlers={};}on(name,fn){this.handlers[name]=fn;}clearSort(){}getPageSize(){return this.size;}
-    setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('/api/query',{page,size:this.size});}redraw(){}clearData(){}setColumns(columns){this.options.columns=columns;}
+    setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('query',{page,size:this.size});}redraw(){}clearData(){}setColumns(columns){this.options.columns=columns;}
   }
-  const uiCore=createApplicationUI(createHttpService({fetcher}),{document:dom,window:{addEventListener(){}},Tabulator:Table});
+  const uiCore=createApplicationUI(service,{document:dom,window:{addEventListener(){}},Tabulator:Table});
   await uiCore.ready;
   await settle();assert.equal(nodes.get('startup-error').hidden,true);
   const buildTable=async()=>{uiCore.state.table.handlers.tableBuilt();await Promise.allSettled(pending);await settle();};
@@ -88,7 +85,7 @@ async function interfaceFixture(options={}) {
   const state=()=>structuredClone(uiCore.state.query);
   const openDocument=doc=>uiCore.state.table.handlers.rowClick({}, {getData:()=>doc});
   const tableColumns=()=>uiCore.state.table.options.columns;
-  const request=params=>uiCore.requestTable('/api/query',{},params);
+  const request=params=>uiCore.requestTable('query',{},params);
   const footer=()=>uiCore.state.table.options.paginationCounter();
   const draft=()=>structuredClone(uiCore.state.draft);
   const setFilter=(name,value)=>uiCore.setDraftFilter(name,value);
@@ -116,7 +113,7 @@ test('DETAIL-TABS-02: teclado percorre abas sem novas chamadas e mantém apenas 
 });
 test('DETAIL-TABS-03: abertura é imediata e consulta as cinco listas com no máximo duas requisições simultâneas',async()=>{
   let active=0,peak=0;const queued=[],started=[];
-  const handler=(url,options,backend)=>{active++;peak=Math.max(peak,active);started.push(url);return new Promise(resolve=>queued.push(async()=>{const [,cnpj,ano,sequencial,resource]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/(\w+)/);const result=resource==='itens'?await backend.details({cnpj,ano,sequencial},1,100,options.signal):await backend.related({cnpj,ano,sequencial},resource,1,10,options.signal);active--;resolve(Response.json(result));}));};
+  const handler=(payload,options,core)=>{active++;peak=Math.max(peak,active);started.push(payload);return new Promise(resolve=>queued.push(async()=>{const {document,resource,page,size}=payload;const result=resource?await core.documentRelated(document,resource,page,size,options.signal):await core.details(document,page,size,options.signal);active--;resolve(result);}));};
   const ui=await interfaceFixture({itemHandler:handler,relatedHandler:handler});const opening=ui.openDocument(project(document(1)));await settle();assert.equal(ui.nodes.get('details-dialog').open,true);assert.equal(started.length,2);assert.equal(ui.nodes.get('detail-tab-detalhes').getAttribute('aria-selected'),'true');assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (…)');
   for(let round=0;round<4;round++){await Promise.all(queued.splice(0).map(release=>release()));await settle();}
   await opening;assert.equal(started.length,5);assert.equal(peak,2);assert.equal(active,0);assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (12)');
@@ -139,7 +136,7 @@ test('RELATED-UI-02: paginação de arquivos e histórico é independente dos it
   assert.equal(ui.itemRequests.length,1);assert.equal(ui.relatedRequests.length,8);assert.equal(ui.nodes.get('detail-tab-arquivos').textContent,'Arquivos (12)');assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (12)');
 });
 test('RELATED-UI-03: falha em uma listagem permite repetir e não impede as outras',async()=>{
-  let failures=1;const ui=await interfaceFixture({relatedHandler:async(url,options,backend)=>{if(url.includes('/arquivos?') && failures-->0)return Response.json({error:{message:'Arquivos indisponíveis.'}},{status:503});const [,cnpj,ano,sequencial,resource]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/(\w+)/);return Response.json(await backend.related({cnpj,ano,sequencial},resource,1,10,options.signal));}});
+  let failures=1;const ui=await interfaceFixture({relatedHandler:async(payload,options,core)=>{if(payload.resource==='arquivos' && failures-->0)throw new Error('Arquivos indisponíveis.');return core.documentRelated(payload.document,payload.resource,payload.page,payload.size,options.signal);}});
   await ui.openDocument(project(document(1)));const sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section'),files=sections[0];assert.equal(files.children[1].children[0].hidden,false);assert.equal(files.children[2].textContent,'Arquivos indisponíveis.');assert.equal(ui.nodes.get('detail-tab-arquivos').textContent,'Arquivos (—)');
   const atas=sections[1];assert.equal(atas.children[3].children.length,3);assert.equal(ui.nodes.get('detail-tab-atas').textContent,'Atas de Registro de Preço (3)');
   await files.children[1].children[0].fire('click');assert.equal(files.children[3].children.length,10);assert.equal(files.children[1].children[0].hidden,true);assert.equal(ui.itemRequests.length,1);
@@ -151,9 +148,9 @@ test('RELATED-UI-04: HTTP 404 de contratos exibe zero, listas vazias e ausência
   const count=ui.relatedRequests.length;await ui.openDocument(project(document(1,{numero_sequencial:null})));sections=ui.nodes.get('details-content').children.filter(n=>n.className==='related-section');for(const section of sections){assert.match(section.children[2].textContent,/não forneceu CNPJ/);assert.match(ui.nodes.get(`detail-tab-${section.dataset.resource}`).textContent,/\(—\)$/);}assert.equal(ui.relatedRequests.length,count);
 });
 test('RELATED-UI-05: fechar os detalhes cancela todas as consultas e descarta uma resposta atrasada',async()=>{
-  const resolutions=[],signals=[];const ui=await interfaceFixture({relatedHandler:(url,options,backend)=>{const [,cnpj,ano,sequencial,resource]=url.match(/contratacoes\/(\d+)\/(\d+)\/(\d+)\/(\w+)/);if(sequencial==='1'){signals.push(options.signal);return new Promise(resolve=>resolutions.push(resolve));}return backend.related({cnpj,ano,sequencial},resource,1,10,options.signal).then(Response.json);}});
+  const resolutions=[],signals=[];const ui=await interfaceFixture({relatedHandler:(payload,options,core)=>{if(payload.document.sequencial==='1'){signals.push(options.signal);return new Promise(resolve=>resolutions.push(resolve));}return core.documentRelated(payload.document,payload.resource,payload.page,payload.size,options.signal);}});
   const pending=ui.openDocument(project(document(1)));await settle();const section=ui.nodes.get('details-content').children.find(n=>n.className==='related-section');ui.nodes.get('details-dialog').close();assert(signals.length>0);assert(signals.every(signal=>signal.aborted));
-  await ui.openDocument(project(document(2)));for(const resolve of resolutions)resolve(Response.json({page:1,size:10,data:[{titulo:'Resposta antiga'}],total:1,total_pages:1,has_more:false}));await pending;assert.equal(section.children[3].children.length,0);assert(!ui.all.some(n=>n.textContent==='Resposta antiga'));assert(!ui.relatedRequests.some(url=>/\/2026\/1\/(contratos|historico)/.test(url)));
+  await ui.openDocument(project(document(2)));for(const resolve of resolutions)resolve(({page:1,size:10,data:[{titulo:'Resposta antiga'}],total:1,total_pages:1,has_more:false}));await pending;assert.equal(section.children[3].children.length,0);assert(!ui.all.some(n=>n.textContent==='Resposta antiga'));assert(!ui.relatedRequests.some(p=>p.document.sequencial==='1' && ['contratos','historico'].includes(p.resource)));
 });
 
 test('HEADER-UI-01: ordenação e todas as ações dos resultados ficam no cabeçalho',async()=>{
@@ -193,9 +190,9 @@ test('EXPORT-UI-01: um clique baixa o CSV dos últimos critérios concluídos se
 
 test('EXPORT-UI-02: geração desabilita o botão e impede exportações duplicadas',async()=>{
   let finish;
-  const ui=await interfaceFixture({exportHandler:(input,options,backend)=>new Promise(resolve=>{finish=async()=>{
-    const result=await backend.export(input.query,options.signal);
-    resolve(new Response(result.csv,{headers:{'X-Exported-Rows':'64','X-PNCP-Started-At':result.metadata.started_at,'X-PNCP-Finished-At':result.metadata.finished_at}}));
+  const ui=await interfaceFixture({exportHandler:(input,options,core)=>new Promise(resolve=>{finish=async()=>{
+    const result=await core.export(input.query,options.signal);
+    resolve(result);
   };})});
   const exporting=ui.nodes.get('export-button').fire('click');await settle();
   assert.equal(ui.nodes.get('export-button').disabled,true);assert.equal(ui.nodes.get('export-button').getAttribute('aria-busy'),'true');
@@ -206,7 +203,7 @@ test('EXPORT-UI-02: geração desabilita o botão e impede exportações duplica
 });
 
 test('EXPORT-UI-03: falha é exibida acima da tabela e permite tentar exportar novamente',async()=>{
-  const ui=await interfaceFixture({exportHandler:()=>Response.json({error:{code:'EXPORT_TOO_BROAD',message:'Delimite a pesquisa.'}},{status:422})});
+  const ui=await interfaceFixture({exportHandler:()=>({error:{code:'EXPORT_TOO_BROAD',message:'Delimite a pesquisa.'}})});
   await ui.nodes.get('export-button').fire('click');
   assert.equal(ui.downloads.length,0);assert.equal(ui.nodes.get('notice').className,'notice error');
   assert.match(ui.nodes.get('notice').textContent,/Falha ao exportar CSV: Delimite a pesquisa/);
@@ -216,7 +213,7 @@ test('EXPORT-UI-03: falha é exibida acima da tabela e permite tentar exportar n
 
 test('EXPORT-UI-04: uma nova consulta cancela a exportação e descarta seu download tardio',async()=>{
   let finish,signal;
-  const ui=await interfaceFixture({exportHandler:(input,options)=>{signal=options.signal;return new Promise(resolve=>{finish=()=>resolve(new Response('csv antigo'));});}});
+  const ui=await interfaceFixture({exportHandler:(input,options)=>{signal=options.signal;return new Promise(resolve=>{finish=()=>resolve({chunks:[new TextEncoder().encode('csv antigo')],metadata:{exported_rows:1}});});}});
   const exporting=ui.nodes.get('export-button').fire('click');await settle();
   await ui.request({page:1});assert.equal(signal.aborted,true);assert.equal(ui.nodes.get('export-button').disabled,false);
   finish();await exporting;assert.equal(ui.downloads.length,0);assert.equal(ui.nodes.get('notice').hidden,true);
@@ -235,9 +232,9 @@ test('STARTUP-UI-01: abrir a aplicação consulta a primeira página sem texto o
 
 test('STARTUP-UI-02: falha da pesquisa inicial usa o aviso de consulta e permite tentar novamente',async()=>{
   let fail=true;
-  const ui=await interfaceFixture({queryHandler:async(input,options,backend)=>fail
-    ?Response.json({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}},{status:503})
-    :Response.json(await backend.execute(input,options.signal))});
+  const ui=await interfaceFixture({queryHandler:async(input,options,core)=>fail
+    ?({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}})
+    :(await core.execute(input,options.signal))});
   assert.equal(ui.requests.length,1);assert.equal(ui.nodes.get('startup-error').hidden,true);
   assert.match(ui.nodes.get('notice').textContent,/PNCP indisponível/);
   assert.equal(ui.nodes.get('retry-button').hidden,false);assert.equal(ui.nodes.get('table-loader').hidden,true);
@@ -253,10 +250,10 @@ test('TABLE-FOOTER-01: total real no rodapé, aviso de janela no marcador e dema
     return Response.json({items:Array.from({length:size},(_,i)=>document((page-1)*size+i+1)),total});
   }});
   const ui=await interfaceFixture({queryHandler:async input=>{
-    if(fail)return Response.json({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}},{status:503});
+    if(fail)return ({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}});
     const result=await source.service.execute(input);
     if(extraWarning)result.warnings.push({code:'MISSING_IDENTITY',message:'Há documentos sem identidade de negócio na página.'});
-    return Response.json(result);
+    return (result);
   }});
   assert.equal(ui.footer(),ui.nodes.get('result-info'));assert.equal(ui.nodes.get('result-info').hidden,false);
   const result=await ui.request({page:1});
@@ -280,7 +277,7 @@ test('TABLE-FOOTER-01: total real no rodapé, aviso de janela no marcador e dema
 test('TABLE-FOOTER-02: intervalo usa os dados da página curta e apresenta zero para consulta vazia',async()=>{
   const source=service(Array.from({length:164},(_,i)=>document(i+1))),empty=service([]);
   let noResults=false;
-  const ui=await interfaceFixture({queryHandler:async input=>Response.json(await (noResults?empty:source).service.execute(input))});
+  const ui=await interfaceFixture({queryHandler:async input=>(await (noResults?empty:source).service.execute(input))});
   await ui.request({page:1});assert.equal(ui.nodes.get('result-range').textContent,'Exibindo 1-100 de ');
   await ui.request({page:2});assert.equal(ui.nodes.get('result-range').textContent,'Exibindo 101-164 de ');
   assert.equal(ui.nodes.get('result-title').textContent,'164 contratações');
@@ -294,7 +291,7 @@ test('TABLE-LOADER-01: consulta, atualização e paginação mostram loader; suc
   const ui=await interfaceFixture({deferTableBuilt:true,queryHandler:(input,{signal})=>new Promise((resolve,reject)=>{
     const abort=()=>reject(new DOMException('Consulta cancelada.','AbortError'));
     signal.addEventListener('abort',abort,{once:true});
-    waiting.push({finish:async()=>{signal.removeEventListener('abort',abort);resolve(Response.json(await source.service.execute(input)));},fail:()=>{signal.removeEventListener('abort',abort);resolve(Response.json({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}},{status:503}));}});
+    waiting.push({finish:async()=>{signal.removeEventListener('abort',abort);resolve((await source.service.execute(input)));},fail:()=>{signal.removeEventListener('abort',abort);resolve(({error:{code:'PNCP_UNAVAILABLE',message:'PNCP indisponível.'}}));}});
   })});
   const loader=ui.nodes.get('table-loader'),table=ui.nodes.get('results-table'),title=ui.nodes.get('table-loader-title');
   const busy=value=>{assert.equal(loader.hidden,!value);assert.equal(table.inert,value);assert.equal(table.getAttribute('aria-busy'),String(value));assert.equal(ui.nodes.get('search-button').hidden,value);assert.equal(ui.nodes.get('cancel-button').hidden,!value);};
@@ -315,7 +312,7 @@ test('TABLE-LOADER-02: resposta antiga não oculta o loader da consulta mais rec
   const source=service([document(1)]),waiting=[];
   const ui=await interfaceFixture({deferTableBuilt:true,queryHandler:input=>new Promise(resolve=>{
     // Simula uma fonte que entrega a resposta mesmo depois do cancelamento.
-    waiting.push(async()=>resolve(Response.json(await source.service.execute(input))));
+    waiting.push(async()=>resolve((await source.service.execute(input))));
   })});
   const first=ui.request({page:1}).catch(error=>error);await settle();
   const latest=ui.request({page:1});await settle();
@@ -359,7 +356,7 @@ test('DETAILS-UI-01: abrir uma linha carrega itens automaticamente e usa o link 
   const ui=await interfaceFixture(),doc=project(document(1,{item_url:'/compras/00000000000000/2026/1'}));
   const columns=ui.tableColumns();assert.equal(columns[0].field,'titulo');assert.equal(columns[0].visible,true);assert.equal(columns.find(c=>c.field==='municipio_nome').visible,true);
   await ui.openDocument(doc);assert.equal(ui.nodes.get('details-dialog').open,true);assert.equal(ui.itemRequests.length,1);
-  assert.equal(ui.itemRequests[0],'/api/contratacoes/00000000000000/2026/1/itens?pagina=1&tamanhoPagina=100');
+  assert.deepEqual(ui.itemRequests[0],{document:{type:'edital',cnpj:'00000000000000',ano:'2026',sequencial:'1'},page:1,size:100});
   assert(ui.all.some(n=>n.className==='item-card'));assert.equal(ui.all.find(n=>n.textContent==='Abrir no PNCP').href,'https://pncp.gov.br/app/editais/00000000000000/2026/1');
   assert(!ui.all.some(n=>n.textContent==='Atualizar itens'));
   assert.equal(ui.all.find(n=>n.textContent==='Tentar consultar itens').hidden,true);
@@ -378,10 +375,10 @@ test('DETAILS-UI-04: mostra 109 itens e mantém a última página sem oferecer u
   let total=109;const itemPages=[];
   const ui=await interfaceFixture({itemFetcher:url=>{
     const u=new URL(url);
-    if(u.pathname.endsWith('/itens/quantidade'))return Promise.resolve(Response.json(total));
+    if(u.pathname.endsWith('/itens/quantidade'))return Promise.resolve((total));
     if(u.pathname.endsWith('/itens')) {
       const page=Number(u.searchParams.get('pagina'));itemPages.push(page);
-      return Promise.resolve(Response.json(Array.from({length:total},(_,i)=>({numeroItem:i+1,descricao:`Item ${i+1}`})).slice((page-1)*100,page*100)));
+      return Promise.resolve((Array.from({length:total},(_,i)=>({numeroItem:i+1,descricao:`Item ${i+1}`})).slice((page-1)*100,page*100)));
     }
     return demoFetch(url);
   }});
@@ -405,7 +402,7 @@ test('DETAILS-UI-04: mostra 109 itens e mantém a última página sem oferecer u
 });
 
 test('DETAILS-UI-05: contratação sem itens mostra total zero e oculta a paginação',async()=>{
-  const ui=await interfaceFixture({itemFetcher:url=>new URL(url).pathname.endsWith('/itens/quantidade')?Promise.resolve(Response.json(0)):demoFetch(url)});
+  const ui=await interfaceFixture({itemFetcher:url=>new URL(url).pathname.endsWith('/itens/quantidade')?Promise.resolve((0)):demoFetch(url)});
   await ui.openDocument(project(document(1)));
   const section=ui.nodes.get('details-content').children.find(n=>n.className==='items-section'),[toolbar,itemStatus,list,pager]=section.children;
   assert.equal(toolbar.children[0].textContent,'Itens da contratação (0)');assert.match(itemStatus.textContent,/0 itens/);
@@ -415,7 +412,7 @@ test('DETAILS-UI-05: contratação sem itens mostra total zero e oculta a pagina
 test('DETAILS-UI-06: quantidade e valores do PNCP preservam precisão, zero e ausência de informação',async()=>{
   const ui=await interfaceFixture({itemFetcher:url=>{
     const path=new URL(url).pathname;
-    if(path.endsWith('/itens/quantidade'))return Promise.resolve(Response.json(4));
+    if(path.endsWith('/itens/quantidade'))return Promise.resolve((4));
     if(path.endsWith('/itens'))return Promise.resolve(new Response(`[
       {"numeroItem":1,"quantidade":1234.56789,"valorUnitarioEstimado":9007199254740993.12345,"valorTotal":111222333444555666.98765},
       {"numeroItem":2,"quantidade":0,"valorUnitarioEstimado":0,"valorTotal":0},
@@ -458,7 +455,7 @@ test('FILTERS-UI-06: margem singular e catálogo inativo usam controles de sele�
   ui.nodes.get('native-options').value='2';await ui.nodes.get('add-native').fire('click');assert.equal(ui.draft().pncp_filters.tipos_margens_preferencia,'2');
   ui.nodes.get('native-field').value='naturezas_juridicas';await ui.nodes.get('native-field').fire('change');
   const select=ui.nodes.get('native-options');assert.equal(select.multiple,true);assert.equal(select.children[0].value,'0000');assert.match(select.children[0].textContent,/inativa/);
-  assert(ui.domainRequests.at(-1).includes('campo=naturezas_juridicas'));
+  assert.equal(ui.domainRequests.at(-1).field,'naturezas_juridicas');
 });
 
 test('FILTERS-UI-07: mudar normativo preserva amparos válidos e remove incompatíveis',async()=>{
@@ -466,16 +463,15 @@ test('FILTERS-UI-07: mudar normativo preserva amparos válidos e remove incompat
   await ui.setFilter('amparos_legais',['1','19','98']);await ui.setFilter('normativos_base',['1']);
   assert.deepEqual(ui.draft().pncp_filters,{amparos_legais:['1','19'],normativos_base:['1']});
   assert.equal(ui.nodes.get('apply-filters').disabled,false);assert.equal(ui.nodes.get('legal-error').hidden,false);
-  const request=new URL(ui.domainRequests.at(-1),'http://localhost');assert.equal(request.searchParams.get('campo'),'amparos_legais');assert.equal(request.searchParams.get('normativos_base'),'1');
+  const request=ui.domainRequests.at(-1);assert.equal(request.field,'amparos_legais');assert.deepEqual(request.normatives,['1']);
   await ui.nodes.get('apply-filters').fire('click');assert.deepEqual(ui.requests.at(-1).pncp_filters,{amparos_legais:['1','19'],normativos_base:['1']});assert.equal(ui.nodes.get('result-title').textContent,'32 contratações');
 });
 
 test('FILTERS-UI-08: falha de reconciliação bloqueia aplicar e permite repetir o mesmo normativo',async()=>{
   let attempts=0;
-  const ui=await interfaceFixture({domainHandler:async(url,options,backend)=>{
-    const p=new URL(url,'http://localhost').searchParams;
-    if(p.get('campo')==='amparos_legais' && attempts++===0)return Response.json({error:{message:'Indisponível'}},{status:503});
-    return Response.json(await backend.domains('edital',p.get('normativos_base')?.split('|'),options.signal,null,p.get('campo')));
+  const ui=await interfaceFixture({domainHandler:async(payload,options,core)=>{
+    if(payload.field==='amparos_legais' && attempts++===0)throw new Error('Indisponível');
+    return core.domains(payload.type,payload.normatives,options.signal,null,payload.field);
   }});await ui.nodes.get('filters-button').fire('click');
   await ui.setFilter('amparos_legais',['19','98']);await ui.setFilter('normativos_base',['1']);
   assert.equal(ui.nodes.get('apply-filters').disabled,true);const before=ui.requests.length;await ui.nodes.get('apply-filters').fire('click');assert.equal(ui.requests.length,before);
@@ -484,16 +480,15 @@ test('FILTERS-UI-08: falha de reconciliação bloqueia aplicar e permite repetir
 
 test('FILTERS-UI-09: resposta tardia de amparos não altera um novo rascunho',async()=>{
   let resolve;
-  const ui=await interfaceFixture({domainHandler:async(url,options,backend)=>{
-    const p=new URL(url,'http://localhost').searchParams;
-    if(p.get('campo')==='amparos_legais' && p.get('normativos_base')==='1')return new Promise(done=>{resolve=done;});
-    return Response.json(await backend.domains('edital'));
+  const ui=await interfaceFixture({domainHandler:async(payload,options,core)=>{
+    if(payload.field==='amparos_legais' && payload.normatives?.[0]==='1')return new Promise(done=>{resolve=done;});
+    return (await core.domains('edital'));
   }});await ui.nodes.get('filters-button').fire('click');await ui.setFilter('amparos_legais',['19','98']);
   ui.nodes.get('native-field').value='amparos_legais';await ui.nodes.get('native-field').fire('change');
   const pending=ui.setFilter('normativos_base',['1']);await settle();assert.equal(ui.nodes.get('apply-filters').disabled,true);assert.equal(ui.nodes.get('add-native').disabled,true);
   await ui.nodes.get('add-native').fire('click');assert.equal(ui.nodes.get('apply-filters').disabled,true);
   ui.nodes.get('filters-dialog').close();await ui.nodes.get('filters-button').fire('click');
-  resolve(Response.json({filters:{amparos_legais:[{id:'19',label:'Amparo'}]}}));await pending;
+  resolve(({filters:{amparos_legais:[{id:'19',label:'Amparo'}]}}));await pending;
   assert.deepEqual(ui.draft().pncp_filters,{});assert.equal(ui.nodes.get('apply-filters').disabled,false);
 });
 
@@ -529,7 +524,7 @@ test('FILTERS-UI-11: condições documentais preservam Não ao editar e remover 
 });
 
 test('FILTERS-UI-12: domínio indisponível impede adicionar opções de origem',async()=>{
-  const ui=await interfaceFixture({domainHandler:async()=>Response.json({error:{message:'Origem indisponível'}},{status:503})});
+  const ui=await interfaceFixture({domainHandler:async()=>({error:{message:'Origem indisponível'}})});
   await ui.nodes.get('filters-button').fire('click');ui.nodes.get('native-field').value='fontes';await ui.nodes.get('native-field').fire('change');
   assert.equal(ui.nodes.get('add-native').disabled,true);assert.equal(ui.nodes.get('domain-error').hidden,false);
   await ui.nodes.get('add-native').fire('click');assert.deepEqual(ui.draft().pncp_filters,{});
@@ -587,7 +582,7 @@ test('CONTRACTS-UI-01: trocar o tipo reinicia critérios, colunas e status e per
   assert.equal(ui.state().document_type,'contrato');assert.deepEqual(ui.state().pncp_filters,{});assert.equal(ui.nodes.get('result-title').textContent,'32 contratos');assert(ui.tableColumns().some(c=>c.field==='valor_global'));assert(!ui.tableColumns().some(c=>c.field==='valor_total_estimado'));
   assert.deepEqual(ui.nodes.get('draft-status').children.map(o=>o.value),['todos','vigente','nao_vigente']);
   const fields=ui.nodes.get('native-field').children.flatMap(g=>g.children);assert.equal(fields.find(o=>o.value==='tipos_contrato').disabled,false);assert.equal(fields.find(o=>o.value==='item_quantidade_min').disabled,true);
-  await ui.nodes.get('filters-button').fire('click');ui.nodes.get('native-field').value='tipos_contrato';await ui.nodes.get('native-field').fire('change');assert(ui.domainRequests.at(-1).includes('tipos_documento=contrato'));
+  await ui.nodes.get('filters-button').fire('click');ui.nodes.get('native-field').value='tipos_contrato';await ui.nodes.get('native-field').fire('change');assert.equal(ui.domainRequests.at(-1).type,'contrato');
   for(const option of ui.nodes.get('native-options').children)option.selected=option.value==='1';await ui.nodes.get('add-native').fire('click');
   ui.nodes.get('native-field').value='possui_nfe';await ui.nodes.get('native-field').fire('change');ui.nodes.get('native-value').value='true';await ui.nodes.get('add-native').fire('click');await ui.nodes.get('apply-filters').fire('click');assert.equal(ui.nodes.get('result-title').textContent,'8 contratos');
   await ui.nodes.get('export-button').fire('click');assert.equal(ui.exportRequests.at(-1).query.document_type,'contrato');assert.deepEqual(ui.exportRequests.at(-1).query.pncp_filters,{tipos_contrato:['1'],possui_nfe:true});
@@ -602,7 +597,7 @@ test('CONTRACTS-UI-02: detalhes de contratos exibem os campos próprios sem busc
 });
 
 test('CONTRACTS-UI-03: resposta de contrato atrasada não substitui a pesquisa após voltar a edital',async()=>{
-  let finishContract;const ui=await interfaceFixture({queryHandler:async(input,options,backend)=>input.document_type==='contrato'?new Promise(resolve=>{finishContract=async()=>resolve(Response.json(await backend.execute(input)));}):Response.json(await backend.execute(input))});
+  let finishContract;const ui=await interfaceFixture({queryHandler:async(input,options,core)=>input.document_type==='contrato'?new Promise(resolve=>{finishContract=async()=>resolve((await core.execute(input)));}):(await core.execute(input))});
   const selector=ui.nodes.get('document-type');selector.value='contrato';await selector.listeners.change[0]();await settle();assert(finishContract);
   selector.value='edital';await selector.listeners.change[0]();await settle();await finishContract();await settle();
   assert.equal(ui.state().document_type,'edital');assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');assert.equal(ui.nodes.get('export-button').disabled,false);
@@ -621,8 +616,8 @@ test('ATAS-UI-01: trocar para atas ajusta status, colunas, filtros, contagem e C
 
 test('ATAS-UI-02: o painel de ata carrega detalhes completos e quatro listas com identidades corretas',async()=>{
   const ui=await interfaceFixture();await ui.openDocument(project(demoAtas[2]));
-  assert.equal(ui.itemRequests.length,0);assert.equal(ui.documentRequests.length,1);assert.equal(ui.relatedRequests.length,4);assert.equal(ui.documentRequests[0],'/api/atas/00000000000000/2026/3/3');
-  assert(ui.relatedRequests.every(r=>r.includes('/api/atas/00000000000000/2026/3/3/')));
+  assert.equal(ui.itemRequests.length,0);assert.equal(ui.documentRequests.length,1);assert.equal(ui.relatedRequests.length,4);assert.deepEqual(ui.documentRequests[0],{document:{type:'ata',cnpj:'00000000000000',ano:'2026',sequencial_compra:'3',sequencial:'3'}});
+  assert(ui.relatedRequests.every(r=>r.document.type==='ata' && r.document.sequencial_compra==='3' && r.document.sequencial==='3'));
   const tabs=ui.nodes.get('details-content').children.find(n=>n.className==='detail-tabs');assert.deepEqual(tabs.children.map(b=>b.textContent),['Detalhes (22)','Partes envolvidas (1)','Contratos (2)','Arquivos (12)','Histórico (12)']);
   assert.equal(ui.nodes.get('details-kind').textContent,'ATA DE REGISTRO DE PREÇOS');
   const titles=ui.nodes.get('detail-panel-detalhes').children[0].children.map(f=>f.children[0].textContent);assert(titles.includes('Número da ata'));assert(titles.includes('Permite adesão'));assert(!titles.includes('Valor estimado'));assert(!titles.includes('Fornecedor'));
@@ -634,7 +629,7 @@ test('CONTRACTS-UI-04: os dados nativos e cinco listas do contrato carregam ante
   const ui=await interfaceFixture();await ui.openDocument(project(demoContracts[0]));
   assert.equal(ui.documentRequests.length,1);assert.equal(ui.relatedRequests.length,5);assert.equal(ui.itemRequests.length,0);
   const tabs=ui.nodes.get('details-content').children.find(n=>n.className==='detail-tabs');assert.deepEqual(tabs.children.map(b=>b.textContent),['Detalhes (34)','Empenhos (1)','Instrumentos de cobrança (1)','Termos (1)','Arquivos (12)','Histórico (12)']);
-  assert(ui.relatedRequests.every(r=>r.startsWith('/api/contratos/00000000000000/2026/1/')));
+  assert(ui.relatedRequests.every(r=>r.document.type==='contrato' && r.document.sequencial==='1'));
   const fields=ui.nodes.get('detail-panel-detalhes').children[0].children.map(w=>[w.children[0].textContent,w.children[1].textContent]);assert(fields.some(([label,value])=>label==='Valor da parcela' && value==='R$ 100,0000'));assert(fields.some(([label,value])=>label==='Processo' && value==='DEMO-1/2026'));assert(!fields.some(([label])=>label==='Modalidade'));
 });
 
@@ -643,20 +638,20 @@ test('CONTRACTS-UI-05: arquivos de termos e detalhes de empenhos/instrumentos co
   for(const resource of ['termos','empenhos','instrumentocobranca']){
     await ui.nodes.get(`detail-tab-${resource}`).fire('click');const card=ui.nodes.get(`detail-panel-${resource}`).children[3].children[0],button=card.children[2],extra=card.children[3];
     await button.fire('click');assert.equal(extra.hidden,false);assert.equal(button.getAttribute('aria-expanded'),'true');assert(extra.children.length>0);
-    assert.equal(ui.childRequests.at(-1),`/api/contratos/00000000000000/2026/1/${resource}/1`);
+    assert.deepEqual(ui.childRequests.at(-1),{document:{type:'contrato',cnpj:'00000000000000',ano:'2026',sequencial:'1'},resource,sequence:'1'});
     await button.fire('click');assert.equal(extra.hidden,true);await button.fire('click');assert.equal(extra.hidden,false);
   }
   assert.equal(ui.childRequests.length,3);assert.equal(ui.relatedRequests.length,5);
 });
 
 test('DOCUMENTS-UI-01: falha de detalhes conserva a busca, permite tentar novamente e não impede as listas',async()=>{
-  let failed=true;const ui=await interfaceFixture({documentHandler:async(url,options,backend)=>{if(failed)return Response.json({error:{message:'Falha de detalhes.'}},{status:503});return Response.json(await backend.documentDetails(project(demoAtas[0])._document,options.signal));}});
+  let failed=true;const ui=await interfaceFixture({documentHandler:async(url,options,core)=>{if(failed)return ({error:{message:'Falha de detalhes.'}});return (await core.documentDetails(project(demoAtas[0])._document,options.signal));}});
   await ui.openDocument(project(demoAtas[0]));const panel=ui.nodes.get('detail-panel-detalhes');assert.equal(ui.nodes.get('detail-tab-detalhes').dataset.state,'error');assert.equal(panel.children[0].children.length,14);assert.match(panel.children[1].textContent,/Falha de detalhes/);assert.equal(panel.children[2].hidden,false);assert.equal(ui.relatedRequests.length,4);assert.equal(ui.nodes.get('detail-tab-arquivos').dataset.state,'loaded');
   failed=false;await panel.children[2].fire('click');assert.equal(ui.nodes.get('detail-tab-detalhes').textContent,'Detalhes (22)');assert.equal(ui.documentRequests.length,2);assert.equal(ui.relatedRequests.length,4);
 });
 
 test('DOCUMENTS-UI-02: fechar ou trocar o documento cancela detalhes pendentes e ignora respostas antigas',async()=>{
-  let finish,signal;const ui=await interfaceFixture({documentHandler:(url,options,backend)=>{if(url.startsWith('/api/atas/')){signal=options.signal;return new Promise(resolve=>{finish=()=>resolve(Response.json({fields:[{title:'Registro antigo',value:'Antigo'}],objeto:'Objeto antigo'}));});}return backend.documentDetails(project(demoContracts[0])._document,options.signal).then(Response.json);}});
+  let finish,signal;const ui=await interfaceFixture({documentHandler:(payload,options,core)=>{if(payload.document.type==='ata'){signal=options.signal;return new Promise(resolve=>{finish=()=>resolve(({fields:[{title:'Registro antigo',value:'Antigo'}],objeto:'Objeto antigo'}));});}return core.documentDetails(payload.document,options.signal);}});
   const opening=ui.openDocument(project(demoAtas[0]));await settle();assert(signal);ui.nodes.get('details-dialog').close();assert.equal(signal.aborted,true);
   await ui.openDocument(project(demoContracts[0]));finish();await opening;assert.equal(ui.nodes.get('details-kind').textContent,'CONTRATO');assert(!ui.all.some(n=>n.textContent==='Registro antigo'));assert.equal(ui.itemRequests.length,0);
 });

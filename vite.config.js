@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
     browserSettings(publicConfig); return JSON.stringify(publicConfig, null, 2) + '\n';
   };
   return {
-    root, publicDir: false, envDir: false, base: './',
+    root, publicDir: false, envDir: false, base: './', appType: 'mpa',
     server: { host: '127.0.0.1', port: 8000, headers, fs: { allow: [fileURLToPath(new URL('./', import.meta.url))] } },
     preview: { host: '127.0.0.1', port: 8000, headers },
     worker: { format: 'es', plugins: () => mode === 'test' ? [{
@@ -31,11 +31,7 @@ export default defineConfig(({ mode }) => {
     plugins: [{
       name: 'compras-static-assets',
       transformIndexHtml: { order: 'pre', handler(html) {
-        if (html.includes('src="/node-entry.js"')) html = html.replace('<link rel="stylesheet" href="/styles.css">', '');
-        return html.replace('<head>', `<head>\n<meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer">`)
-          .replace(/<script src="\/vendor\/tabulator.min.js" defer><\/script>/, '')
-          .replace(/<link rel="stylesheet" href="\/vendor\/tabulator.min.css">/, '')
-          .replace('src="/node-entry.js"', 'src="/browser-entry.js"').replace('href="/"', 'href="./"');
+        return html.replace('<head>', `<head>\n<meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer">`);
       } },
       configureServer(server) {
         server.middlewares.use('/browser-config.json', async (_req, res) => {

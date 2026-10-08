@@ -4,13 +4,12 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Compras Web · Pesquisa PNCP</title>
   <meta name="description" content="Pesquise editais, atas de registro de preços e contratos diretamente no PNCP, consulte detalhes e exporte resultados em CSV.">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/vendor/tabulator.min.css"><link rel="stylesheet" href="/styles.css">
-  <script src="/vendor/tabulator.min.js" defer></script><script src="/node-entry.js" type="module"></script>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <script src="./browser-entry.js" type="module"></script>
 </head>
 <body>
   <header id="app-header" class="topbar">
-    <a class="brand" href="/" aria-label="Compras Web, página inicial"><img src="/favicon.svg" alt="" width="28" height="28"><span>Compras <strong>Web</strong></span></a>
+    <a class="brand" href="./" aria-label="Compras Web, página inicial"><img src="./favicon.svg" alt="" width="28" height="28"><span>Compras <strong>Web</strong></span></a>
     <form id="search-form" class="search-row" role="search" aria-label="Pesquisar contratações">
       <label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="sr-only">Busca textual no PNCP</span><input id="search" type="search" maxlength="128" placeholder="Busque por objeto, órgão ou palavras-chave" autocomplete="off"></label>
       <button type="submit" class="button primary search-action" id="search-button">Pesquisar</button>

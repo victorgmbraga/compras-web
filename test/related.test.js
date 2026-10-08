@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createApplication } from '../src/server.js';
-import { PncpClient } from '../src/pncp.js';
-import { QueryService } from '../src/query.js';
+import { PncpClient } from '../src/pncp-core.js';
+import { QueryService } from '../src/query-core.js';
 import { demoFetch, demoRelated } from '../src/demo.js';
 import { config } from './helpers.js';
 
@@ -55,17 +54,7 @@ test('RELATED-05: números JSON monetários são exatos e links inseguros ou sem
   const files=fixture(url=>Response.json(url.endsWith('/quantidade')?1:[{titulo:'<script>alert(1)</script>',url:'javascript:alert(1)'}]));assert.equal((await files.service.related(purchase,'arquivos',1,10)).data[0].url,null);
   const missing=fixture(()=>Response.json({data:[{anoContrato:2026,sequencialContrato:1}],totalRegistros:1}));assert.equal((await missing.service.related(purchase,'contratos',1,10)).data[0].url,null);
 });
-test('RELATED-06: HTTP expõe quatro rotas e rejeita parâmetros inválidos antes da rede',async()=>{
-  const requests=[],app=createApplication(config({DEMO_MODE:true}),{fetcher:(url,init)=>{requests.push(url);return demoFetch(url,init);}});
-  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${app.server.address().port}/api/contratacoes/00000000000000/2026/1`;
-  try{
-    for(const resource of ['arquivos','atas','contratos','historico']){const response=await fetch(`${base}/${resource}?pagina=1&tamanhoPagina=10`);assert.equal(response.status,200);assert.equal((await response.json()).resource,resource);}
-    const count=requests.length;
-    for(const suffix of ['/arquivos?pagina=0','/atas?tamanhoPagina=3','/contratos?pagina=1&pagina=2','/historico?extra=true','/inexistente','/../0/arquivos'])assert((await fetch(base+suffix)).status>=400);
-    assert.equal(requests.length,count);
-    const last=await fetch(`${base}/arquivos?pagina=2&tamanhoPagina=10`);assert.equal((await last.json()).data.length,2);
-  }finally{await app.close();}
-});
+
 test('RELATED-07: número de controle real de ata usa o ano da compra e preserva o sequencial da ata',async()=>{
   const f=fixture(url=>Response.json({data:[{numeroAtaRegistroPreco:'100',anoAta:2026,numeroControlePNCP:'00000000000000-1-000001/2025-000010',sequencialAta:10}],totalRegistros:11,numeroPagina:2}));
   const result=await f.service.related(purchase,'atas',2,10);assert.equal(result.data.length,1);assert.equal(result.has_more,false);assert.equal(result.data[0].url,'https://pncp.gov.br/app/atas/00000000000000/2025/1/10');

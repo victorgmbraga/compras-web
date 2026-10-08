@@ -3,7 +3,7 @@ import http from 'node:http';
 import { readdir, readFile } from 'node:fs/promises';
 import { createStaticServer } from './static-server.js';
 import { launchTestBrowser } from './browser-launch.js';
-import { compareBrowserLayout } from './browser-layout.js';
+import { assertBrowserLayout } from './browser-layout.js';
 const browser = await launchTestBrowser();
 const cors = http.createServer((req, res) => {
   if(req.url.startsWith('/allow'))res.setHeader('Access-Control-Allow-Origin','*');
@@ -26,7 +26,7 @@ try {
       await page.locator('#document-type').selectOption('contrato'); await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratos');
       assert.deepEqual(api,[]); assert.deepEqual(errors,[]);
       console.log('PASS Artefato de produção, assets e Worker em '+prefix);
-      await compareBrowserLayout(browser, `http://127.0.0.1:${app.server.address().port}${prefix}?demo=1`);
+      await assertBrowserLayout(browser, `http://127.0.0.1:${app.server.address().port}${prefix}?demo=1`);
       // Separate minimal origin: the application's CSP intentionally only permits PNCP.
       await page.goto(`http://127.0.0.1:${cors.address().port}/origin`);
       const result = await page.evaluate(async ({base}) => {

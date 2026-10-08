@@ -1,9 +1,9 @@
+import { csvBytes } from './helpers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PncpClient} from '../src/pncp.js';
-import {QueryService} from '../src/query.js';
+import {PncpClient} from '../src/pncp-core.js';
+import {QueryService} from '../src/query-core.js';
 import {demoFetch} from '../src/demo.js';
-import {createApplication} from '../src/server.js';
 import {config,query,service,document,json} from './helpers.js';
 
 const booleans=['indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'];
@@ -15,8 +15,8 @@ test('DOCUMENTARY-01: origem e modo de disputa aceitam IDs únicos e união de o
     const cases=name==='fontes'?[[['3'],22],[['5'],21],[['3','5'],43]]:[[['1'],22],[['2'],21],[['1','2'],43]];
     for(const [values,total]of cases){
       const result=await s.export(query({pncp_filters:{[name]:values}}));
-      assert.equal(result.metadata.total,total);assert.equal(result.metadata.data.length,total);
-      assert(result.metadata.data.every(d=>values.includes(d._raw[field])));
+      assert.equal(result.metadata.total,total);assert.equal(result.metadata.exported_rows,total);
+      assert((await s.execute(query({size:100,pncp_filters:{[name]:values}}))).data.every(d=>values.includes(d._raw[field])));
     }
   }
 });
@@ -25,10 +25,10 @@ test('DOCUMENTARY-02: booleanos distinguem ausência, true e false na pesquisa e
   const s=demo();assert.equal((await s.execute(query())).total,64);
   for(const name of booleans)for(const value of [true,false]){
     const input=query({pncp_filters:{[name]:value}}),page=await s.execute(input),csv=await s.export(input);
-    assert.equal(page.total,16);assert.equal(page.data.length,10);assert.equal(csv.metadata.data.length,16);
-    assert(csv.metadata.data.every(d=>d._raw[name]===value));
+    assert.equal(page.total,16);assert.equal(page.data.length,10);assert.equal(csv.metadata.exported_rows,16);
+    assert(page.data.every(d=>d._raw[name]===value));
     assert.equal(csv.metadata.effective_filters[name],value);
-    assert.equal(csv.csv.toString('utf8').split('\r\n').length,18);
+    assert.equal(csvBytes(csv).toString('utf8').split('\r\n').length,18);
   }
 });
 
@@ -36,9 +36,11 @@ test('DOCUMENTARY-03: combinação documental mantém predicados nas páginas e 
   const s=demo(),pncp_filters={fontes:['3','5'],modos_disputa:['1','2'],...Object.fromEntries(booleans.map(name=>[name,false]))};
   const first=await s.execute(query({pncp_filters})),second=await s.execute(query({pncp_filters,page:2})),csv=await s.export(query({pncp_filters,page:2}));
   assert.equal(first.total,11);assert.equal(first.data.length,10);assert.equal(second.data.length,1);
-  assert.equal(csv.metadata.data.length,11);
-  assert.deepEqual([...first.data,...second.data].map(d=>d.id),csv.metadata.data.map(d=>d.id));
-  assert(csv.metadata.data.every(d=>['3','5'].includes(d._raw.usuario_id) && ['1','2'].includes(d._raw.modo_disputa_id) && booleans.every(name=>d._raw[name]===false)));
+  assert.equal(csv.metadata.exported_rows,11);
+  const documents=[...first.data,...second.data];
+  const csvIds=csvBytes(csv).toString('utf8').split('\r\n').slice(1,-1).map(row=>row.match(/^"([^"]*)"/)[1]);
+  assert.deepEqual(documents.map(d=>d.id),csvIds);
+  assert(documents.every(d=>['3','5'].includes(d._raw.usuario_id) && ['1','2'].includes(d._raw.modo_disputa_id) && booleans.every(name=>d._raw[name]===false)));
 });
 
 test('DOCUMENTARY-04: tipos inválidos e capacidades restantes são recusados antes da rede',async()=>{
@@ -63,15 +65,4 @@ test('DOCUMENTARY-05: domínios compartilhados são conferidos e valores chegam 
   }
   const missing=service([document(1)],{handler:u=>u.pathname.endsWith('/filters')?json({filters:{}}):null});
   await assert.rejects(missing.service.execute(query({pncp_filters:{modos_disputa:['1']}})),e=>e.code==='DOMAIN_UNAVAILABLE');assert.equal(missing.requests.length,1);
-});
-
-test('DOCUMENTARY-06: API padrão habilita o grupo e mantém os mesmos critérios no CSV',async t=>{
-  const app=createApplication(config({DEMO_MODE:true}));await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(()=>app.close());
-  const base=`http://127.0.0.1:${app.server.address().port}`,schema=await (await fetch(base+'/api/schema')).json();
-  for(const name of ['fontes','modos_disputa',...booleans])assert.equal(schema.capabilities.find(c=>c.name===name).state,'enabled');
-  const input=query({pncp_filters:{fontes:['3'],modos_disputa:['1'],tem_contrato_empenho:false,tem_nfe_contrato:false}});
-  const post=(path,body)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const response=await post('/api/query',input);assert.equal(response.status,200);const result=await response.json();assert.equal(result.total,5);
-  assert(result.data.every(d=>d._raw.tem_contrato_empenho===false && d._raw.tem_nfe_contrato===false));
-  const csv=await post('/api/export',{query:input});assert.equal(csv.status,200);assert.equal(csv.headers.get('X-Exported-Rows'),'5');assert.equal((await csv.text()).split('\r\n').length,7);
 });

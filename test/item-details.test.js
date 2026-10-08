@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createApplication } from '../src/server.js';
-import { config, json, service } from './helpers.js';
+import { json, service } from './helpers.js';
 
 const purchase={cnpj:'14136816000151',ano:'2026',sequencial:'16'};
 const items=total=>Array.from({length:total},(_,i)=>({numeroItem:i+1,descricao:`Item ${i+1}`,materialOuServico:'M'}));
@@ -63,15 +62,4 @@ test('DETAILS-COUNT-05: toda consulta relê a quantidade e usa o orçamento da o
   const limited=service([],{},{PNCP_MAX_REQUESTS_PER_OPERATION:1});
   await assert.rejects(limited.service.details(purchase,1,100),error=>error.code==='REQUEST_BUDGET');
   assert.equal(limited.requests.length,1);
-});
-
-test('DETAILS-COUNT-06: API HTTP expõe total e última página preservando os itens',async t=>{
-  const fake=detailsFixture(109),app=createApplication(config(),{fetcher:fake.fetcher});
-  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(()=>app.close());
-  const response=await fetch(`http://127.0.0.1:${app.server.address().port}/api/contratacoes/14136816000151/2026/16/itens?pagina=2&tamanhoPagina=100`);
-  assert.equal(response.status,200);
-  const result=await response.json();
-  assert.equal(result.total_items,109);assert.equal(result.total_pages,2);
-  assert.equal(result.data[0].numeroItem,101);assert.equal(result.data.at(-1).numeroItem,109);
-  assert.equal(result.has_more,false);assert.equal(result.upstream_requests,2);
 });

@@ -4,8 +4,6 @@ import { parse } from 'lossless-json';
 import { project, safeLink, itemSituation } from '../src/adapter.js';
 import { validateQuery } from '../src/validation.js';
 import { config, document, query, service, json } from './helpers.js';
-import http from 'node:http';
-import {createApplication} from '../src/server.js';
 
 test('AUDIT-01: anos de /filters usam ano, sem id, e preservam o valor de busca', async () => {
   const s=service([], {handler:u=>u.pathname.endsWith('/filters')?json({filters:{anos:[{ano:'2026',total:100},{ano:2025,total:20}],ufs:[{id:'DF',total:10}]}}):null});
@@ -44,7 +42,7 @@ test('AUDIT-05: ausência de identificação para itens não exclui a contrataç
   const result=await s.service.execute(query());
   assert.equal(result.total,1);assert.equal(result.data.length,1);assert.equal(result.data[0]._purchase,null);
   assert(!s.requests.some(u=>u.pathname.includes('/itens')));
-  const exported=await s.service.export(query());assert.equal(exported.metadata.data.length,1);
+  const exported=await s.service.export(query());assert.equal(exported.metadata.exported_rows,1);
 });
 
 test('AUDIT-07: detalhes rejeitam situações conflitantes, catálogo ou descrição incompatível', async () => {
@@ -54,32 +52,9 @@ test('AUDIT-07: detalhes rejeitam situações conflitantes, catálogo ou descri�
   }
 });
 
-test('AUDIT-08: URL HTTP malformada devolve erro e o servidor continua disponível', async t => {
-  const app=createApplication(config({DEMO_MODE:true}));
-  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(()=>app.close());
-  const port=app.server.address().port;
-  const result=await new Promise((resolve,reject)=>{
-    const request=http.get({hostname:'127.0.0.1',port,path:'http://['},response=>{
-      let body='';response.setEncoding('utf8');response.on('data',chunk=>body+=chunk);response.on('end',()=>resolve({status:response.statusCode,body:JSON.parse(body)}));
-    });request.on('error',reject);
-  });
-  assert.equal(result.status,400);assert.equal(result.body.error.code,'INVALID_URL');
-  assert.equal((await fetch(`http://127.0.0.1:${port}/api/health`)).status,200);
-});
 
-test('AUDIT-09: resposta, header HTTP e logs da chamada PNCP usam o mesmo request_id', async t => {
-  const entries=[],fake=service([document(1)]);
-  const app=createApplication(config(),{fetcher:fake.fetcher,logger:entry=>entries.push(entry)});
-  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(()=>app.close());
-  const base=`http://127.0.0.1:${app.server.address().port}`;
-  const response=await fetch(base+'/api/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(query())});
-  const body=await response.json(),id=response.headers.get('x-request-id');
-  assert.equal(body.request_id,id);assert.equal(entries.length,2);assert(entries.every(entry=>entry.request_id===id));
-  const invalid=await fetch(base+'/api/query',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"size":30}'});
-  assert.equal((await invalid.json()).error.request_id,invalid.headers.get('x-request-id'));
-});
 
-test('AUDIT-10: anos inválidos da fonte não viram opções que o próprio backend rejeita', async () => {
+test('AUDIT-10: anos inválidos da fonte não viram opções que o próprio serviço rejeita', async () => {
   const s=service([],{handler:u=>u.pathname.endsWith('/filters')?json({filters:{anos:[{ano:'2026'},{ano:'20'},{ano:'20260'},{ano:null}]}}):null});
   const result=await s.service.domains('edital',null);
   assert.deepEqual(result.filters.anos,[{id:'2026',label:'2026'}]);

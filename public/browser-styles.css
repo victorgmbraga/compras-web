@@ -1,4 +1,4 @@
-/* Keep the same cascade as the Node.js page: library first, application last.
+/* Load the library first and the application's layout overrides last.
    A single CSS entry also preserves this order in multi-page static builds. */
 @import 'tabulator-tables/dist/css/tabulator.min.css';
 @import './styles.css';

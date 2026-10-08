@@ -1,7 +1,7 @@
-import { loadConfig } from '../src/config.js';
-import { PncpClient } from '../src/pncp.js';
-import { QueryService } from '../src/query.js';
-export const config = (extra={}) => ({...loadConfig({}),PNCP_PAGE_SIZE:10,PNCP_REQUESTS_PER_SECOND:100000,PNCP_MAX_RETRIES:0,PNCP_OPERATION_TIMEOUT_SECONDS:10,...extra});
+import { defaults } from '../src/settings.js';
+import { PncpClient } from '../src/pncp-core.js';
+import { QueryService } from '../src/query-core.js';
+export const config = (extra={}) => ({...defaults,PNCP_PAGE_SIZE:10,PNCP_REQUESTS_PER_SECOND:100000,PNCP_MAX_RETRIES:0,PNCP_OPERATION_TIMEOUT_SECONDS:10,...extra});
 export const document = (index,extra={})=>({id:String(index),doc_type:'_doc',document_type:'edital',numero_controle_pncp:`test-${index}`,description:`Objeto ${index}`,orgao_cnpj:'00000000000000',orgao_nome:'Órgão sintético',esfera_id:'F',modalidade_licitacao_id:'6',modalidade_licitacao_nome:'Pregão - Eletrônico',situacao_id:'1',situacao_nome:'Divulgada no PNCP',ano:'2026',numero_sequencial:String(index),data_publicacao_pncp:'2026-09-30T10:00:00',valor_total_estimado:'2.00',...extra});
 export const json=value=>new Response(JSON.stringify(value),{status:200,headers:{'Content-Type':'application/json'}});
 export function fixture(documents,options={}) {
@@ -25,3 +25,5 @@ export function service(documents,options={},extra={}) {
   return {...fake,config:cfg,client,service:new QueryService(cfg,client)};
 }
 export const query = extra=>({api_version:'2.0',size:10,...extra});
+
+export const csvBytes = result => Buffer.concat(result.chunks.map(chunk => Buffer.from(chunk)));

@@ -1,12 +1,12 @@
+import { csvBytes } from './helpers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parse} from 'lossless-json';
 import {schema,capabilities,columnsFor} from '../src/schema.js';
 import {project,documentIdentity} from '../src/adapter.js';
 import {recordFields,projectDocument,controlLink,nativeDocumentPath} from '../src/document-details.js';
-import {PncpClient} from '../src/pncp.js';
-import {QueryService} from '../src/query.js';
-import {createApplication} from '../src/server.js';
+import {PncpClient} from '../src/pncp-core.js';
+import {QueryService} from '../src/query-core.js';
 import {demoFetch,demoAtas,demoContracts} from '../src/demo.js';
 import {config,query,json,service,document} from './helpers.js';
 
@@ -21,9 +21,9 @@ test('DOCUMENTS-01: os três tipos publicam colunas, status e os 16 filtros comp
   for(const type of ['ata','contrato'])assert(!columnsFor(type).some(c=>['situacao_compra_nome_pncp','valor_total_estimado','valor_total_homologado'].includes(c.field)));
   assert.equal(capabilities(config()).filter(c=>!c.reserved && c.documents.includes('ata')).length,16);
   const s=demo(),result=await s.execute(query({document_type:'ata'}));assert.equal(result.total,24);assert.equal(result.data[0].tipo_documento,'ata');
-  const csv=await s.export(query({document_type:'ata'})),header=csv.csv.toString().split('\r\n')[0];assert.equal(csv.metadata.data.length,24);
+  const csv=await s.export(query({document_type:'ata'})),header=csvBytes(csv).toString().split('\r\n')[0];assert.equal(csv.metadata.exported_rows,24);
   assert(header.includes('"permite_adesao"'));assert(header.includes('"cancelado"'));assert(!header.includes('"valor_global"'));assert(!header.includes('"valor_total_estimado"'));
-  for(const status of ['vigente','nao_vigente'])assert.equal((await s.export(query({document_type:'ata',status}))).metadata.data.length,12);
+  for(const status of ['vigente','nao_vigente'])assert.equal((await s.export(query({document_type:'ata',status}))).metadata.exported_rows,12);
 });
 
 test('DOCUMENTS-02: a ata conserva sequenciais distintos e nunca deriva identificadores da contratação pelo título ou controle',()=>{
@@ -96,18 +96,6 @@ test('DOCUMENTS-09: detalhes dos filhos e arquivos de termos usam o sequencial c
   for(const [d,res,seq]of [[ata,'termos','3'],[contract,'arquivos','1'],[contract,'termos','0'],[contract,'termos','../1']])await assert.rejects(f.service.contractChild(d,res,seq),e=>e.code==='NOT_FOUND');
 });
 
-test('DOCUMENTS-10: API expõe pesquisa, domínios, detalhes e listas dos três tipos e rejeita rotas inválidas',async t=>{
-  const cfg=config({DEMO_MODE:true}),app=createApplication(cfg);await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));t.after(()=>app.close());const base=`http://127.0.0.1:${app.server.address().port}`;
-  const post=async(path,body)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  assert.equal((await post('/api/query',query({document_type:'ata'}))).status,200);assert.equal((await post('/api/export',{query:query({document_type:'ata'})})).status,200);
-  assert.equal((await fetch(base+'/api/pncp/filters?tipos_documento=ata&campo=ufs')).status,200);assert.equal((await fetch(base+'/api/pncp/suggest?tipos_documento=ata&campo=orgaos&q=Min')).status,200);
-  for(const [kind,path,resources]of [['ata','/api/atas/00000000000000/2026/1/1',['partesenvolvidas','contratos','arquivos','historico']],['contrato','/api/contratos/00000000000000/2026/1',['empenhos','instrumentocobranca','termos','arquivos','historico']]]){
-    const detail=await fetch(base+path);assert.equal(detail.status,200);assert.equal((await detail.json()).document_type,kind);
-    for(const resource of resources){const response=await fetch(base+path+'/'+resource+'?pagina=1&tamanhoPagina=10');assert.equal(response.status,200);assert.equal((await response.json()).resource,resource);}
-  }
-  for(const resource of ['termos','empenhos','instrumentocobranca'])assert.equal((await fetch(base+'/api/contratos/00000000000000/2026/1/'+resource+'/1')).status,200);
-  for(const suffix of ['/api/atas/00000000000000/2026/1','/api/atas/00000000000000/2026/1/0','/api/atas/00000000000000/2026/1/1/itens','/api/contratos/00000000000000/2026/1/2','/api/contratos/00000000000000/2026/1/termos?pagina=0','/api/contratos/00000000000000/2026/1/termos?pagina=1&pagina=2','/api/contratos/00000000000000/2026/1?extra=true'])assert((await fetch(base+suffix)).status>=400,suffix);
-});
 
 test('DOCUMENTS-11: demonstração fornece detalhes, registros e vínculos completos de atas e contratos',async()=>{
   const s=demo();

@@ -38,23 +38,13 @@ export class QueryService {
       await delay(0,op.signal);
     }
   }
-  async collect(query, op) {
-    const documents=[]; let source_total=0;
-    for await (const page of this.collectPages(query,op)) { documents.push(...page.documents); source_total=page.source_total; }
-    return {documents,source_total};
-  }
-  async process(query,op,{allRows=false}={}) {
+  async process(query,op) {
     await this.verifyDomains(query,op);
-    let documents,sourceTotal;
-    if(allRows) {
-      const collected=await this.collect(query,op);documents=collected.documents;sourceTotal=collected.source_total;
-    } else {
-      const page=await this.client.search(query,query.page,query.size,op);sourceTotal=page.total;documents=page.items.map(project);
-      const last=Math.max(1,Math.ceil(Math.min(sourceTotal,10000)/query.size));
-      assert(query.page<=last,'PAGE_OUT_OF_RANGE','Página além do resultado atual.',422,{last_page:last});
-      assert(documents.length===Math.min(query.size,Math.max(0,sourceTotal-(query.page-1)*query.size)),'INVALID_UPSTREAM','O PNCP retornou uma página incompatível com o total e o tamanho solicitado.',502);
-    }
-    return this.metadata(query,documents,sourceTotal,op,allRows);
+    const page=await this.client.search(query,query.page,query.size,op),sourceTotal=page.total,documents=page.items.map(project);
+    const last=Math.max(1,Math.ceil(Math.min(sourceTotal,10000)/query.size));
+    assert(query.page<=last,'PAGE_OUT_OF_RANGE','Página além do resultado atual.',422,{last_page:last});
+    assert(documents.length===Math.min(query.size,Math.max(0,sourceTotal-(query.page-1)*query.size)),'INVALID_UPSTREAM','O PNCP retornou uma página incompatível com o total e o tamanho solicitado.',502);
+    return this.metadata(query,documents,sourceTotal,op);
   }
   metadata(query,documents,sourceTotal,op,allRows=false) {
     op.check();
@@ -68,11 +58,11 @@ export class QueryService {
     const query=validateQuery(input,this.config),op=operation(this.config,signal,requestId);
     try{return await this.process(query,op);}finally{op.finish();}
   }
-  async export(input,signal,requestId,{includeDocuments=false,onProgress=()=>{}}={}) {
+  async export(input,signal,requestId,{onProgress=()=>{}}={}) {
     const query=validateQuery({...input,page:1,size:this.config.PNCP_PAGE_SIZE},this.config),op=operation(this.config,signal,requestId);
     try {
       await this.verifyDomains(query,op);
-      const writer=csvWriter(columnsFor(query.document_type),this.config.PNCP_MAX_EXPORT_BYTES),documents=[];
+      const writer=csvWriter(columnsFor(query.document_type),this.config.PNCP_MAX_EXPORT_BYTES);
       let rows=0,total=0;
       for await (const page of this.collectPages(query,op)) {
         total=page.source_total;
@@ -80,11 +70,11 @@ export class QueryService {
           op.check();writer.append(page.documents.slice(offset,offset+25));
           await delay(0,op.signal);
         }
-        rows+=page.documents.length;if(includeDocuments)documents.push(...page.documents);
+        rows+=page.documents.length;
         onProgress({pages:page.page,rows,total,bytes:writer.bytes});
       }
-      op.check();const metadata=this.metadata(query,documents,total,op,true);metadata.exported_rows=rows;
-      if(!includeDocuments)delete metadata.data;
+      op.check();const metadata=this.metadata(query,[],total,op,true);metadata.exported_rows=rows;
+      delete metadata.data;
       return {chunks:writer.chunks,metadata};
     }finally{op.finish();}
   }

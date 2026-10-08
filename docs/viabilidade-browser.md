@@ -1,10 +1,10 @@
 # Execução no navegador e alcance da homologação
 
-Revisão de 8 de outubro de 2026. A migração descrita no [plano de implementação](plano-implementacao-browser.md) está implementada: `npm run build:browser` gera uma aplicação estática, com interface, bibliotecas e Web Worker locais. Pesquisa, filtros, painéis e CSV executam no navegador sem API própria, proxy de aplicação ou funções serverless. A distribuição Node.js permanece disponível durante a transição.
+Revisão de 8 de outubro de 2026. A migração descrita no [plano de implementação](plano-implementacao-browser.md) está implementada: `npm run build` gera uma aplicação estática, com interface, bibliotecas e Web Worker locais. Pesquisa, filtros, painéis e CSV executam no navegador sem API própria, proxy de aplicação ou funções serverless.
 
 ## Arquitetura entregue
 
-Validação, configuração, esquema, projeções, fila PNCP, consistência de coleta e codificação CSV estão no núcleo compartilhado. Somente os adaptadores Node.js importam Undici, `process.env` e Buffer. O artefato estático não contém essas dependências nem segredos de ambiente.
+Validação, configuração, esquema, projeções, fila PNCP, consistência de coleta e codificação CSV estão no núcleo compartilhado. O núcleo e os módulos do navegador não dependem de Undici, variáveis do processo ou Buffer. O artefato contém somente arquivos estáticos e configuração pública.
 
 ```mermaid
 flowchart LR
@@ -16,7 +16,7 @@ flowchart LR
     UI --> CSV[Blob e download local]
 ```
 
-Os 80 filtros mantêm os mesmos tipos, domínios e compatibilidade: 71 de contratações, 16 de atas e 32 de contratos. Todos os painéis, contagens, paginação e consultas de registros filhos usam o serviço local. O serviço HTTP opcional atende a mesma interface, sem duplicar o layout.
+Os 80 filtros mantêm os mesmos tipos, domínios e compatibilidade: 71 de contratações, 16 de atas e 32 de contratos. Todos os painéis, contagens, paginação e consultas de registros filhos usam o serviço local.
 
 Cada Worker possui um cliente e uma fila: duas chamadas simultâneas, duas por segundo e quatro operações ativas por padrão. Timeouts, cancelamento e limites de bytes, chamadas e documentos permanecem ativos. A ponte confirma versão, associa resultados por ID, descarta respostas canceladas e rejeita promessas pendentes quando o Worker falha.
 
@@ -50,7 +50,7 @@ A hospedagem publica apenas `dist-browser/` por HTTPS, na raiz ou em subdiretór
 
 Consultas são GET com `mode: cors`, `credentials: omit`, `cache: no-store`, `redirect: error` e Accept simples. A aplicação não envia User-Agent personalizado nem Cache-Control como cabeçalho de requisição. Retry-After só pode ser lido quando a fonte o expõe. Falhas sem resposta legível produzem erro recuperável de transporte, sem status HTTP inventado e sem ativar dados fictícios.
 
-O navegador continua dependendo da internet, disponibilidade e política CORS do PNCP. O portal oficial operar na mesma origem não basta para certificar qualquer outra origem. Respostas sem CORS, inclusive falhas de infraestrutura, podem impedir que o navegador identifique o HTTP real. Um backend de aplicação resolveria outro modo de implantação; não faz parte da versão estática entregue.
+O navegador continua dependendo da internet, disponibilidade e política CORS do PNCP. O portal oficial operar na mesma origem não basta para certificar qualquer outra origem. Respostas sem CORS, inclusive falhas de infraestrutura, podem impedir que o navegador identifique o HTTP real.
 
 ## Limites de homologação
 
@@ -58,6 +58,6 @@ A origem HTTPS de produção ainda precisa ser escolhida e verificada com `pncp-
 
 A medição de 10.000 documentos usa fonte sintética e ritmo elevado para medir processamento. Com os padrões reais de 50 registros por página e duas chamadas por segundo, o agendamento de 200 buscas consome aproximadamente 100 segundos, próximo do prazo total de 120 segundos. A latência e as tentativas podem interromper a coleta. O CSV continua limitado a 50 MiB, e as respostas a 100 MiB por operação. A medição automatizada não expõe memória total do Worker/Blob; não foi estabelecido um limite garantido para qualquer dispositivo.
 
-Não há PWA, cache persistente, consultas reais offline ou coordenação entre abas. Consumidores da API HTTP devem continuar na distribuição Node.js ou migrar sua integração; a hospedagem estática não oferece `/api/...` nem healthcheck da aplicação.
+Não há PWA, cache persistente, consultas reais offline ou coordenação entre abas.
 
-O [guia de hospedagem](hospedagem-estatica.md) contém comandos, CSP/cache, workflow manual de GitHub Pages, diagnóstico na origem publicada e retorno ao modo Node.js. A promoção da implantação estática depende dessas verificações operacionais, conforme os critérios do plano.
+O [guia de hospedagem](hospedagem-estatica.md) contém comandos, CSP/cache, workflow manual de GitHub Pages e diagnóstico na origem publicada. A promoção da implantação estática depende dessas verificações operacionais, conforme os critérios do plano.

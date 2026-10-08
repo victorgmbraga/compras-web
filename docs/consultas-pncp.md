@@ -1,12 +1,27 @@
-# Contrato da API e consultas ao PNCP
+# Serviço do navegador e consultas ao PNCP
 
-Este guia descreve a API HTTP **da distribuição Node.js**. A distribuição estática não oferece essas rotas: usa os mesmos formatos de critérios/dados através do serviço local no Worker, conforme [Arquitetura](arquitetura.md).
+Este guia descreve `service.call(method, payload, {signal, onProgress})`, usado pela interface para comunicar-se com o Web Worker. A hospedagem entrega somente arquivos estáticos. Os formatos de critérios/dados mantêm `api_version: "2.0"`, com `edital`, `ata` e `contrato`.
 
-A API da aplicação usa a versão `2.0` e habilita `edital` (editais e avisos de contratações), `ata` (atas de registro de preços) e `contrato`. O servidor consulta `https://pncp.gov.br/api/search/` para pesquisas e `https://pncp.gov.br/api/pncp/v1` para documentos, itens, listagens relacionadas e catálogos. Os endereços são configuráveis conforme o [guia de configuração](configuracao.md).
+O Worker consulta `https://pncp.gov.br/api/search/` para pesquisa, filtros e sugestões e `https://pncp.gov.br/api/pncp/v1` para detalhes, listagens e catálogos. A [arquitetura](arquitetura.md) descreve a ponte e o [guia de configuração](configuracao.md) informa os limites públicos.
+
+| Método | Payload | Resultado |
+| --- | --- | --- |
+| `schema` | `{}` | Colunas, filtros, status, ordenações e limites |
+| `execute` | `{query}` | Uma página de documentos e metadados |
+| `domains` | `{type, normatives, field}` | Opções normalizadas e avisos; `normatives` e `field` podem ser omitidos |
+| `suggest` | `{type, field, q, size}` | Sugestões de IDs e rótulos |
+| `details` | `{document, page, size}` | Quantidade e página de itens de contratação |
+| `related` | `{document, resource, page, size}` | Listagem vinculada a uma contratação |
+| `documentDetails` | `{document}` | Campos completos de ata ou contrato |
+| `documentRelated` | `{document, resource, page, size}` | Listagem dos detalhes de qualquer tipo documental |
+| `contractChild` | `{document, resource, sequence}` | Detalhes do registro filho de contrato |
+| `export` | `{query}` | Buffers CSV, nome, MIME e metadados compactos |
+
+Esses métodos são locais, não URLs HTTP. Campos e métodos desconhecidos são rejeitados antes da consulta à fonte. Cancelamento rejeita a chamada com `AbortError`; erros do Worker preservam `code`, `message`, `status`, `details` e `retryable`.
 
 ## Pesquisa
 
-`POST /api/query` recebe um objeto JSON com `Content-Type: application/json`. O corpo tem limite de 256 KiB, e campos desconhecidos são rejeitados.
+`service.call("execute", {query})` recebe os critérios abaixo. Campos desconhecidos são rejeitados.
 
 | Campo | Padrão | Valores aceitos |
 | --- | --- | --- |
@@ -21,13 +36,7 @@ A API da aplicação usa a versão `2.0` e habilita `edital` (editais e avisos d
 
 Todos os campos podem ser omitidos para usar os padrões. A interface envia explicitamente `size: 100`.
 
-```sh
-curl --fail-with-body -sS http://localhost:8000/api/query \
-  -H 'Content-Type: application/json' \
-  -d '{"api_version":"2.0","document_type":"edital","q":"firewall","status":"todos","pncp_filters":{"ufs":["DF"]},"order":"-data","page":1,"size":10}'
-```
-
-O servidor serializa os controles como `tipos_documento`, `q`, `status`, `ordenacao`, `pagina` e `tam_pagina`. As listas de filtros são unidas por `|` e codificadas uma vez. Cada página faz uma chamada de busca, além de eventuais consultas de domínios e novas tentativas em caso de falha transitória.
+O cliente serializa os controles como `tipos_documento`, `q`, `status`, `ordenacao`, `pagina` e `tam_pagina`. As listas de filtros são unidas por `|` e codificadas uma vez. Cada página faz uma chamada de busca, além de eventuais consultas de domínios e novas tentativas em caso de falha transitória.
 
 ### Filtros habilitados por padrão
 
@@ -97,7 +106,7 @@ Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false
 
 Filtros de itens selecionam **contratações** na busca nativa. Tabela e CSV continuam contendo uma linha por contratação. Os detalhes exibem todos os itens, inclusive os que não satisfazem os critérios. Uma condição verdadeira na busca pode coexistir com itens que a informam como falsa nos detalhes. Não há garantia de que condições diferentes incidam sobre o mesmo item; a aplicação não aplica um refinamento local para impor essa correlação. Os nomes enviados à busca continuam sendo `categorias_leilao` e `beneficios`, embora os domínios usem aliases.
 
-`GET /api/schema` informa `columns`, `columns_by_document`, `capabilities`, `statuses`, `statuses_by_document`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados ao adaptador e 80 filtros implementados, sem pendências. São 71 de edital, 16 de ata e 32 de contrato. `columns` e `statuses` mantêm os padrões de edital; os mapas por documento fornecem os valores próprios de cada tipo. A compatibilidade de filtros é definida por `documents`.
+`service.call("schema")` informa `columns`, `columns_by_document`, `capabilities`, `statuses`, `statuses_by_document`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados ao adaptador e 80 filtros implementados, sem pendências. São 71 de edital, 16 de ata e 32 de contrato. `columns` e `statuses` mantêm os padrões de edital; os mapas por documento fornecem os valores próprios de cada tipo. A compatibilidade de filtros é definida por `documents`.
 
 Atas aceitam `ufs`, `orgaos`, `unidades`, `municipios`, `esferas`, `poderes`, `anos`, `modalidades`, `tipos`, `permite_adesao`, `data_publicacao_inicio/fim`, `data_assinatura_inicio/fim` e `data_inicio_vigencia_inicio/fim`. Filtros de itens, resultados e valores contratuais não são aplicáveis a atas.
 
@@ -128,11 +137,11 @@ Os campos documentais são definidos em [`src/schema.js`](../src/schema.js). Cad
 
 ## Domínios e sugestões
 
-`GET /api/pncp/filters` aceita `tipos_documento=edital`, `ata` ou `contrato`, `normativos_base` com IDs separados por pipe e `campo` com o nome de um filtro que possui domínio. Campos desconhecidos ou incompatíveis com o documento são rejeitados. Retorna `filters`, `warnings`, `raw`, `partial_domains`, `request_id` e `queried_at`. As opções são normalizadas para `{id, label}`. Opções de ano fora de `AAAA` são omitidas da lista normalizada com aviso; a resposta original fica em `raw`.
+`service.call("domains", {type, normatives, field})` aceita `type: "edital"`, `"ata"` ou `"contrato"`, `normatives` como lista de IDs e `field` com o nome de um filtro que possui domínio. Campos desconhecidos ou incompatíveis com o documento são rejeitados. Retorna `filters`, `warnings`, `raw`, `partial_domains`, `request_id` e `queried_at`. As opções são normalizadas para `{id, label}`. Opções de ano fora de `AAAA` são omitidas da lista normalizada com aviso; a resposta original fica em `raw`.
 
-Sem `campo`, ou com um filtro da busca, a origem é `/api/search/filters`. Para os campos abaixo, apenas o catálogo solicitado é consultado:
+Sem `field`, ou com um filtro da busca, a origem é `/api/search/filters`. Para os campos abaixo, apenas o catálogo solicitado é consultado:
 
-| `campo` | Endpoint PNCP | Identidade preservada |
+| `field` | Endpoint PNCP | Identidade preservada |
 | --- | --- | --- |
 | `paises_fornecedor` | `/api/pncp/v1/paises` | ID textual, como `BRA`; não é convertido para `codigoPaisBcb` |
 | `portes_fornecedor` | `/api/pncp/v1/portes-empresa` | ID como string |
@@ -141,39 +150,32 @@ Sem `campo`, ou com um filtro da busca, a origem é `/api/search/filters`. Para 
 
 Opções desses catálogos podem incluir `active: false`; a interface distingue opções inativas sem descartar registros históricos. O aplicativo valida e envia os IDs do catálogo de países, sem conversão BCB. O alcance da verificação do predicado remoto está no [guia dos filtros](viabilidade-filtros-pncp.md).
 
-Domínios fechados são conferidos pelo backend antes da pesquisa e da exportação. Reservas/remanescentes usam a enumeração fixa do portal, com `domain_source: reference` e sem requisição externa para obter essas opções. Domínios parciais utilizam sugestões e não são tratados como listas exaustivas; incluem sub-rogação, fornecedores, municípios de fornecedores e unidades de medida.
+Domínios fechados são conferidos pelo Worker antes da pesquisa e da exportação. Reservas/remanescentes usam a enumeração fixa do portal, com `domain_source: reference` e sem requisição externa para obter essas opções. Domínios parciais utilizam sugestões e não são tratados como listas exaustivas; incluem sub-rogação, fornecedores, municípios de fornecedores e unidades de medida.
 
 Ao adicionar ou remover normativos, a interface consulta novamente os amparos, preserva os válidos e remove os incompatíveis com aviso. Enquanto essa conferência está em andamento, **Aplicar e pesquisar** fica desabilitado. Em caso de falha, remova o filtro de amparo ou adicione novamente o normativo para repetir a conferência.
 
-`GET /api/pncp/suggest` recebe:
+`service.call("suggest", payload)` recebe:
 
 | Parâmetro | Regra |
 | --- | --- |
-| `tipos_documento` | `edital`, `ata` ou `contrato`; padrão `edital` |
-| `campo` | Nome de um filtro habilitado do tipo lista |
+| `type` | `edital`, `ata` ou `contrato`; padrão `edital` |
+| `field` | Nome de um filtro habilitado do tipo lista |
 | `q` | Texto entre 3 e 128 caracteres |
-| `tam_pagina` | Inteiro de 1 a 20; padrão `20` |
-
-```sh
-curl --fail-with-body -sS --get http://localhost:8000/api/pncp/suggest \
-  --data-urlencode 'campo=orgaos' \
-  --data-urlencode 'q=universidade' \
-  --data-urlencode 'tam_pagina=10'
-```
+| `size` | Inteiro de 1 a 20; padrão `20` |
 
 A resposta contém `items` com pares `{id, label}`, `request_id` e `queried_at`. Listas de domínios podem ser parciais; o retorno de sugestões depende da fonte.
 
 ## Itens de uma contratação
 
-`GET /api/contratacoes/{cnpj}/{ano}/{sequencial}/itens` exige CNPJ com 14 dígitos, ano com quatro dígitos e sequencial numérico positivo. Aceita `pagina` (padrão `1`) e `tamanhoPagina` (`10`, `25`, `50` ou `100`; padrão `100`).
+`service.call("details", {document, page, size})` exige `document: {type: "edital", cnpj, ano, sequencial}`, com CNPJ de 14 dígitos, ano de quatro dígitos e sequencial numérico positivo, todos como strings. `page` deve ser um inteiro positivo e `size` aceita 10, 25, 50 ou 100.
 
-Cada requisição consulta a quantidade de itens e, quando o total é positivo, a página pedida. O servidor verifica se a quantidade de itens recebida corresponde ao total informado. Retorna `data`, `page`, `size`, `total_items`, `total_pages`, `has_more`, `complete`, `source`, `api_version`, `request_id`, `queried_at`, `upstream_requests`, `pagination_note` e `snapshot_guaranteed: false`. `complete` indica que a página atual é a última; não significa que todas as páginas foram baixadas.
+Cada requisição consulta a quantidade de itens e, quando o total é positivo, a página pedida. O serviço verifica se a quantidade de itens recebida corresponde ao total informado. Retorna `data`, `page`, `size`, `total_items`, `total_pages`, `has_more`, `complete`, `source`, `api_version`, `request_id`, `queried_at`, `upstream_requests`, `pagination_note` e `snapshot_guaranteed: false`. `complete` indica que a página atual é a última; não significa que todas as páginas foram baixadas.
 
 A interface consulta os itens ao abrir os detalhes e ao navegar entre suas páginas. Quando faltam identificadores originais válidos, informa a ausência e não faz uma chamada de itens.
 
 ## Listagens nos detalhes de uma contratação
 
-As quatro rotas `GET /api/contratacoes/{cnpj}/{ano}/{sequencial}/{recurso}` usam os mesmos identificadores e parâmetros `pagina` e `tamanhoPagina` dos itens. Ao abrir os detalhes, a interface inicia as primeiras páginas dessas listagens e dos itens em segundo plano, com até duas requisições simultâneas. Pede dez registros por página nas quatro listagens e 100 nos itens. Cada aba preserva seu próprio estado e permite repetir uma consulta que falhou. Trocar de aba não faz nova consulta; mudar sua página consulta novamente a fonte. Fechar os detalhes, abrir outra contratação ou trocar o tipo documental cancela chamadas ativas e pendentes.
+`service.call("documentRelated", {document, resource, page, size})` usa os mesmos identificadores de contratação e os parâmetros `page` e `size` dos itens. Ao abrir os detalhes, a interface inicia as primeiras páginas dessas listagens e dos itens em segundo plano, com até duas requisições simultâneas. Pede dez registros por página nas quatro listagens e 100 nos itens. Cada aba preserva seu próprio estado e permite repetir uma consulta que falhou. Trocar de aba não faz nova consulta; mudar sua página consulta novamente a fonte. Fechar os detalhes, abrir outra contratação ou trocar o tipo documental cancela chamadas ativas e pendentes.
 
 O painel tem largura de até 888 pixels e começa na aba **Detalhes**, com 12 campos documentais. Seu contador indica os campos exibidos; os contadores das outras cinco abas indicam o total de registros informado pela fonte, independentemente da página atual. `…` indica carregamento; `—` indica falha ou identificação insuficiente. Zero é mostrado somente quando confirmado pela fonte. As abas podem ser percorridas por setas, Home e End; em telas menores, a barra permite rolagem horizontal. Os links externos ficam no cabeçalho junto ao botão de fechar.
 
@@ -190,22 +192,16 @@ A resposta da aplicação contém `api_version`, `request_id`, `source`, `resour
 
 O histórico apresenta o evento, o nome do documento quando fornecido, a data/hora e a justificativa. Uma justificativa ausente ou vazia é apresentada como `Exigência Legal`, seguindo o portal oficial. Textos são exibidos como texto; downloads aceitam apenas HTTP/HTTPS sem credenciais, e os links de atas e contratos apontam para o PNCP. Listagens não são consultadas durante pesquisa ou exportação. Quando faltam identificadores originais válidos, as seções mostram essa informação e não fazem requisições.
 
-```sh
-curl --fail-with-body -sS --get \
-  http://localhost:8000/api/contratacoes/00000000000000/2026/1/arquivos \
-  --data-urlencode 'pagina=1' --data-urlencode 'tamanhoPagina=10'
-```
-
-Esse identificador é sintético, para uso com `npm run demo`. A demonstração fornece arquivos, atas, contratos/empenhos e eventos fictícios, incluindo listas vazias, cancelamento, mais de uma página e valores monetários exatos. Seus links de documentos/registro são ilustrativos e não garantem a existência desses dados no PNCP.
+A demonstração fornece arquivos, atas, contratos/empenhos e eventos fictícios, incluindo listas vazias, cancelamento, mais de uma página e valores monetários exatos. Seus links de documentos/registro são ilustrativos e não garantem a existência desses dados no PNCP.
 
 ## Detalhes de atas e contratos
 
-Os dados completos são consultados por `GET` nas seguintes rotas, sem parâmetros de query:
+`service.call("documentDetails", {document})` consulta os dados completos. Os identificadores são strings:
 
-| Tipo | Rota da aplicação | Serviço externo relativo a `PNCP_DETAIL_BASE_URL` |
+| Tipo | `document` | Serviço externo relativo a `PNCP_DETAIL_BASE_URL` |
 | --- | --- | --- |
-| Ata | `/api/atas/{cnpj}/{anoCompra}/{sequencialCompra}/{sequencialAta}` | `/orgaos/{cnpj}/compras/{anoCompra}/{sequencialCompra}/atas/{sequencialAta}` |
-| Contrato | `/api/contratos/{cnpj}/{ano}/{sequencial}` | `/orgaos/{cnpj}/contratos/{ano}/{sequencial}` |
+| Ata | `{type: "ata", cnpj, ano, sequencial_compra, sequencial}` | `/orgaos/{cnpj}/compras/{anoCompra}/{sequencialCompra}/atas/{sequencialAta}` |
+| Contrato | `{type: "contrato", cnpj, ano, sequencial}` | `/orgaos/{cnpj}/contratos/{ano}/{sequencial}` |
 
 A pesquisa fornece `_document` com os identificadores originais e o tipo. Em atas, `numero_sequencial_compra_ata` identifica a compra e `numero_sequencial` identifica a ata; o ano da rota é o da compra. Quando a URL original de detalhamento é fornecida, seu ano tem precedência sobre `ano` da busca, após conferir CNPJ e os dois sequenciais. Uma URL conflitante torna a identidade indisponível. O ano da ata pode ser diferente. Em contratos, o sequencial é do contrato. `_purchase` é exclusivo de editais e não permite consultar itens com um sequencial de ata ou contrato.
 
@@ -213,7 +209,7 @@ As respostas completas contêm `api_version`, `document_type`, `fields`, `objeto
 
 Atas mostram identificação, órgão/unidade, modalidade, assinatura, vigência, cancelamento, adesão, contratação de origem e informações complementares. Contratos mostram identificação, órgão/unidade e sub-rogação, processo/categoria, fornecedor e subcontratado, assinatura, vigência, valores inicial/global/acumulado e parcelas, adesão, remanejamento, vínculos com contratação/ata, CIPI e informações complementares, conforme disponibilidade da fonte. Esses campos são consultados novamente ao abrir o painel. Uma falha mantém os campos disponíveis na busca, informa o erro e oferece nova tentativa.
 
-As listagens acrescentam `/{recurso}` à rota acima e aceitam somente `pagina` e `tamanhoPagina`. O padrão é página 1 e dez registros; os tamanhos permitidos são 10, 25, 50 e 100. O formato de paginação é o mesmo das listagens de contratações.
+`documentRelated` recebe os identificadores originais, `resource`, `page` e `size`. A interface pede página 1 e dez registros; os tamanhos permitidos são 10, 25, 50 e 100. O formato de paginação é o mesmo das listagens de contratações.
 
 | Tipo | Recursos | Dados e formato externo |
 | --- | --- | --- |
@@ -224,58 +220,43 @@ As listagens acrescentam `/{recurso}` à rota acima e aceitam somente `pagina` e
 | Contrato | `empenhos` | `fields` e `sequencial`: número, valor total, emenda, emissão, inclusão, situação e credor/fornecedor; envelope paginado |
 | Contrato | `instrumentocobranca` | `fields` e `sequencial`: número, tipo, datas, observações, chave NF-e e demais dados disponíveis; lista sem paginação externa |
 
-Os serviços externos usam o mesmo sufixo da rota completa do documento. Instrumentos de cobrança são consultados integralmente a cada página; o backend recorta sua apresentação e identifica `pagination_source: local_slice`. Os outros recursos identificam `pagination_source: pncp`. Esse recorte não altera a busca documental nem seus totais.
+Os serviços externos usam o mesmo sufixo da rota completa do documento. Instrumentos de cobrança são consultados integralmente a cada página; o Worker recorta sua apresentação e identifica `pagination_source: local_slice`. Os outros recursos identificam `pagination_source: pncp`. Esse recorte não altera a busca documental nem seus totais.
 
 O painel começa em **Detalhes** e carrega os dados completos e todas as primeiras páginas em segundo plano, com até duas requisições simultâneas. Atas têm abas **Detalhes**, **Partes envolvidas**, **Contratos**, **Arquivos** e **Histórico**; contratos têm **Detalhes**, **Empenhos**, **Instrumentos de cobrança**, **Termos**, **Arquivos** e **Histórico**. O contador de Detalhes corresponde aos campos exibidos; os demais correspondem aos totais das listagens. Cancelamento, teclado, paginação, erros e nova tentativa seguem o comportamento de contratações.
 
-Em contratos, `GET /api/contratos/{cnpj}/{ano}/{sequencial}/{recurso}/{sequencialRegistro}` consulta o filho escolhido, sem query: `empenhos` e `instrumentocobranca` retornam `fields`; `termos` consulta o sufixo externo `/termos/{sequencialRegistro}/arquivos` e retorna `files`, no formato dos arquivos. Esses dados carregam ao abrir **Ver detalhes** ou **Arquivos do termo** na lista. Não há exposição de JSON bruto no painel.
+Em contratos, `service.call("contractChild", {document, resource, sequence})` consulta o filho escolhido, com `sequence` como string numérica positiva: `empenhos` e `instrumentocobranca` retornam `fields`; `termos` consulta o sufixo externo `/termos/{sequencialRegistro}/arquivos` e retorna `files`, no formato dos arquivos. Esses dados carregam ao abrir **Ver detalhes** ou **Arquivos do termo** na lista. Não há exposição de JSON bruto no painel.
 
 ## Exportação
 
-`POST /api/export` recebe um objeto com o campo `query`, usando os mesmos critérios de pesquisa:
+`service.call("export", {query}, {signal, onProgress})` coleta novamente os critérios da última pesquisa concluída, a partir da primeira página. `onProgress` recebe `{pages, rows, total, bytes}`.
 
-```sh
-curl --fail-with-body -sS http://localhost:8000/api/export \
-  -H 'Content-Type: application/json' \
-  -d '{"query":{"api_version":"2.0","q":"firewall","status":"todos","pncp_filters":{"ufs":["DF"]}}}' \
-  -o compras.csv
+```js
+const query = {
+  api_version: '2.0', document_type: 'edital', q: 'firewall',
+  status: 'todos', pncp_filters: {ufs: ['DF']}, order: '-data', page: 1, size: 100,
+};
+const page = await service.call('execute', {query});
+const csv = await service.call('export', {query}, {signal, onProgress});
+const blob = new Blob(csv.chunks, {type: csv.mime});
 ```
 
-A coleta começa na página 1 e usa `PNCP_PAGE_SIZE`, independentemente de `page` e `size` enviados dentro de `query`. O total deve caber em `PNCP_MAX_EXPORT_DOCUMENTS`, cujo máximo é 10.000. A operação é recusada quando o total supera esse limite; ela não produz um recorte dos primeiros resultados.
+O resultado contém `chunks` como `ArrayBuffer[]`, `mime`, `filename` e `metadata`. Os metadados incluem `exported_rows`, totais, critérios, tempos, chamadas e `collection_complete: true`, sem `data` com a coleção de documentos. O CSV contém BOM UTF-8, cabeçalho, CRLF e valores entre aspas; aspas internas são duplicadas e decimais mantêm sua representação exata, sem formatação monetária.
 
-Mudança de total, documento duplicado ou sem identidade, página incompleta e limites de bytes interrompem a operação. O servidor monta todo o CSV em memória antes de responder. Um erro retorna JSON, portanto clientes devem verificar o status HTTP antes de tratar o corpo salvo como CSV.
+Total acima do limite, mudança de total, duplicação, identidade ausente, página incompleta, cancelamento e limites de bytes interrompem a operação. Buffers são transferidos somente após conclusão; não há download parcial. A interface revoga a URL do Blob após o download. `snapshot_guaranteed` continua sendo `false`.
 
-O CSV usa UTF-8 com BOM, vírgulas, quebras CRLF e todos os campos documentais na ordem de `columns_by_document[document_type]`. Em contratos, inclui tipo, fornecedor, CPF/CNPJ, valor global, assinatura, início/fim de vigência e nota fiscal. Em atas, inclui assinatura, vigência, cancelamento e adesão, sem valores estimados ou contratuais. As células são delimitadas por aspas, e aspas internas são duplicadas. A exportação não inclui `_raw`, `_identity`, `_purchase`, `_document` nem itens/resultados; mantém uma linha por documento.
+## Erros e diagnóstico
 
-Cabeçalhos da resposta: `Content-Disposition`, `X-PNCP-Started-At`, `X-PNCP-Finished-At`, `X-PNCP-Source-Total`, `X-Exported-Rows` e `X-Snapshot-Guaranteed: false`. A coleta é nova e pode diferir da tabela, mesmo quando conclui com sucesso.
+A ponte rejeita a promessa com um erro tipado. `status` é um código da aplicação; `details.upstream_status` só existe quando houve uma resposta HTTP legível do PNCP. CORS, TLS e offline podem produzir `PNCP_TRANSPORT_ERROR` sem um HTTP conhecido.
 
-## Saúde, erros e diagnóstico
+| Código | Ação |
+| --- | --- |
+| `UNKNOWN_FIELD`, `INVALID_DOMAIN`, `INVALID_SIZE` | Corrigir os critérios |
+| `DOCUMENT_FILTER_UNAVAILABLE`, `DOMAIN_UNAVAILABLE` | Conferir tipo documental e disponibilidade do domínio |
+| `SOURCE_CHANGED` | Repetir a coleta; a fonte mudou entre chamadas |
+| `PAGE_OUT_OF_RANGE`, `EXPORT_TOO_BROAD`, limites de recursos | Ajustar página, limites ou escopo da pesquisa |
+| `CONCURRENCY_LIMIT` | Aguardar outras operações e repetir |
+| `INVALID_UPSTREAM`, `PNCP_HTTP_ERROR` | Conferir a resposta legível da fonte |
+| `PNCP_UNAVAILABLE`, `PNCP_TRANSPORT_ERROR`, `PNCP_TIMEOUT`, `OPERATION_TIMEOUT` | Verificar conectividade e prazo; repetir conforme o erro |
+| `INCOMPATIBLE_VERSION`, `WORKER_UNAVAILABLE`, `WORKER_TIMEOUT` | Reabrir a página e conferir a publicação dos arquivos |
 
-`GET /api/health` retorna `status: "ok"`, `api_version`, `source`, `live`, `active_operations`, `last_pncp_call` e `now`. Não faz uma consulta ao PNCP. `last_pncp_call` é `null` antes da primeira chamada e no modo demonstração.
-
-As respostas usam `Cache-Control: no-store` e `X-Request-ID`. Falhas seguem este formato:
-
-```json
-{
-  "error": {
-    "code": "INVALID_SIZE",
-    "message": "size deve ser 10, 25, 50 ou 100.",
-    "request_id": "identificador-da-operacao",
-    "retryable": false,
-    "details": {}
-  }
-}
-```
-
-| HTTP | Exemplos | Ação |
-| --- | --- | --- |
-| 400 | `UNKNOWN_FIELD`, `INVALID_DOMAIN`, `INVALID_SIZE` | Corrigir a requisição |
-| 409 | `CAPABILITY_UNAVAILABLE`, `DOCUMENT_FILTER_UNAVAILABLE`, `DOMAIN_UNAVAILABLE`, `SOURCE_CHANGED` | Conferir o tipo documental e a capacidade ou repetir a consulta quando os dados mudarem |
-| 413 | `BODY_TOO_LARGE` | Reduzir o corpo enviado |
-| 422 | `PAGE_OUT_OF_RANGE`, `EXPORT_TOO_BROAD`, limites de recursos | Ajustar a página ou delimitar a pesquisa |
-| 429 | `CONCURRENCY_LIMIT` | Aguardar e repetir; observar `Retry-After` |
-| 502 | `INVALID_UPSTREAM`, `PNCP_HTTP_ERROR`, `UNSAFE_REDIRECT` | Inspecionar a resposta da fonte e os logs |
-| 503/504 | `PNCP_UNAVAILABLE`, `PNCP_TRANSPORT_ERROR`, `PNCP_TIMEOUT`, `OPERATION_TIMEOUT` | Verificar conectividade e limites; repetir conforme o erro |
-| 500 | `INTERNAL_ERROR` | Correlacionar `request_id` com o diagnóstico nos logs |
-
-O servidor escreve eventos JSON `operation`, `upstream` e `operation_error` na saída padrão. Para limitações conhecidas e procedimentos de verificação, consulte [Testes e validação](validacao.md).
+O Worker usa IDs para associar chamadas, progresso, resultados e cancelamento. `pncp-diagnostic.html` verifica a integração real na origem publicada e permite salvar a evidência. Consulte [Testes e validação](validacao.md) para alcance e procedimentos.
