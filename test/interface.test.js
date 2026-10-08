@@ -654,6 +654,18 @@ test('CONTRACTS-UI-05: arquivos de termos e detalhes de empenhos/instrumentos co
   assert.equal(ui.childRequests.length,3);assert.equal(ui.relatedRequests.length,5);
 });
 
+test('CONTRACTS-UI-06: HTTP 404 de empenhos e instrumentos de cobrança exibe abas vazias sem erro',async()=>{
+  const ui=await interfaceFixture({itemFetcher:(url,init)=>/\/contratos\/\d+\/\d+\/(empenhos|instrumentocobranca)(?:\?|$)/.test(url)?Promise.resolve(new Response(null,{status:404})):demoFetch(url,init)});
+  await ui.openDocument(project(demoContracts[0]));
+  for(const [resource,title]of [['empenhos','Empenhos'],['instrumentocobranca','Instrumentos de cobrança']]){
+    const tab=ui.nodes.get(`detail-tab-${resource}`),panel=ui.nodes.get(`detail-panel-${resource}`);
+    assert.equal(tab.textContent,`${title} (0)`);assert.equal(tab.dataset.state,'loaded');assert.equal(panel.children[1].children[0].hidden,true);
+    assert.match(panel.children[2].textContent,/^0 registros/);assert.equal(panel.children[3].children[0].textContent,`Nenhum registro em ${title}.`);assert.equal(panel.children[4].hidden,true);
+    await tab.fire('click');assert.equal(panel.hidden,false);
+  }
+  assert.equal(ui.nodes.get('detail-tab-termos').dataset.state,'loaded');assert.equal(ui.nodes.get('detail-tab-arquivos').textContent,'Arquivos (12)');assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (12)');assert.equal(ui.relatedRequests.length,5);
+});
+
 test('DOCUMENTS-UI-01: falha de detalhes conserva a busca, permite tentar novamente e não impede as listas',async()=>{
   let failed=true;const ui=await interfaceFixture({documentHandler:async(url,options,core)=>{if(failed)return ({error:{message:'Falha de detalhes.'}});return (await core.documentDetails(project(demoAtas[0])._document,options.signal));}});
   await ui.openDocument(project(demoAtas[0]));const panel=ui.nodes.get('detail-panel-detalhes');assert.equal(ui.nodes.get('detail-tab-detalhes').dataset.state,'error');assert.equal(panel.children[0].children.length,14);assert.match(panel.children[1].textContent,/Falha de detalhes/);assert.equal(panel.children[2].hidden,false);assert.equal(ui.relatedRequests.length,4);assert.equal(ui.nodes.get('detail-tab-arquivos').dataset.state,'loaded');

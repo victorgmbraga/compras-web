@@ -83,10 +83,29 @@ test('DOCUMENTS-07: instrumentos não paginados recebem recorte explícito; empe
 test('DOCUMENTS-08: vazios, falhas, formato e contagens não são confundidos',async()=>{
   const noContent=fixture(u=>u.pathname.endsWith('/quantidade')?json(0):new Response(null,{status:204}));
   for(const [d,resources]of [[ata,['partesenvolvidas','contratos','arquivos','historico']],[contract,['empenhos','instrumentocobranca','termos','arquivos','historico']]])for(const resource of resources)assert.equal((await noContent.service.documentRelated(d,resource,1,10)).total,0);
-  const missing=fixture(()=>new Response(null,{status:404}));for(const resource of ['empenhos','instrumentocobranca','termos','arquivos'])await assert.rejects(missing.service.documentRelated(contract,resource,1,10),e=>e.code==='PNCP_HTTP_ERROR');
+  const missing=fixture(()=>new Response(null,{status:404}));
+  for(const [d,resources]of [[ata,['partesenvolvidas','contratos','arquivos','historico']],[contract,['termos','arquivos','historico']]])for(const resource of resources)await assert.rejects(missing.service.documentRelated(d,resource,1,10),e=>e.code==='PNCP_HTTP_ERROR' && e.details.upstream_status===404);
   for(const payload of [{data:[],totalRegistros:1},{data:[{}],totalRegistros:1,numeroPagina:2},{data:{},totalRegistros:0}])await assert.rejects(fixture(()=>json(payload)).service.documentRelated(ata,'partesenvolvidas',1,10));
   await assert.rejects(fixture(()=>json({})).service.documentRelated(contract,'instrumentocobranca',1,10),e=>e.code==='INVALID_UPSTREAM');
   await assert.rejects(noContent.service.documentRelated(ata,'termos',1,10),e=>e.code==='NOT_FOUND');
+});
+
+test('DOCUMENTS-13: HTTP 404 nas listas de empenhos e instrumentos de cobrança significa zero registros',async()=>{
+  for(const resource of ['empenhos','instrumentocobranca']){
+    const f=fixture(()=>new Response(null,{status:404})),result=await f.service.documentRelated(contract,resource,1,10);
+    assert.deepEqual(result.data,[]);assert.equal(result.total,0);assert.equal(result.total_pages,1);assert.equal(result.page,1);assert.equal(result.has_more,false);assert.equal(result.complete,true);
+    assert.equal(result.pagination_source,resource==='instrumentocobranca'?'local_slice':'pncp');assert.equal(result.upstream_requests,1);assert.equal(f.requests.length,1);
+    await assert.rejects(f.service.documentRelated(contract,resource,2,10),e=>e.code==='PAGE_OUT_OF_RANGE' && e.details.last_page===1);
+    await assert.rejects(f.service.contractChild(contract,resource,'1'),e=>e.code==='PNCP_HTTP_ERROR' && e.details.upstream_status===404);
+  }
+});
+
+test('DOCUMENTS-14: outras falhas nas listas de empenhos e instrumentos de cobrança continuam sendo erros',async()=>{
+  for(const resource of ['empenhos','instrumentocobranca']){
+    for(const status of [403,500,503])await assert.rejects(fixture(()=>new Response(null,{status})).service.documentRelated(contract,resource,1,10),e=>e.code===(status===503?'PNCP_UNAVAILABLE':'PNCP_HTTP_ERROR') && e.details.upstream_status===status);
+    await assert.rejects(fixture(()=>{throw new TypeError('Failed to fetch');}).service.documentRelated(contract,resource,1,10),e=>e.code==='PNCP_TRANSPORT_ERROR' && !Object.hasOwn(e.details,'upstream_status'));
+    await assert.rejects(fixture(()=>new Response('invalid',{headers:{'Content-Type':'application/json'}})).service.documentRelated(contract,resource,1,10),e=>e.code==='INVALID_UPSTREAM');
+  }
 });
 
 test('DOCUMENTS-09: detalhes dos filhos e arquivos de termos usam o sequencial correto sem expor links inseguros',async()=>{

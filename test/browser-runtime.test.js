@@ -51,7 +51,11 @@ test('BROWSER-05: HTTP 204/404 preserva vazio apenas nos recursos permitidos', a
   const runtime = createRuntime(settings(), { fetcher: async () => new Response(null, { status: 404 }) });
   try {
     assert.equal((await runtime.run('1', 'documentRelated', { document: purchase, resource: 'contratos', page: 1, size: 10 })).total, 0);
-    await assert.rejects(runtime.run('2', 'documentRelated', { document: contract, resource: 'empenhos', page: 1, size: 10 }), e => e.details.upstream_status === 404);
+    for (const resource of ['empenhos','instrumentocobranca']) {
+      const result = await runtime.run(`2-${resource}`, 'documentRelated', { document: contract, resource, page: 1, size: 10 });
+      assert.equal(result.total, 0);assert.deepEqual(result.data, []);assert.equal(result.has_more, false);assert.equal(result.complete, true);
+      await assert.rejects(runtime.run(`child-${resource}`, 'contractChild', { document: contract, resource, sequence: '1' }), e => e.details.upstream_status === 404);
+    }
     await assert.rejects(runtime.run('3', 'documentDetails', { document: contract }), e => e.details.upstream_status === 404);
   } finally { await runtime.close(); }
   const empty = createRuntime(settings(), { fetcher: async () => new Response(null, { status: 204 }) });

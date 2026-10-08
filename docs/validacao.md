@@ -56,7 +56,7 @@ Abra `http://localhost:8000` para consultas reais e `/?demo=1` para demonstraç�
 
 Sirva o build final e abra `pncp-diagnostic.html`. Execute **Verificar acesso** e **Salvar evidência**. O diagnóstico consulta diretamente o PNCP na página e no Worker, registra origem/data/navegador, status e cabeçalhos legíveis de uma consulta da página e resultados tipados da matriz de recursos. Inclui pesquisas dos três tipos, página seguinte, ordenação/UF, filtros, sugestões, quatro catálogos auxiliares, detalhes e registros filhos. Exemplos públicos são fixos, com filhos escolhidos da listagem quando disponíveis.
 
-Repita na origem HTTPS publicada em Chromium, Firefox e Safari, incluindo dispositivo móvel real e retomada de aba suspensa. Registros ausentes/404 não homologam uma amostra positiva; listas vazias legítimas e falhas são resultados distintos. A exceção 404 de contratos vinculados à contratação não se aplica a empenhos de contrato ou arquivos de termo. Respostas sem CORS não oferecem necessariamente status HTTP ao JavaScript.
+Repita na origem HTTPS publicada em Chromium, Firefox e Safari, incluindo dispositivo móvel real e retomada de aba suspensa. Registros ausentes/404 não homologam uma amostra positiva; listas vazias legítimas e falhas são resultados distintos. HTTP 404 equivale a lista vazia em contratos vinculados à contratação e nas listagens de empenhos e instrumentos de cobrança de um contrato, mas não nos detalhes de registros individuais ou arquivos de termo. Respostas sem CORS não oferecem necessariamente status HTTP ao JavaScript.
 
 ## Resultado verificado
 

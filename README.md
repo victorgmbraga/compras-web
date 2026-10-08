@@ -43,6 +43,8 @@ Os **80 filtros do catálogo estão implementados**, sem filtros pendentes: 71 a
 
 O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 10.000 documentos; acima desse valor, a interface exibe um aviso. A exportação exige que o total caiba no limite configurado: delimite a pesquisa quando necessário. Alterações na fonte entre chamadas podem fazer o CSV diferir da tabela.
 
+HTTP 404 do PNCP nas listas **Empenhos** e **Instrumentos de cobrança** de um contrato indica ausência de registros: as abas exibem `(0)` e uma mensagem de lista vazia. Essa regra não se aplica aos detalhes de registros individuais nem a outras falhas de consulta.
+
 ## Desenvolver e validar
 
 | Comando | Finalidade |

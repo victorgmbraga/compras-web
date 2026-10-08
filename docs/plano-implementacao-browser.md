@@ -20,7 +20,7 @@ Os [testes](validacao.md) cobrem o núcleo, RPC, interface, layout e artefato fi
 ## Semântica preservada
 
 - Cada pesquisa consulta novamente a fonte; o total é o informado pelo PNCP e a janela acessível tem até 10.000 documentos.
-- Informação ausente, `false`, zero e erro permanecem distintos. HTTP 404 equivale a zero somente nos contratos vinculados a uma contratação.
+- Informação ausente, `false`, zero e erro permanecem distintos. HTTP 404 equivale a zero somente nas listas de contratos vinculados a uma contratação e nas listas de empenhos e instrumentos de cobrança de um contrato; não nos detalhes de registros individuais.
 - Filtros de itens/resultados selecionam documentos, enquanto os detalhes exibem todos os registros disponíveis.
 - Pesquisa, detalhes e CSV compartilham a fila por aba. Cancelar ou fechar um painel interrompe suas operações; respostas antigas são descartadas.
 - CSV usa os últimos critérios concluídos, verifica total, quantidade e identidade em cada página e não garante snapshot da fonte.

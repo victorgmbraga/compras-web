@@ -37,12 +37,12 @@ A nova medição usa Firefox 146 em Linux, página estática em localhost, fetch
 | Contratação | Itens/quantidade, arquivos/quantidade, histórico/quantidade e listas vinculadas; exemplos adicionais com atas e contrato existentes |
 | Ata | Dados completos, partes, contratos, arquivos e histórico; contratos vazios na amostra |
 | Contrato | Dados completos, instrumentos de cobrança, termos, arquivos e histórico; algumas listas vazias legítimas |
-| Empenhos e alguns registros filhos | HTTP 404 legível nas amostras, preservado como erro; não homologa registros positivos inexistentes nessa amostra |
+| Empenhos e alguns registros filhos | HTTP 404 legível nas amostras; não homologa registros positivos inexistentes nessa amostra |
 | CORS controlado em Chromium e Firefox | Duas origens reais: JSON legível com permissão, bloqueado sem permissão; `Retry-After` visível somente com exposição explícita |
 | Interface estática | 63 verificações em Chromium e 63 em Firefox, com os filtros, três tipos, abas, CSV, teclado e responsividade |
 | Exportação sintética | 10.000 documentos, 100 chamadas de busca, 4.264.313 bytes, interface responsiva, cancelamento e reutilização do Worker |
 
-A lista de recursos, identidades e resultados da integração real está no JSON, sem converter erros em total zero. O HTTP 404 é vazio somente para contratos vinculados a uma contratação. A demonstração e as fixtures verificam o comportamento de registros positivos dos recursos cuja amostra real não os forneceu.
+A lista de recursos, identidades e resultados da integração real está no JSON, preservando os resultados medidos. Na aplicação, HTTP 404 equivale a vazio nas listas de contratos vinculados a uma contratação e nas listas de empenhos e instrumentos de cobrança de um contrato; detalhes de registros individuais e outros recursos continuam reportando erro. A demonstração e as fixtures verificam o comportamento de registros positivos dos recursos cuja amostra real não os forneceu.
 
 ## Condições de operação
 
