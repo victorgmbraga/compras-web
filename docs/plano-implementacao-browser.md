@@ -13,7 +13,7 @@ O projeto usa exclusivamente a aplicação estática. `npm run build` compila a 
 | Interface | Pesquisa e filtros dos três tipos, painéis próprios, abas com contadores, paginação, teclado e responsividade |
 | CSV | Coleta consistente por páginas, lotes de 25 documentos, buffers transferíveis e metadados compactos; download somente após conclusão |
 | Ferramentas | Comandos de desenvolvimento, demonstração, build, preview e testes direcionados à aplicação estática |
-| Publicação | Workflow manual de GitHub Pages e instruções de hospedagem, configuração e diagnóstico |
+| Publicação | Workflow automático de GitHub Pages em commits na `main`, execução manual e instruções de hospedagem, configuração e diagnóstico |
 
 Os [testes](validacao.md) cobrem o núcleo, RPC, interface, layout e artefato final. A evidência direta de acesso ao PNCP está em [`evidencias-browser-implementacao.json`](evidencias-browser-implementacao.json). Consulte [Arquitetura](arquitetura.md) para os módulos e o fluxo vigente.
 

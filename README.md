@@ -58,7 +58,7 @@ Node.js é usado apenas nessas ferramentas. A aplicação publicada executa no n
 
 ## Distribuir e publicar
 
-Execute `npm run build` e publique **o conteúdo de `dist-browser/`** por HTTPS. O [guia de hospedagem estática](docs/hospedagem-estatica.md) descreve GitHub Pages, Cloudflare Pages, cabeçalhos e atualização dos arquivos. O workflow de GitHub Pages é manual.
+Execute `npm run build` e publique **o conteúdo de `dist-browser/`** por HTTPS. O [guia de hospedagem estática](docs/hospedagem-estatica.md) descreve GitHub Pages, Cloudflare Pages, cabeçalhos e atualização dos arquivos. O workflow de GitHub Pages publica automaticamente cada commit na `main` e também pode ser executado manualmente.
 
 A configuração pública é `browser-config.json`. Cada navegador precisa acessar diretamente o PNCP com CORS válido. Use `pncp-diagnostic.html` no domínio publicado para verificar essa integração. O [guia de validação](docs/validacao.md) distingue os testes sintéticos das medições reais.
 

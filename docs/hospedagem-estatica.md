@@ -21,15 +21,15 @@ Publique **o conteúdo da pasta**, incluindo `assets/`, sem prefixar outra pasta
 
 ## GitHub Pages
 
-[`static-pages.yml`](../.github/workflows/static-pages.yml) fornece publicação manual por GitHub Actions. Ele instala dependências, executa testes, compila e publica o artefato, sem servidor Node.js no destino.
+[`static-pages.yml`](../.github/workflows/static-pages.yml) publica por GitHub Actions a cada commit na branch `main` e também oferece execução manual. Ele instala dependências, executa testes, compila e publica o artefato, sem servidor Node.js no destino.
 
 1. Disponibilize os arquivos no branch que será publicado.
 2. Em **Settings → Pages → Build and deployment**, escolha **GitHub Actions**.
-3. Em **Actions → Publicar versão estática → Run workflow**, escolha o branch e execute.
+3. Para uma publicação manual, em **Actions → Publicar versão estática → Run workflow**, escolha o branch e execute. Commits enviados à `main` iniciam o workflow automaticamente.
 4. Confira a URL informada pelo job `deploy`. Em um repositório de projeto, o caminho normalmente inclui `/compras-web/`.
 5. Execute o diagnóstico na URL publicada antes de promover essa implantação.
 
-O workflow não publica automaticamente a cada push. A configuração da conta pode exigir aprovação do ambiente `github-pages`. GitHub Pages não interpreta `_headers`; a CSP por `<meta>` e a política de referrer permanecem no HTML, mas cabeçalhos de Worker, `frame-ancestors`, `nosniff` e controle de cache dependem das capacidades do provedor.
+A configuração da conta pode exigir aprovação do ambiente `github-pages`. GitHub Pages não interpreta `_headers`; a CSP por `<meta>` e a política de referrer permanecem no HTML, mas cabeçalhos de Worker, `frame-ancestors`, `nosniff` e controle de cache dependem das capacidades do provedor.
 
 ## Cloudflare Pages ou servidor estático próprio
 
