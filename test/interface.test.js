@@ -94,13 +94,14 @@ async function interfaceFixture(options={}) {
 async function settle(){for(let i=0;i<8;i++)await tick();}
 
 test('DETAIL-TABS-01: rótulos, campos, vínculos ARIA e links de cabeçalho correspondem ao documento aberto',async()=>{
-  const ui=await interfaceFixture();await ui.openDocument(project(document(1,{item_url:'/compras/00000000000000/2026/1',link_sistema_origem:'https://example.test/compra/1'})));
+  const ui=await interfaceFixture();await ui.openDocument(project(document(1,{title:'Edital nº 1/2026',item_url:'/compras/00000000000000/2026/1',link_sistema_origem:'https://example.test/compra/1'})));
+  assert.equal(ui.nodes.get('details-kind').textContent,'Edital nº 1/2026');
   const tabs=ui.nodes.get('details-content').children.find(n=>n.className==='detail-tabs');
   assert.deepEqual(tabs.children.map(n=>n.textContent),['Detalhes (12)','Itens (2)','Arquivos (12)','Atas de Registro de Preço (3)','Contratos/Empenhos (2)','Histórico (12)']);assert.equal(tabs.getAttribute('role'),'tablist');
   for(const [index,button]of tabs.children.entries()){const panel=ui.nodes.get(button.getAttribute('aria-controls'));assert.equal(panel.getAttribute('role'),'tabpanel');assert.equal(panel.getAttribute('aria-labelledby'),button.id);assert.equal(panel.hidden,index!==0);assert.equal(button.getAttribute('aria-selected'),String(index===0));assert.equal(button.tabIndex,index===0?0:-1);}
   const grid=ui.nodes.get('detail-panel-detalhes').children[0];assert.deepEqual(grid.children.map(n=>n.children[0].textContent),['Controle PNCP','Órgão','CNPJ do órgão','Unidade','UF','Município','Modalidade','Situação','Publicação','Atualização','Valor estimado','Valor homologado']);
   assert.deepEqual(ui.nodes.get('details-links').children.map(n=>n.textContent),['Abrir no PNCP','Sistema de origem']);assert(!ui.nodes.get('details-content').children.some(n=>n.className==='detail-links'));
-  await ui.openDocument(project(document(2)));assert.equal(ui.nodes.get('details-links').children.length,1);assert(!ui.nodes.get('details-links').children.some(n=>n.href==='https://example.test/compra/1'));
+  await ui.openDocument(project(document(2,{title:'Edital nº 2/2026'})));assert.equal(ui.nodes.get('details-kind').textContent,'Edital nº 2/2026');assert.equal(ui.nodes.get('details-links').children.length,1);assert(!ui.nodes.get('details-links').children.some(n=>n.href==='https://example.test/compra/1'));
 });
 test('DETAIL-TABS-02: teclado percorre abas sem novas chamadas e mantém apenas um painel visível',async()=>{
   const ui=await interfaceFixture();await ui.openDocument(project(document(1)));const initial=ui.relatedRequests.length+ui.itemRequests.length;
@@ -600,6 +601,7 @@ test('CONTRACTS-UI-01: trocar o tipo reinicia critérios, colunas e status e per
 
 test('CONTRACTS-UI-02: detalhes de contratos exibem os campos próprios sem buscar itens com o sequencial do contrato',async()=>{
   const ui=await interfaceFixture();ui.nodes.get('document-type').value='contrato';await ui.nodes.get('document-type').fire('change');await ui.openDocument(project(demoContracts[0]));
+  assert.equal(ui.nodes.get('details-kind').textContent,demoContracts[0].title);
   assert.equal(ui.itemRequests.length,0);assert(!ui.all.some(n=>n.className==='items-section'));
   const values=ui.nodes.get('detail-panel-detalhes').children[0].children.map(wrap=>wrap.children[1].textContent);assert(values.includes('R$ 10.000,50'));assert(values.includes('01234567000189'));
 });
@@ -627,7 +629,7 @@ test('ATAS-UI-02: o painel de ata carrega detalhes completos e quatro listas com
   assert.equal(ui.itemRequests.length,0);assert.equal(ui.documentRequests.length,1);assert.equal(ui.relatedRequests.length,4);assert.deepEqual(ui.documentRequests[0],{document:{type:'ata',cnpj:'00000000000000',ano:'2026',sequencial_compra:'3',sequencial:'3'}});
   assert(ui.relatedRequests.every(r=>r.document.type==='ata' && r.document.sequencial_compra==='3' && r.document.sequencial==='3'));
   const tabs=ui.nodes.get('details-content').children.find(n=>n.className==='detail-tabs');assert.deepEqual(tabs.children.map(b=>b.textContent),['Detalhes (22)','Partes envolvidas (1)','Contratos (2)','Arquivos (12)','Histórico (12)']);
-  assert.equal(ui.nodes.get('details-kind').textContent,'ATA DE REGISTRO DE PREÇOS');
+  assert.equal(ui.nodes.get('details-kind').textContent,demoAtas[2].title);
   const titles=ui.nodes.get('detail-panel-detalhes').children[0].children.map(f=>f.children[0].textContent);assert(titles.includes('Número da ata'));assert(titles.includes('Permite adesão'));assert(!titles.includes('Valor estimado'));assert(!titles.includes('Fornecedor'));
   const origin=ui.nodes.get('detail-panel-detalhes').children[0].children.find(f=>f.children[0].textContent==='Contratação de origem');assert.match(origin.children[1].children[0].href,/\/editais\/00000000000000\/2026\/3$/);
   await ui.nodes.get('detail-tab-partesenvolvidas').fire('click');const parties=ui.nodes.get('detail-panel-partesenvolvidas');assert.equal(parties.hidden,false);assert.equal(ui.relatedRequests.length,4);
@@ -661,7 +663,7 @@ test('DOCUMENTS-UI-01: falha de detalhes conserva a busca, permite tentar novame
 test('DOCUMENTS-UI-02: fechar ou trocar o documento cancela detalhes pendentes e ignora respostas antigas',async()=>{
   let finish,signal;const ui=await interfaceFixture({documentHandler:(payload,options,core)=>{if(payload.document.type==='ata'){signal=options.signal;return new Promise(resolve=>{finish=()=>resolve(({fields:[{title:'Registro antigo',value:'Antigo'}],objeto:'Objeto antigo'}));});}return core.documentDetails(payload.document,options.signal);}});
   const opening=ui.openDocument(project(demoAtas[0]));await settle();assert(signal);ui.nodes.get('details-dialog').close();assert.equal(signal.aborted,true);
-  await ui.openDocument(project(demoContracts[0]));finish();await opening;assert.equal(ui.nodes.get('details-kind').textContent,'CONTRATO');assert(!ui.all.some(n=>n.textContent==='Registro antigo'));assert.equal(ui.itemRequests.length,0);
+  await ui.openDocument(project(demoContracts[0]));finish();await opening;assert.equal(ui.nodes.get('details-kind').textContent,demoContracts[0].title);assert(!ui.all.some(n=>n.textContent==='Registro antigo'));assert.equal(ui.itemRequests.length,0);
 });
 
 test('DOCUMENTS-UI-03: ausência de identificadores originais preserva campos da busca sem fazer consultas',async()=>{

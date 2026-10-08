@@ -446,7 +446,7 @@ async function openDetails(doc) {
   const content=$('details-content');content.replaceChildren();
   content.append(el('p',doc.objeto_compra ?? 'Objeto não informado.','detail-object'));
   const kind=doc.tipo_documento,names=documentName(kind);
-  $('details-kind').textContent=kind==='ata'?'ATA DE REGISTRO DE PREÇOS':names.singular.toLocaleUpperCase('pt-BR');
+  $('details-kind').textContent=doc.titulo ?? '—';
   $('details-dialog').setAttribute('aria-label',`Detalhes: ${names.singular}`);
   const links=$('details-links');links.replaceChildren();
   for(const [label,url]of [['Abrir no PNCP',doc.url_pncp],['Sistema de origem',doc.link_sistema_origem]]){const link=safeAnchor(label,url);if(link)links.append(link);}
