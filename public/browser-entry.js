@@ -1,5 +1,5 @@
 import { TabulatorFull } from 'tabulator-tables';
-import 'tabulator-tables/dist/css/tabulator.min.css';
+import './browser-styles.css';
 import { createApplicationUI } from './app.js';
 import { createWorkerService } from '../src/browser/service.js';
 

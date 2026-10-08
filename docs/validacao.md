@@ -28,6 +28,8 @@ npm run test:ui
 
 Depois compila **o build de produção** em `dist-browser/`, verifica seus assets e Worker na raiz e em `/compras-web/`, e inspeciona bundles para dependências de Node, variáveis do processo e fixtures indevidas. As fixtures de falha/volume não são incluídas em produção.
 
+A comparação de layout usa a versão Node.js como referência com os mesmos dados fictícios. Confere cores, fontes, espaçamentos, bordas e alturas do cabeçalho, linhas, células, rodapé e paginação nos três tipos documentais, em larguras de 1440, 1068 e 390 pixels, tanto na raiz quanto no subdiretório.
+
 Dois servidores de origem controlada conferem CORS por requisições normais: controle positivo, negativo sem permissão e exposição de `Retry-After`. Não há interceptação de respostas ou segurança de origem/TLS desativada. Esse ensaio verifica o mecanismo do navegador, separado das chamadas reais ao PNCP.
 
 O teste também exporta 10.000 documentos no Worker, mede tempo/bytes/chamadas e usa um temporizador da interface para conferir que ela continua recebendo eventos. Cancela uma segunda coleta no progresso e verifica uma pesquisa seguinte. A medição de memória total do Worker/Blob não está disponível nesse ensaio e é identificada como indisponível.

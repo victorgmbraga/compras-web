@@ -31,6 +31,7 @@ export default defineConfig(({ mode }) => {
     plugins: [{
       name: 'compras-static-assets',
       transformIndexHtml: { order: 'pre', handler(html) {
+        if (html.includes('src="/node-entry.js"')) html = html.replace('<link rel="stylesheet" href="/styles.css">', '');
         return html.replace('<head>', `<head>\n<meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer">`)
           .replace(/<script src="\/vendor\/tabulator.min.js" defer><\/script>/, '')
           .replace(/<link rel="stylesheet" href="\/vendor\/tabulator.min.css">/, '')
