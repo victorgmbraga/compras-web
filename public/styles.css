@@ -42,6 +42,8 @@ p{line-height:1.55}
 .topbar .button.icon-only{width:36px;height:36px;padding:0}
 .search-row .button.primary{padding-left:16px;padding-right:16px}
 .search-row .search-action{width:100px}
+.search-row .button.icon-only{width:36px;min-width:36px;padding:0;position:relative}
+.search-row .button.icon-only .count-badge{position:absolute;top:-6px;right:-6px;min-width:16px;padding:1px 4px;border:1px solid white}
 .search-row .button svg{width:18px;height:18px}
 .search-field{display:flex;align-items:center;background:white;border:1px solid #c7d5e4;border-radius:6px;flex:1;min-width:0;padding:0 10px;gap:8px;box-shadow:0 1px 2px #133d6807}
 .search-field:focus-within{border-color:var(--focus);box-shadow:0 0 0 2px #137db515}
@@ -214,6 +216,7 @@ dialog select[multiple]{min-height:155px}
   .topbar .button.icon-only{width:34px;height:34px}
   .search-row .button.primary{padding-left:12px;padding-right:12px}
   .search-row .search-action{width:88px}
+  .search-row .button.icon-only{width:34px;min-width:34px;padding:0}
   .criteria-row{gap:9px;min-height:34px}
   .criteria-row select{min-height:34px;max-width:135px}
   .filter-chip{max-width:260px}

@@ -157,7 +157,7 @@ test('HEADER-UI-01: ordenação e todas as ações dos resultados ficam no cabe�
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
   const header=html.match(/<header\b[^>]*id="app-header"[^>]*>([\s\S]*?)<\/header>/)?.[1];
   assert.ok(header);assert.match(header,/class="header-toolbar"/);
-  assert.match(header,/id="search-button">Pesquisar<\/button>\s*<button type="button" class="button danger search-action" id="cancel-button" hidden>Cancelar<\/button>/);
+  assert.match(header,/id="search-button"[^>]*>\s*<svg[\s\S]*<\/svg>\s*<\/button>\s*<button type="button" class="button danger search-action" id="cancel-button" hidden>Cancelar<\/button>/);
   assert.doesNotMatch(html,/class="result-toolbar"/);
   assert.match(header, /id="filters-button"[\s\S]*?<\/button>\s*<button type="button" class="button" id="clear-button" hidden>Limpar filtros<\/button>/);
   for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button']) {
@@ -166,13 +166,13 @@ test('HEADER-UI-01: ordenação e todas as ações dos resultados ficam no cabe�
   }
 });
 
-test('HEADER-UI-02: atualizar, colunas e exportar usam somente ícones com nomes acessíveis',async()=>{
+test('HEADER-UI-02: busca, filtros e ações usam somente ícones com nomes acessíveis',async()=>{
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
-  for(const [id,label]of [['refresh-button','Atualizar resultados'],['columns-button','Selecionar colunas'],['export-button','Exportar CSV']]) {
-    const button=html.match(new RegExp(`<button id="${id}"([^>]*)>([\\s\\S]*?)<\\/button>`));
+  for(const [id,label]of [['search-button','Pesquisar'],['filters-button','Filtros'],['refresh-button','Atualizar resultados'],['columns-button','Selecionar colunas'],['export-button','Exportar CSV']]) {
+    const button=html.match(new RegExp(`<button(?=[^>]*id="${id}")([^>]*)>([\\s\\S]*?)<\\/button>`));
     assert.ok(button);assert.match(button[1],/class="[^"]*\bicon-only\b/);
     assert.match(button[1],new RegExp(`aria-label="${label}"`));assert.match(button[1],new RegExp(`title="${label}"`));
-    assert.match(button[2],/^<svg\b[^>]*aria-hidden="true"[^>]*>[\s\S]*<\/svg>$/);
+    assert.match(button[2],/^<svg\b[^>]*aria-hidden="true"[^>]*>[\s\S]*<\/svg>(?:<span id="filter-count"[^>]*><\/span>)?$/);
     assert.equal(button[2].replace(/<[^>]+>/g,''),'');
   }
 });

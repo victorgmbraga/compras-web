@@ -48,6 +48,9 @@ try {
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
   assert.equal(await page.locator('#app-header .header-toolbar .criteria-row').count(),1);
   for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);
+  for(const [id,label] of [['search-button','Pesquisar'],['filters-button','Filtros']]){
+    const button=page.locator(`#${id}`);assert.equal(await button.getAttribute('aria-label'),label);assert.equal(await button.getAttribute('title'),label);assert.equal(await button.locator('svg').count(),1);assert.equal(await button.locator('span:not(.count-badge)').count(),0);
+  }
   assert.equal(await page.locator('.result-toolbar').count(),0);
   assert.equal(await page.locator('.tabulator-footer .result-info').count(),1);
   const popupFields=await page.locator('.tabulator-header-popup-button').evaluateAll(buttons=>buttons.map(button=>button.closest('.tabulator-col')?.getAttribute('tabulator-field')));

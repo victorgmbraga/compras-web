@@ -12,9 +12,9 @@
     <a class="brand" href="./" aria-label="Compras Web, página inicial"><img src="./favicon.svg" alt="" width="28" height="28"><span>Compras <strong>Web</strong></span></a>
     <form id="search-form" class="search-row" role="search" aria-label="Pesquisar contratações">
       <label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="sr-only">Busca textual no PNCP</span><input id="search" type="search" maxlength="128" placeholder="Busque por objeto, órgão ou palavras-chave" autocomplete="off"></label>
-      <button type="submit" class="button primary search-action" id="search-button">Pesquisar</button>
+      <button type="submit" class="button primary icon-only search-action" id="search-button" aria-label="Pesquisar" title="Pesquisar"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
       <button type="button" class="button danger search-action" id="cancel-button" hidden>Cancelar</button>
-      <button type="button" class="button" id="filters-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10m-7 5h4"/></svg><span>Filtros</span><span id="filter-count" class="count-badge" hidden></span></button>
+      <button type="button" class="button icon-only" id="filters-button" aria-label="Filtros" title="Filtros"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M7 12h10m-7 5h4"/></svg><span id="filter-count" class="count-badge" hidden></span></button>
       <button type="button" class="button" id="clear-button" hidden>Limpar filtros</button>
     </form>
     <span id="source-badge" class="source-badge demo" title="Demonstração · dados fictícios" hidden><span id="source-label">Demonstração · dados fictícios</span><span id="source-label-compact">Dados fictícios</span></span>
