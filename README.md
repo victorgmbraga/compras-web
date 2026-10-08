@@ -54,7 +54,7 @@ O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 
 | `npm test` | Testa núcleo, filtros, interface e comunicação com o Worker |
 | `npm run test:browser` | Testa layout, CORS, artefato estático e CSV de 10.000 documentos |
 
-Node.js é usado apenas nessas ferramentas. A aplicação publicada executa no navegador; não há servidor da aplicação, API própria ou dependências a instalar na hospedagem. As tarefas do editor Zed estão em [`.zed/tasks.json`](.zed/tasks.json).
+Node.js é usado apenas nessas ferramentas. A aplicação publicada executa no navegador; não há servidor da aplicação, API própria ou dependências a instalar na hospedagem.
 
 ## Distribuir e publicar
 
