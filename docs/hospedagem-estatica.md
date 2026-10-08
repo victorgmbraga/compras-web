@@ -19,6 +19,8 @@ Configure antes do build em [`public/browser-config.json`](../public/browser-con
 
 Publique **o conteúdo da pasta**, incluindo `assets/`, sem prefixar outra pasta `dist-browser` na URL. O build usa caminhos relativos e funciona na raiz ou em `/compras-web/`. Abra a URL do diretório com barra final. Não configure reescrita de `/api/...` para HTML; essas rotas não existem na versão estática.
 
+Links de pesquisa acrescentam parâmetros ao mesmo caminho, por exemplo `/?tipos_documento=contrato&pagina=2` ou `/compras-web/?tipos_documento=ata&pagina=1`. A interface lê os critérios e consulta diretamente o PNCP; os assets e a configuração pública continuam sendo resolvidos no diretório da aplicação. A hospedagem só precisa entregar o mesmo HTML para a URL com esses parâmetros.
+
 ## GitHub Pages
 
 [`static-pages.yml`](../.github/workflows/static-pages.yml) publica por GitHub Actions a cada commit na branch `main` e também oferece execução manual. Ele instala dependências, executa testes, compila e publica o artefato, sem servidor Node.js no destino.

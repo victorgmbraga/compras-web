@@ -78,7 +78,15 @@ async function interfaceFixture(options={}) {
     constructor(selector,options){this.options=options;this.size=options.paginationSize;this.handlers={};}on(name,fn){this.handlers[name]=fn;}clearSort(){}getPageSize(){return this.size;}
     setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('query',{page,size:this.size});}redraw(){}clearData(){}setColumns(columns){this.options.columns=columns;}
   }
-  const uiCore=createApplicationUI(service,{document:dom,window:{addEventListener(){},localStorage:options.storage},Tabulator:Table,optionsCacheSettings:options.cacheSettings});
+  const entries=[options.href ?? 'https://example.test/contratos-web/'],windowListeners={};let historyIndex=0;
+  const view={localStorage:options.storage,location:{get href(){return entries[historyIndex];}},addEventListener(name,fn){(windowListeners[name]??=[]).push(fn);},history:{
+    get length(){return entries.length;},
+    pushState(_state,_title,href){entries.splice(historyIndex+1);entries.push(new URL(href,entries[historyIndex]).href);historyIndex++;},
+    replaceState(_state,_title,href){entries[historyIndex]=new URL(href,entries[historyIndex]).href;},
+  }};
+  const dispatchHistory=async()=>{for(const fn of windowListeners.popstate || [])await fn({type:'popstate'});await settle();await Promise.allSettled(pending);await settle();};
+  const browser={view,entries,href:()=>view.location.href,async back(){if(historyIndex>0){historyIndex--;await dispatchHistory();}},async forward(){if(historyIndex<entries.length-1){historyIndex++;await dispatchHistory();}},async visit(href){view.history.pushState(null,'',href);await dispatchHistory();}};
+  const uiCore=createApplicationUI(service,{document:dom,window:view,Tabulator:Table,optionsCacheSettings:options.cacheSettings});
   await uiCore.ready;
   if(options.waitOptions!==false)await uiCore.state.optionsReady;
   await settle();assert.equal(nodes.get('startup-error').hidden,true);
@@ -91,7 +99,7 @@ async function interfaceFixture(options={}) {
   const footer=()=>uiCore.state.table.options.paginationCounter();
   const draft=()=>structuredClone(uiCore.state.draft);
   const setFilter=(name,value)=>uiCore.setDraftFilter(name,value);
-  return {nodes,all,requests,itemRequests,relatedRequests,documentRequests,childRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable,optionsReady:uiCore.state.optionsReady};
+  return {nodes,all,requests,itemRequests,relatedRequests,documentRequests,childRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable,optionsReady:uiCore.state.optionsReady,browser};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
 
@@ -252,6 +260,75 @@ test('STARTUP-UI-02: falha da pesquisa inicial usa o aviso de consulta e permite
   fail=false;await ui.nodes.get('retry-button').fire('click');
   assert.equal(ui.requests.length,2);assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');
   assert.equal(ui.nodes.get('notice').hidden,true);
+});
+
+test('QUERY-URL-UI-01: link inicial restaura contrato, texto, filtros, status, ordenação e página sem consultar a primeira',async()=>{
+  const href='https://example.test/contratos-web/?demo=1&tipos_documento=contrato&q=firewall&status=vigente&ordenacao=data&pagina=3&ufs=SP%7CDF&possui_nfe=false&valor_global_min=0.00#resultados';
+  const ui=await interfaceFixture({href,queryHandler:async(input,options,core)=>({...await core.execute({document_type:input.document_type,size:100},options.signal),page:input.page,total:500,last_page:5,last_row:500})});
+  assert.equal(ui.requests.length,1);assert.deepEqual(ui.requests[0],{api_version:'2.0',document_type:'contrato',q:'firewall',status:'vigente',order:'data',page:3,size:100,pncp_filters:{ufs:['SP','DF'],possui_nfe:false,valor_global_min:'0.00'}});
+  assert.equal(ui.nodes.get('search').value,'firewall');assert.equal(ui.nodes.get('document-type').value,'contrato');assert.equal(ui.nodes.get('order').value,'data');assert(ui.tableColumns().some(column=>column.field==='valor_global'));assert.equal(ui.state().page,3);
+  assert.equal(ui.browser.entries.length,1);const url=new URL(ui.browser.href());assert.equal(url.searchParams.get('demo'),'1');assert.equal(url.hash,'#resultados');
+  await ui.nodes.get('filters-button').fire('click');assert.equal(ui.nodes.get('draft-status').value,'vigente');assert.equal(ui.draft().pncp_filters.possui_nfe,false);
+});
+
+test('QUERY-URL-UI-02: alterações aplicadas e páginas atualizam a URL, rascunhos e detalhes preservam o link',async()=>{
+  const source=service(Array.from({length:164},(_,i)=>document(i+1)));
+  const ui=await interfaceFixture({queryHandler:input=>source.service.execute(input)}),params=()=>new URL(ui.browser.href()).searchParams;
+  ui.nodes.get('search').value='Obras + reparos & manutenção';await ui.nodes.get('search-form').fire('submit');assert.equal(params().get('q'),'Obras + reparos & manutenção');assert.equal(params().get('pagina'),'1');
+  await ui.request({page:2});assert.equal(params().get('pagina'),'2');assert.equal(ui.state().page,2);
+  const unchanged=ui.browser.href();await ui.nodes.get('filters-button').fire('click');await ui.setFilter('srp',false);assert.equal(ui.browser.href(),unchanged);ui.nodes.get('filters-dialog').close();assert.equal(ui.browser.href(),unchanged);
+  await ui.nodes.get('filters-button').fire('click');await ui.setFilter('srp',false);await ui.nodes.get('apply-filters').fire('click');assert.equal(params().get('srp'),'false');assert.equal(params().get('pagina'),'1');
+  ui.nodes.get('order').value='data';await ui.nodes.get('order').fire('change');assert.equal(params().get('ordenacao'),'data');
+  const beforeDetails=ui.browser.href();await ui.openDocument(project(document(1)));assert.equal(ui.browser.href(),beforeDetails);
+  await ui.nodes.get('clear-button').fire('click');assert.equal(params().has('q'),false);assert.equal(params().has('srp'),false);assert.equal(params().get('ordenacao'),'-data');assert.equal(params().get('pagina'),'1');
+});
+
+test('QUERY-URL-UI-03: Voltar e Avançar restauram critérios, página, colunas e tipo sem criar novas entradas',async()=>{
+  const ui=await interfaceFixture({queryHandler:async(input,options,core)=>({...await core.execute({document_type:input.document_type,size:100},options.signal),page:input.page,total:500,last_page:5,last_row:500})});
+  ui.nodes.get('search').value='firewall';await ui.nodes.get('search-form').fire('submit');await ui.request({page:2});
+  const shared=ui.browser.href(),expected=ui.state();
+  ui.nodes.get('document-type').value='contrato';await ui.nodes.get('document-type').fire('change');
+  await ui.nodes.get('filters-button').fire('click');await ui.setFilter('possui_nfe',false);ui.nodes.get('draft-status').value='vigente';await ui.nodes.get('apply-filters').fire('click');
+  const length=ui.browser.entries.length,requests=ui.requests.length;
+  await ui.browser.back();assert.equal(ui.requests.length,requests+1);assert.equal(ui.state().document_type,'contrato');assert.deepEqual(ui.state().pncp_filters,{});
+  await ui.browser.back();assert.equal(ui.browser.href(),shared);assert.deepEqual(ui.state(),expected);assert.equal(ui.nodes.get('search').value,'firewall');assert(ui.tableColumns().some(column=>column.field==='valor_total_estimado'));assert.equal(ui.browser.entries.length,length);
+  await ui.browser.forward();assert.equal(ui.state().document_type,'contrato');assert.equal(ui.state().page,1);assert.equal(ui.nodes.get('search').value,'');assert(ui.tableColumns().some(column=>column.field==='valor_global'));
+  await ui.browser.forward();assert.equal(ui.state().pncp_filters.possui_nfe,false);assert.equal(ui.state().status,'vigente');assert.equal(ui.browser.entries.length,length);
+});
+
+test('QUERY-URL-UI-04: atualizar, repetir falha e exportar preservam a página e não duplicam o histórico',async()=>{
+  let failed=true;const source=service(Array.from({length:164},(_,i)=>document(i+1))),ui=await interfaceFixture({href:'https://example.test/?q=firewall&pagina=2',queryHandler:input=>{
+    if(failed)throw new Error('Fonte indisponível');return source.service.execute(input);
+  }});
+  assert.equal(ui.requests[0].page,2);assert.equal(ui.browser.entries.length,1);failed=false;
+  await ui.nodes.get('retry-button').fire('click');assert.equal(ui.requests.at(-1).page,2);assert.equal(ui.state().page,2);
+  await ui.nodes.get('refresh-button').fire('click');assert.equal(ui.requests.at(-1).page,2);assert.equal(ui.browser.entries.length,1);
+  await ui.nodes.get('export-button').fire('click');assert.equal(ui.exportRequests.at(-1).query.page,2);assert.equal(ui.exportRequests.at(-1).query.q,'firewall');assert.equal(ui.browser.entries.length,1);
+});
+
+test('QUERY-URL-UI-05: URL inválida mostra erro sem pesquisa inicial e pode ser corrigida pela interface',async()=>{
+  for(const search of ['?pagina=101','?tipos_documento=contrato&srp=false','?srp=0','?q=a&q=b']){
+    const ui=await interfaceFixture({href:'https://example.test/'+search});assert.equal(ui.requests.length,0);assert.equal(ui.nodes.get('startup-error').hidden,true);
+    assert.match(ui.nodes.get('notice').textContent,/Parâmetros inválidos na URL/);assert.equal(ui.nodes.get('retry-button').hidden,true);assert.equal(ui.nodes.get('clear-button').hidden,false);assert.equal(ui.nodes.get('export-button').disabled,true);
+    assert.equal(ui.browser.href(),'https://example.test/'+search);
+    await ui.nodes.get('clear-button').fire('click');assert.equal(ui.requests.length,1);assert.equal(ui.requests[0].page,1);assert.equal(ui.nodes.get('notice').hidden,true);assert.equal(new URL(ui.browser.href()).searchParams.has('srp'),false);
+  }
+});
+
+test('QUERY-URL-UI-06: navegar no histórico cancela a busca pendente e resposta antiga não muda URL ou resultado',async()=>{
+  let finish,signal;const ui=await interfaceFixture({queryHandler:async(input,options,core)=>{
+    if(input.q==='atrasada'){signal=options.signal;await new Promise(resolve=>{finish=resolve;});}
+    return core.execute({...input,q:''});
+  }});
+  const original=ui.browser.href();ui.nodes.get('search').value='atrasada';const searching=ui.nodes.get('search-form').fire('submit');await settle();
+  const goingBack=ui.browser.back();await settle();assert.equal(signal.aborted,true);assert.equal(ui.browser.href(),original);assert.equal(ui.state().q,'');
+  finish();await searching;await goingBack;assert.equal(ui.browser.href(),original);assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');
+});
+
+test('QUERY-URL-UI-07: navegação durante a inicialização utiliza a URL atual na primeira consulta',async()=>{
+  const ui=await interfaceFixture({deferTableBuilt:true,href:'https://example.test/?q=antigo'});
+  await ui.browser.visit('https://example.test/?tipos_documento=ata&ordenacao=data&pagina=1');assert.equal(ui.requests.length,0);
+  await ui.buildTable();assert.equal(ui.requests.length,1);assert.equal(ui.requests[0].document_type,'ata');assert.equal(ui.requests[0].q,'');assert.equal(ui.requests[0].order,'data');assert.equal(ui.nodes.get('result-title').textContent,'24 atas');
 });
 
 test('TABLE-FOOTER-01: total real no rodapé, aviso de janela no marcador e demais avisos acima da tabela',async()=>{
@@ -648,8 +725,8 @@ test('CONTRACTS-UI-02: detalhes de contratos exibem os campos próprios sem busc
 
 test('CONTRACTS-UI-03: resposta de contrato atrasada não substitui a pesquisa após voltar a edital',async()=>{
   let finishContract;const ui=await interfaceFixture({queryHandler:async(input,options,core)=>input.document_type==='contrato'?new Promise(resolve=>{finishContract=async()=>resolve((await core.execute(input)));}):(await core.execute(input))});
-  const selector=ui.nodes.get('document-type');selector.value='contrato';await selector.listeners.change[0]();await settle();assert(finishContract);
-  selector.value='edital';await selector.listeners.change[0]();await settle();await finishContract();await settle();
+  const selector=ui.nodes.get('document-type');selector.value='contrato';const toContract=selector.listeners.change[0]();await settle();assert(finishContract);
+  selector.value='edital';const toEdital=selector.listeners.change[0]();await settle();await finishContract();await toContract;await toEdital;await settle();
   assert.equal(ui.state().document_type,'edital');assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');assert.equal(ui.nodes.get('export-button').disabled,false);
 });
 

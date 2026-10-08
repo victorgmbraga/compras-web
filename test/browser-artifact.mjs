@@ -27,6 +27,10 @@ try {
       assert.deepEqual(api,[]); assert.deepEqual(errors,[]);
       console.log('PASS Artefato de produção, assets e Worker em '+prefix);
       await assertBrowserLayout(browser, `http://127.0.0.1:${app.server.address().port}${prefix}?demo=1`);
+      await page.goto(`http://127.0.0.1:${app.server.address().port}${prefix}?demo=1&tipos_documento=contrato&possui_nfe=false&ordenacao=data&pagina=1#resultados`);
+      await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='8 contratos');
+      assert.equal(await page.locator('#document-type').inputValue(),'contrato');assert.equal(await page.locator('#order').inputValue(),'data');assert.equal(new URL(page.url()).searchParams.get('possui_nfe'),'false');assert.equal(new URL(page.url()).hash,'#resultados');
+      console.log('PASS Link compartilhado no build de produção preserva filtro Não, ordenação, demonstração e caminho em '+prefix);
       // Separate minimal origin: the application's CSP intentionally only permits PNCP.
       await page.goto(`http://127.0.0.1:${cors.address().port}/origin`);
       const result = await page.evaluate(async ({base}) => {

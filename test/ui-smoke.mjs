@@ -75,11 +75,39 @@ try {
     },{prefix:FILTER_OPTIONS_PREFIX,ttl:FILTER_OPTIONS_TTL});
     await cachedPage.reload({waitUntil:'load'});
     await cachedPage.waitForFunction(prefix=>Object.keys(localStorage).filter(key=>key.startsWith(prefix)).length===8 && Object.keys(localStorage).filter(key=>key.startsWith(prefix)).every(key=>JSON.parse(localStorage.getItem(key)).expires_at>Date.now()),FILTER_OPTIONS_PREFIX);
-    await cachedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
+    await cachedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratos');
     assert.equal(cachedDomains.length,8);
     assert.equal(await cachedPage.evaluate(()=>localStorage.getItem('filter-cache-test-preference')),'preservar');
     check('Listas vencidas há quatro horas são renovadas sem apagar dados alheios');
   } finally {await cachedPage.close();}
+  const sharedPage=await page.context().newPage(),sharedQueries=[];
+  try {
+    sharedPage.on('pageerror',error=>errors.push(error.message));
+    await sharedPage.exposeFunction('__observeSharedQuery',message=>{if(message.method==='execute')sharedQueries.push(message.payload.query);});
+    await sharedPage.addInitScript(()=>{const NativeWorker=window.Worker;window.Worker=class extends NativeWorker {postMessage(message,...args){window.__observeSharedQuery(message);return super.postMessage(message,...args);}};});
+    const sharedBase=`http://127.0.0.1:${app.server.address().port}/`;
+    await sharedPage.goto(sharedBase+'?demo=1&tipos_documento=edital&q=pagina-ui&ordenacao=data&pagina=2&ufs=SP%7CDF&srp=false&ordem_classificacao_min=0&item_quantidade_min=0.00#resultados');
+    const waitSecond=()=>sharedPage.waitForFunction(()=>document.querySelector('.tabulator-page.active')?.dataset.page==='2' && /101\s*[-–]\s*164/.test(document.querySelector('.tabulator-page-counter')?.textContent || '') && !document.querySelector('#refresh-button').disabled);
+    await waitSecond();assert.equal(sharedQueries.length,1);assert.equal(sharedQueries[0].page,2);assert.equal(sharedQueries[0].order,'data');assert.deepEqual(sharedQueries[0].pncp_filters,{ufs:['SP','DF'],srp:false,ordem_classificacao_min:0,item_quantidade_min:'0.00'});
+    assert.equal(await sharedPage.locator('#search').inputValue(),'pagina-ui');assert.equal(new URL(sharedPage.url()).hash,'#resultados');check('Link compartilhado restaura critérios tipados e abre diretamente a segunda página');
+    const sharedLink=sharedPage.url();await sharedPage.reload();await waitSecond();assert.equal(sharedQueries.length,2);assert.equal(sharedPage.url(),sharedLink);check('Recarregar mantém busca, filtros, ordenação e página da URL');
+    await sharedPage.locator('#order').selectOption('-data');await sharedPage.waitForFunction(()=>document.querySelector('.tabulator-page.active')?.dataset.page==='1' && !document.querySelector('#refresh-button').disabled);
+    assert.equal(new URL(sharedPage.url()).searchParams.get('pagina'),'1');
+    await sharedPage.goBack();await waitSecond();assert.equal(await sharedPage.locator('#order').inputValue(),'data');assert.equal(sharedPage.url(),sharedLink);
+    await sharedPage.goForward();await sharedPage.waitForFunction(()=>document.querySelector('.tabulator-page.active')?.dataset.page==='1' && !document.querySelector('#refresh-button').disabled);assert.equal(await sharedPage.locator('#order').inputValue(),'-data');check('Voltar e Avançar restauram a página e a ordenação sem recarregar a aplicação');
+    await sharedPage.locator('#document-type').selectOption('contrato');await sharedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratos');
+    assert.equal(new URL(sharedPage.url()).searchParams.get('tipos_documento'),'contrato');assert.equal(new URL(sharedPage.url()).searchParams.has('srp'),false);
+    await sharedPage.locator('#filters-button').click();await sharedPage.locator('#draft-status').selectOption('vigente');await sharedPage.locator('#native-field').selectOption('possui_nfe');await sharedPage.locator('#native-value').selectOption('false');await sharedPage.locator('#add-native').click();await sharedPage.locator('#apply-filters').click();
+    await sharedPage.waitForFunction(()=>!document.querySelector('#export-button').disabled);assert.equal(new URL(sharedPage.url()).searchParams.get('possui_nfe'),'false');assert.equal(new URL(sharedPage.url()).searchParams.get('status'),'vigente');
+    const contractLink=sharedPage.url(),contractResult=await sharedPage.locator('#result-title').innerText();await sharedPage.reload();await sharedPage.waitForFunction(expected=>document.querySelector('#result-title').textContent===expected,contractResult);
+    assert.equal(await sharedPage.locator('#document-type').inputValue(),'contrato');assert(await sharedPage.locator('.tabulator-col[tabulator-field="valor_global"]').isVisible());assert.equal(sharedQueries.at(-1).pncp_filters.possui_nfe,false);check('URL de contrato restaura status e filtro Não, com as colunas próprias');
+    await sharedPage.locator('#document-type').selectOption('ata');await sharedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='24 atas');assert.equal(new URL(sharedPage.url()).searchParams.get('tipos_documento'),'ata');
+    await sharedPage.goBack();await sharedPage.waitForFunction(expected=>document.querySelector('#result-title').textContent===expected,contractResult);assert.equal(sharedPage.url(),contractLink);
+    await sharedPage.goForward();await sharedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='24 atas');await sharedPage.reload();await sharedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='24 atas');check('Links e histórico também restauram atas e alternam corretamente entre tipos');
+    const beforeInvalid=sharedQueries.length;await sharedPage.goto(sharedBase+'?pagina=101&q=firewall');await sharedPage.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Parâmetros inválidos na URL'));
+    assert.equal(sharedQueries.length,beforeInvalid);assert.equal(new URL(sharedPage.url()).searchParams.get('pagina'),'101');
+    await sharedPage.locator('#clear-button').click();await sharedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');assert.equal(new URL(sharedPage.url()).searchParams.get('pagina'),'1');check('Parâmetros inválidos são exibidos sem pesquisa automática e podem ser corrigidos pela interface');
+  } finally {await sharedPage.close();}
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
   assert.equal(await page.locator('#app-header .header-toolbar .criteria-row').count(),1);
   for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);

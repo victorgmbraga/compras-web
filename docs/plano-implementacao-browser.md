@@ -11,6 +11,7 @@ O projeto usa exclusivamente a aplicação estática. `npm run build` compila a 
 | Transporte | Fetch nativo com CORS, sem credenciais e sem seguir redirecionamentos; fila, ritmo, tentativas e orçamentos por aba |
 | Comunicação | Protocolo versionado por operação, progresso, cancelamento, descarte de respostas antigas e recuperação de falha do Worker |
 | Interface | Pesquisa e filtros dos três tipos, painéis próprios, abas com contadores, paginação, teclado e responsividade |
+| Links de pesquisa | Critérios e página em parâmetros GET; restauração na abertura/recarregamento e histórico Voltar/Avançar com filtros tipados e validação |
 | Opções de filtros | Pré-carga em segundo plano de editais, atas e contratos; catálogos compartilhados, `localStorage` por 4 horas e fallback em memória; amparos dependentes sob demanda |
 | CSV | Coleta consistente por páginas, lotes de 25 documentos, buffers transferíveis e metadados compactos; download somente após conclusão |
 | Ferramentas | Comandos de desenvolvimento, demonstração, build, preview e testes direcionados à aplicação estática |

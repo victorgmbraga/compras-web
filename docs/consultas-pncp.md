@@ -38,6 +38,25 @@ Todos os campos podem ser omitidos para usar os padrões. A interface envia expl
 
 O cliente serializa os controles como `tipos_documento`, `q`, `status`, `ordenacao`, `pagina` e `tam_pagina`. As listas de filtros são unidas por `|` e codificadas uma vez. Cada página faz uma chamada de busca, além de eventuais consultas de domínios e novas tentativas em caso de falha transitória.
 
+### URL compartilhável da interface
+
+Os parâmetros GET da página são lidos pela interface estática e convertidos no payload de `execute`:
+
+| Parâmetro | Padrão | Formato |
+| --- | --- | --- |
+| `tipos_documento` | `edital` | Um tipo: `edital`, `ata` ou `contrato` |
+| `q` | Vazio | Texto de até 128 caracteres, codificado pela URL |
+| `status` | `todos` | Status temporal compatível com o tipo documental |
+| `ordenacao` | `-data` | `-data`, `data` ou `relevancia`; relevância exige texto |
+| `pagina` | `1` | Inteiro de 1 a 100; a interface usa 100 registros por página |
+| Nome de filtro habilitado | Ausente | Tipo e compatibilidade publicados no catálogo |
+
+Listas aceitam `ufs=SP%7CDF` ou parâmetros repetidos como `ufs=SP&ufs=DF`; a URL gerada usa uma única lista separada por pipe e codificada uma vez. Booleanos exigem `true` ou `false`, inclusive quando o valor é Não. Inteiros preservam zero; decimais permanecem strings com ponto, sem perda de precisão; IDs e código IBGE preservam zeros à esquerda. Datas usam `AAAA-MM-DD`. Controles e filtros de valor único não aceitam parâmetros repetidos. Valores vazios, tipos incompatíveis, datas inválidas e intervalos invertidos produzem aviso e impedem a pesquisa inicial, sem remover silenciosamente filtros.
+
+A inicialização e o recarregamento consultam diretamente a página indicada. Aplicar texto/filtros, trocar ordenação ou tipo começa na página 1; paginação atualiza `pagina`. A URL muda ao iniciar a consulta, inclusive quando ela falha ou é cancelada. Atualizar e repetir uma falha mantêm a página; operações idênticas não criam entradas duplicadas. Voltar/Avançar leem a URL, cancelam consultas anteriores, restauram controles/colunas e consultam o PNCP sem inserir outra entrada no histórico. Respostas tardias não alteram a URL nem os resultados atuais.
+
+`tipos_documento`, `ordenacao` e `pagina` ficam explícitos na URL; texto vazio, status `todos` e filtros ausentes são omitidos. O caminho da hospedagem, o fragmento e parâmetros externos são preservados, incluindo `demo=1`; somente os controles e filtros reconhecidos tornam-se critérios do PNCP. A validação de pertencimento aos domínios continua no Worker. A URL compartilha critérios e página, sem garantir uma fotografia dos resultados da fonte.
+
 ### Filtros habilitados por padrão
 
 | Campos | Formato |

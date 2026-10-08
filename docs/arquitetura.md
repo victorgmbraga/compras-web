@@ -30,6 +30,7 @@ flowchart LR
 | [`src/browser/runtime.js`](../src/browser/runtime.js), [`worker.js`](../src/browser/worker.js) | Serviço no Worker, métodos permitidos, operações, progresso, erros serializados e buffers transferíveis |
 | [`src/browser/service.js`](../src/browser/service.js), [`protocol.js`](../src/browser/protocol.js) | Ponte por ID, versão, cancelamento local, descarte de respostas tardias e recuperação de falha |
 | [`src/browser/filter-options-cache.js`](../src/browser/filter-options-cache.js) | Pré-carregamento dos domínios dos três tipos, cache local com validade de 4 horas, deduplicação e opções dependentes de normativos |
+| [`src/browser/query-url.js`](../src/browser/query-url.js) | Leitura e escrita de parâmetros GET, conversão de filtros tipados e validação compartilhada de links de pesquisa |
 | [`public/app.js`](../public/app.js) | Interface compartilhada inicializada com um serviço injetado; DOM, Tabulator, painéis e download |
 | [`public/browser-entry.js`](../public/browser-entry.js) | Bibliotecas locais, configuração pública e inicialização da distribuição estática |
 | [`src/demo.js`](../src/demo.js) | Fonte fictícia escolhida explicitamente |
@@ -49,6 +50,10 @@ A primeira pesquisa configura esquema, colunas e filtros, valida capacidades e d
 Após receber o esquema, a interface inicia em segundo plano os três domínios de busca, os quatro catálogos auxiliares compartilhados e a enumeração de referência. A pré-carga é sequencial e não espera para inicializar a tabela. O painel reutiliza essas listas, deduplicando chamadas pendentes; fechar os filtros cancela a espera daquele leitor, sem interromper o carregamento compartilhado. Sugestões por texto e a conferência de domínios fechados antes da pesquisa/CSV continuam consultando a fonte.
 
 Critérios novos começam na primeira página; Atualizar preserva os últimos critérios concluídos e a página. Respostas antigas são descartadas. Falhas identificam e preservam o resultado anterior e desabilitam exportação até a pesquisa concluir novamente.
+
+Antes da primeira consulta, a interface lê a URL e configura tipo documental, colunas, texto, status, filtros, ordenação e página. Uma URL inválida mostra um aviso sem executar a busca. Cada consulta iniciada sincroniza os parâmetros com `history.pushState`, preservando caminho, fragmento e parâmetros externos. Inicialização e `popstate` usam `replaceState` para normalizar a URL sem duplicar entradas. Voltar/Avançar cancelam operações anteriores e restauram a consulta; rascunhos de filtros e navegação dos painéis não alteram o link.
+
+A paginação remota usa `setPage` para abrir diretamente a página do link. A ordenação vem dos controles nativos da aplicação, com ordenação de cabeçalhos do Tabulator desabilitada; a restauração não dispara uma segunda consulta de ordenação da tabela. Novos critérios reiniciam a página, enquanto Atualizar e repetir uma falha preservam a página solicitada.
 
 ## Painéis dos documentos
 

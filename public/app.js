@@ -1,4 +1,5 @@
 import { createFilterOptionsCache } from '../src/browser/filter-options-cache.js';
+import { readQueryUrl, writeQueryUrl } from '../src/browser/query-url.js';
 
 export function createApplicationUI(service,{document=globalThis.document,window=globalThis.window,Tabulator=globalThis.Tabulator,optionsCacheSettings={}}={}) {
 const $ = id => document.getElementById(id);
@@ -40,6 +41,17 @@ function money(value) {
 const filterLabel=name=>state.schema.capabilities.find(c=>c.name===name)?.label || name;
 const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,legalAbort:null,legalSeq:0,legalPending:false,legalError:false,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
 let filterOptionsCache;
+let urlMode='replace',urlError=null,tableReady=false;
+function syncQueryUrl(query) {
+  const mode=urlMode;urlMode='push';
+  if(!window.location?.href || !window.history)return;
+  const href=writeQueryUrl(window.location.href,query,state.schema);
+  if(href!==window.location.href)window.history[mode==='replace'?'replaceState':'pushState'](null,'',href);
+}
+function invalidQueryUrl(error) {
+  urlError=error;status('error');$('retry-button').hidden=true;$('clear-button').hidden=false;
+  notice(`Parâmetros inválidos na URL: ${error.message} Corrija o link ou ajuste os critérios e pesquise novamente.`,'error');
+}
 function notice(message,kind='') { $('notice').textContent=message;$('notice').className='notice '+kind;$('notice').hidden=!message; }
 function hideWindowTooltip() { $('window-warning-tooltip').hidden=true; }
 function showWindowTooltip() {
@@ -147,10 +159,12 @@ async function requestTable(url,config,params) {
   if(!state.query)return {data:[],last_page:1,last_row:0};
   const query=clone(state.query);
   query.page=Number(params.page || 1);query.size=TABLE_PAGE_SIZE;
+  state.query.page=query.page;urlError=null;
   state.abort?.abort();state.exportAbort?.abort();state.exportSeq++;state.exportAbort=null;
   const seq=++state.seq;const controller=new AbortController();state.abort=controller;status('loading',query);
   notice('');
   try {
+    syncQueryUrl(query);
     const result=await service.call('execute',{query},{signal:controller.signal});
     if(seq!==state.seq)throw new DOMException('Resposta anterior descartada.','AbortError');
     renderResult(result,query);return result;
@@ -162,11 +176,16 @@ async function requestTable(url,config,params) {
     throw error;
   }finally{if(seq===state.seq)state.abort=null;}
 }
+function loadPage(page,mode='push') {
+  state.query.page=page;urlMode=mode;
+  return state.table.setPage(page).catch(()=>{});
+}
 function execute() {
   state.query.q=$('search').value;state.query.order=$('order').value;
   if(state.query.order==='relevancia' && !state.query.q.trim())state.query.order='-data';
+  urlError=null;
   updateCriteria();
-  state.table.setData('pncp-query',{page:1,size:TABLE_PAGE_SIZE}).catch(()=>{});
+  return loadPage(1);
 }
 function defaultQuery(type=state.query?.document_type || 'edital') {return {api_version:'2.0',document_type:type,q:'',status:'todos',pncp_filters:{},order:'-data',page:1,size:TABLE_PAGE_SIZE};}
 function renderFilterOptions() {
@@ -199,15 +218,34 @@ function renderColumnChoices() {
     input.addEventListener('change',()=>{input.checked?state.table.showColumn(column.field):state.table.hideColumn(column.field);});label.append(input,document.createTextNode(column.title));$('column-list').append(label);
   }
 }
-async function changeDocumentType() {
-  const type=$('document-type').value;if(type===state.query.document_type)return;
+function applyQuery(query) {
+  const type=query.document_type,typeChanged=type!==state.query.document_type;
   state.abort?.abort();state.exportAbort?.abort();state.detailAbort?.abort();state.domainAbort?.abort();state.suggestAbort?.abort();state.legalAbort?.abort();
-  state.detailSeq++;state.domainSeq++;state.suggestSeq++;state.legalSeq++;clearTimeout(state.suggestTimer);
+  state.seq++;state.detailSeq++;state.domainSeq++;state.suggestSeq++;state.legalSeq++;clearTimeout(state.suggestTimer);
   $('filters-dialog').close();$('details-dialog').close();
-  state.query=defaultQuery(type);state.lastQuery=null;state.lastResult=null;state.domains=null;state.draft=null;
-  $('result-info').hidden=true;$('result-title').textContent='Resultados';$('window-warning').hidden=true;hideWindowTooltip();
-  state.schema.columns=state.schema.columns_by_document[type];$('search').value='';state.table.clearSort();state.table.clearData();
-  state.table.setColumns(tableColumnDefinitions());renderColumnChoices();renderFilterOptions();execute();
+  state.query=clone(query);state.domains=null;state.draft=null;urlError=null;
+  $('search').value=query.q;
+  if(typeChanged) {
+    state.lastQuery=null;state.lastResult=null;
+    $('result-info').hidden=true;$('result-title').textContent='Resultados';$('window-warning').hidden=true;hideWindowTooltip();
+    state.schema.columns=state.schema.columns_by_document[type];state.table.clearData();
+    state.table.setColumns(tableColumnDefinitions());renderColumnChoices();
+  }
+  renderFilterOptions();updateCriteria();
+}
+function changeDocumentType() {
+  const type=$('document-type').value;if(type===state.query.document_type)return;
+  applyQuery(defaultQuery(type));return execute();
+}
+function restoreQueryUrl() {
+  if(!tableReady)return;
+  try {
+    const query=readQueryUrl(window.location.href,state.schema,TABLE_PAGE_SIZE);
+    applyQuery(query);return loadPage(query.page,'replace');
+  } catch(error) {
+    state.abort?.abort();state.exportAbort?.abort();state.seq++;state.exportSeq++;state.exportAbort=null;
+    invalidQueryUrl(error);
+  }
 }
 function renderDraftLists() {
   const q=state.draft;
@@ -563,7 +601,10 @@ async function init() {
   filterOptionsCache=createFilterOptionsCache(service,state.schema,{getStorage:()=>window.localStorage,...optionsCacheSettings});
   state.optionsReady=filterOptionsCache.preload();
   state.query=defaultQuery();
-  $('search').value='';
+  try {if(window.location?.href)state.query=readQueryUrl(window.location.href,state.schema,TABLE_PAGE_SIZE);}
+  catch(error){urlError=error;}
+  state.schema.columns=state.schema.columns_by_document[state.query.document_type];
+  $('search').value=state.query.q;
   $('source-badge').hidden=!state.schema.demo;
   renderFilterOptions();
   $('native-field').value='ufs';
@@ -571,9 +612,9 @@ async function init() {
   const resultInfo=$('result-info');
   state.table=new Tabulator('#results-table',{
     height:'100%',layout:'fitDataFill',nestedFieldSeparator:false,movableColumns:true,
-    pagination:true,paginationMode:'remote',paginationSize:TABLE_PAGE_SIZE,paginationSizeSelector:false,paginationButtonCount:4,
+    pagination:true,paginationMode:'remote',paginationSize:TABLE_PAGE_SIZE,paginationInitialPage:state.query.page,paginationSizeSelector:false,paginationButtonCount:4,
     paginationCounter:()=>{resultInfo.hidden=false;return resultInfo;},
-    sortMode:'remote',filterMode:'remote',ajaxRequestFunc:requestTable,dataLoader:false,data:[],
+    sortMode:'remote',filterMode:'remote',ajaxURL:'pncp-query',ajaxRequestFunc:requestTable,dataLoader:false,data:[],
     placeholder:state.placeholder,
     locale:'pt-br',langs:{'pt-br':{pagination:{page_size:'Linhas',page_title:'Página',first:paginationIcons.first,first_title:'Primeira página',last:paginationIcons.last,last_title:'Última página',prev:paginationIcons.prev,prev_title:'Página anterior',next:paginationIcons.next,next_title:'Próxima página',counter:{showing:'Exibindo',of:'de',rows:'contratações',pages:'páginas'}}}},
     columns:tableColumnDefinitions(),
@@ -587,16 +628,16 @@ async function init() {
   $('refresh-button').addEventListener('click',async()=>{
     if(!state.lastQuery)return;
     const {page}=state.lastQuery;state.query=clone(state.lastQuery);$('search').value=state.query.q;updateCriteria();
-    try{await state.table.setPage(page);}catch{}
+    await loadPage(page);
   });
-  $('retry-button').addEventListener('click',execute);
+  $('retry-button').addEventListener('click',()=>loadPage(state.query.page));
   $('cancel-button').addEventListener('click',()=>{state.abort?.abort();});
   $('cancel-export-button').addEventListener('click',()=>{state.exportAbort?.abort();notice('Exportação cancelada.');});
-  $('order').addEventListener('change',()=>{state.query.order=$('order').value;state.table.clearSort();execute();});
-  $('clear-button').addEventListener('click',()=>{state.query=defaultQuery();$('search').value='';state.table.clearSort();updateCriteria();execute();});
+  $('order').addEventListener('change',()=>{state.query.order=$('order').value;execute();});
+  $('clear-button').addEventListener('click',()=>{state.query=defaultQuery();$('search').value='';updateCriteria();execute();});
   $('native-field').addEventListener('change',renderNativeValue);$('add-native').addEventListener('click',addNative);
   for(const [id,field]of [['draft-publication-start','data_publicacao_inicio'],['draft-publication-end','data_publicacao_fim']])$(id).addEventListener('input',()=>{const value=$(id).value;if(value)state.draft.pncp_filters[field]=value;else delete state.draft.pncp_filters[field];renderDraftLists();});
-  $('apply-filters').addEventListener('click',()=>{if(state.legalPending || state.legalError)return;state.draft.q=$('draft-search').value;state.draft.status=$('draft-status').value;state.query=clone(state.draft);$('search').value=state.query.q;state.table.clearSort();$('filters-dialog').close();updateCriteria();execute();});
+  $('apply-filters').addEventListener('click',()=>{if(state.legalPending || state.legalError)return;state.draft.q=$('draft-search').value;state.draft.status=$('draft-status').value;state.query=clone(state.draft);$('search').value=state.query.q;$('filters-dialog').close();updateCriteria();execute();});
   $('filters-dialog').addEventListener('close',()=>{state.domainAbort?.abort();state.suggestAbort?.abort();state.legalAbort?.abort();clearTimeout(state.suggestTimer);state.domainSeq++;state.suggestSeq++;state.legalSeq++;});
   $('details-dialog').addEventListener('close',()=>{state.detailAbort?.abort();state.detailSeq++;});
   $('export-button').addEventListener('click',exportCsv);
@@ -605,10 +646,11 @@ async function init() {
   $('window-warning').addEventListener('focus',showWindowTooltip);
   $('window-warning').addEventListener('blur',hideWindowTooltip);
   window.addEventListener('resize',hideWindowTooltip);
+  window.addEventListener('popstate',restoreQueryUrl);
   window.addEventListener('pagehide',event=>{if(!event.persisted)filterOptionsCache.close();});
   document.addEventListener('scroll',hideWindowTooltip,true);
   updateCriteria();status('idle');
-  state.table.on('tableBuilt',execute);
+  state.table.on('tableBuilt',()=>{tableReady=true;if(window.location?.href)return restoreQueryUrl();if(urlError)invalidQueryUrl(urlError);else return loadPage(state.query.page,'replace');});
 }
 const ready=init().catch(error=>{$('startup-error').hidden=false;$('startup-error').textContent=`Não foi possível iniciar a interface: ${error.message}. Recarregue a página.`;notice('Falha ao carregar o esquema da aplicação.','error');});
 

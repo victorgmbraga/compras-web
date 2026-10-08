@@ -34,7 +34,7 @@ Publique **o conteúdo de `dist-browser/`** em uma hospedagem estática. Funcion
 
 ## Usar a interface
 
-1. A página inicia uma pesquisa de contratações sem filtros e mostra até 100 documentos por página. Escolha **Editais e Avisos de Contratações**, **Atas de Registro de Preços** ou **Contratos** no cabeçalho. A troca reinicia os critérios e ajusta as colunas. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
+1. Ao abrir um link, a página restaura os critérios e a página indicados na URL. Sem parâmetros de busca, inicia contratações sem filtros e mostra até 100 documentos por página. Escolha **Editais e Avisos de Contratações**, **Atas de Registro de Preços** ou **Contratos** no cabeçalho. A troca reinicia os critérios e ajusta as colunas. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
 2. Abra **Filtros** para selecionar condições documentais, sub-rogação, itens, resultados e fornecedores. Há intervalos de quantidade, valores, classificação, homologação e desconto; catálogos de países, portes e naturezas jurídicas; e condições de adesão, benefício e preferência. Atas permitem filtros de assinatura, início de vigência e adesão. Em contratos, use também tipo, nota fiscal, fornecedor subcontratado, assinatura, início de vigência e valor global. Campos de outro tipo documental ficam indisponíveis nessa seleção. Órgãos, unidades e fornecedores usam os IDs fornecidos pelo PNCP.
 3. Use a paginação para consultar outras páginas. **Atualizar** repete os últimos critérios concluídos na página atual; novos critérios começam na primeira página. **Cancelar** interrompe a pesquisa em andamento. Uma falha mantém e identifica o resultado anterior.
 4. Clique em um documento para abrir seus detalhes. Os links **Abrir no PNCP** e **Sistema de origem**, quando disponíveis, ficam junto ao botão de fechar. Em contratações, as abas **Detalhes**, **Itens**, **Arquivos**, **Atas de Registro de Preço**, **Contratos/Empenhos** e **Histórico** têm contadores; as cinco listagens carregam sua primeira página automaticamente em segundo plano. Cada aba preserva sua paginação e permite repetir uma consulta que falhou. Arquivos têm links de download; atas e contratos têm links para o PNCP. Atas têm abas **Detalhes**, **Partes envolvidas**, **Contratos**, **Arquivos** e **Histórico**. Contratos têm **Detalhes**, **Empenhos**, **Instrumentos de cobrança**, **Termos**, **Arquivos** e **Histórico**. Seus dados completos e primeiras páginas carregam em segundo plano. Os detalhes incluem a contratação de origem, assinatura e vigência; atas mostram cancelamento e adesão, enquanto contratos mostram processo, fornecedor, valores e parcelas. Arquivos de termos e detalhes de empenhos/instrumentos podem ser abertos no registro selecionado.
@@ -48,6 +48,20 @@ O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 
 HTTP 404 do PNCP nas listas **Empenhos** e **Instrumentos de cobrança** de um contrato indica ausência de registros: as abas exibem `(0)` e uma mensagem de lista vazia. Essa regra não se aplica aos detalhes de registros individuais nem a outras falhas de consulta.
 
 Quando a contagem do **Histórico** de um contrato diverge dos eventos retornados pelo PNCP, o sistema exibe os registros e informa **Quantidade desconhecida**, com a aba **Histórico (?)**. Use **Próxima** até encontrar uma página vazia; páginas incompletas ainda permitem avançar. **Anterior** permite retornar aos registros. Essa exceção não altera as demais listagens, a pesquisa ou o CSV.
+
+## Compartilhar uma busca
+
+Copie a URL da barra de endereços depois de pesquisar, aplicar filtros ou mudar de página. O link contém o texto, os filtros aplicados, o tipo documental, a ordenação e a página. Abrir o link ou recarregar a aplicação restaura esses critérios; **Voltar** e **Avançar** do navegador também restauram a pesquisa. Alterações no painel de filtros só entram na URL ao aplicar.
+
+Os parâmetros seguem os nomes do PNCP. Exemplo de sufixo para acrescentar ao endereço da aplicação:
+
+```text
+?tipos_documento=contrato&q=reforma&status=vigente&ordenacao=-data&pagina=2&possui_nfe=false
+```
+
+Use `tipos_documento=edital`, `ata` ou `contrato`; `q` para o texto; `ordenacao=-data`, `data` ou `relevancia`; `pagina` de 1 a 100; e `status` compatível com o documento. Filtros usam seus nomes do catálogo, como `ufs=SP%7CDF`, `srp=false` ou `valor_global_min=1000.50`. Listas são separadas por `|`, codificado como `%7C`; booleanos usam `true`/`false`. A tabela mantém 100 registros por página. Consulte o [formato completo](docs/consultas-pncp.md#url-compartilhável-da-interface).
+
+Um link com parâmetros inválidos exibe um aviso e permite ajustar os critérios ou limpar a busca. O link define a consulta; os resultados são obtidos novamente do PNCP e podem mudar com o tempo.
 
 ## Desenvolver e validar
 
