@@ -7,7 +7,8 @@ import { schema } from '../src/schema.js';
 import { demoFetch,demoContracts,demoAtas } from '../src/demo.js';
 import { PncpClient } from '../src/pncp-core.js';
 import { QueryService } from '../src/query-core.js';
-import { config, service, document, query } from './helpers.js';
+import { config, service, document, query, memoryStorage } from './helpers.js';
+import { FILTER_OPTIONS_TTL } from '../src/browser/filter-options-cache.js';
 import { project } from '../src/adapter.js';
 
 // Execute the actual app handlers with a minimal DOM and Tabulator adapter.
@@ -77,8 +78,9 @@ async function interfaceFixture(options={}) {
     constructor(selector,options){this.options=options;this.size=options.paginationSize;this.handlers={};}on(name,fn){this.handlers[name]=fn;}clearSort(){}getPageSize(){return this.size;}
     setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('query',{page,size:this.size});}redraw(){}clearData(){}setColumns(columns){this.options.columns=columns;}
   }
-  const uiCore=createApplicationUI(service,{document:dom,window:{addEventListener(){}},Tabulator:Table});
+  const uiCore=createApplicationUI(service,{document:dom,window:{addEventListener(){},localStorage:options.storage},Tabulator:Table,optionsCacheSettings:options.cacheSettings});
   await uiCore.ready;
+  if(options.waitOptions!==false)await uiCore.state.optionsReady;
   await settle();assert.equal(nodes.get('startup-error').hidden,true);
   const buildTable=async()=>{uiCore.state.table.handlers.tableBuilt();await Promise.allSettled(pending);await settle();};
   if(!options.deferTableBuilt)await buildTable();
@@ -89,7 +91,7 @@ async function interfaceFixture(options={}) {
   const footer=()=>uiCore.state.table.options.paginationCounter();
   const draft=()=>structuredClone(uiCore.state.draft);
   const setFilter=(name,value)=>uiCore.setDraftFilter(name,value);
-  return {nodes,all,requests,itemRequests,relatedRequests,documentRequests,childRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable};
+  return {nodes,all,requests,itemRequests,relatedRequests,documentRequests,childRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable,optionsReady:uiCore.state.optionsReady};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}
 
@@ -450,6 +452,44 @@ test('FILTERS-UI-04: catálogo completo distingue a compatibilidade com contrato
   assert(groups.flatMap(g=>g.children).every(o=>!o.textContent.includes('pendente')));
 });
 
+test('FILTER-OPTIONS-UI-01: inicializa todas as listas e reabrir filtros dos três tipos não faz consultas',async()=>{
+  const storage=memoryStorage(),ui=await interfaceFixture({storage});assert.equal(ui.domainRequests.length,8);assert.equal(storage.data.size,8);
+  assert.deepEqual(ui.domainRequests.filter(request=>request.field===null).map(request=>request.type),['edital','ata','contrato']);
+  for(const type of ['edital','ata','contrato']){
+    if(type!=='edital'){ui.nodes.get('document-type').value=type;await ui.nodes.get('document-type').fire('change');}
+    for(let i=0;i<2;i++){await ui.nodes.get('filters-button').fire('click');assert.equal(ui.nodes.get('add-native').disabled,false);assert(ui.nodes.get('native-options').children.length>0);ui.nodes.get('filters-dialog').close();}
+  }
+  assert.equal(ui.domainRequests.length,8);
+});
+
+test('FILTER-OPTIONS-UI-02: nova inicialização reusa o armazenamento até quatro horas e atualiza depois',async()=>{
+  const storage=memoryStorage();let time=1000;const options={storage,cacheSettings:{now:()=>time}};
+  const first=await interfaceFixture(options);assert.equal(first.domainRequests.length,8);
+  time+=FILTER_OPTIONS_TTL-1;const cached=await interfaceFixture(options);assert.equal(cached.domainRequests.length,0);await cached.nodes.get('filters-button').fire('click');assert.equal(cached.domainRequests.length,0);
+  time++;const refreshed=await interfaceFixture(options);assert.equal(refreshed.domainRequests.length,8);await refreshed.nodes.get('filters-button').fire('click');assert.equal(refreshed.domainRequests.length,8);
+});
+
+test('FILTER-OPTIONS-UI-03: aba aberta invalida memória após quatro horas e recupera falha de pré-carga',async()=>{
+  let time=1000,failed=true;const ui=await interfaceFixture({cacheSettings:{now:()=>time},domainHandler:(payload,options,core)=>{
+    if(payload.type==='edital' && payload.field===null && failed){failed=false;throw new Error('Indisponível');}
+    return core.domains(payload.type,payload.normatives,options.signal,null,payload.field);
+  }});
+  assert.equal(ui.requests.length,1);assert.equal(ui.nodes.get('startup-error').hidden,true);assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');
+  await ui.nodes.get('filters-button').fire('click');assert.equal(ui.nodes.get('add-native').disabled,false);assert.equal(ui.domainRequests.length,9);ui.nodes.get('filters-dialog').close();
+  time+=FILTER_OPTIONS_TTL;await ui.nodes.get('filters-button').fire('click');assert.equal(ui.domainRequests.length,10);assert.equal(ui.nodes.get('add-native').disabled,false);
+});
+
+test('FILTER-OPTIONS-UI-04: pré-carga lenta não bloqueia a tabela e abrir filtros compartilha a chamada pendente',async()=>{
+  let release;const gate=new Promise(resolve=>{release=resolve;});
+  const ui=await interfaceFixture({waitOptions:false,domainHandler:async(payload,options,core)=>{
+    await gate;return core.domains(payload.type,payload.normatives,options.signal,null,payload.field);
+  }});
+  assert.equal(ui.nodes.get('result-title').textContent,'64 contratações');assert.equal(ui.domainRequests.length,1);
+  const opening=ui.nodes.get('filters-button').fire('click');await settle();assert.equal(ui.nodes.get('add-native').disabled,true);assert.equal(ui.domainRequests.length,1);
+  release();await opening;await ui.optionsReady;
+  assert.equal(ui.nodes.get('add-native').disabled,false);assert.equal(ui.domainRequests.length,8);
+});
+
 test('FILTERS-UI-05: seleção de Não preserva false na consulta SRP',async()=>{
   const ui=await interfaceFixture();await ui.nodes.get('filters-button').fire('click');
   ui.nodes.get('native-field').value='srp';await ui.nodes.get('native-field').fire('change');
@@ -464,7 +504,7 @@ test('FILTERS-UI-06: margem singular e catálogo inativo usam controles de sele�
   ui.nodes.get('native-options').value='2';await ui.nodes.get('add-native').fire('click');assert.equal(ui.draft().pncp_filters.tipos_margens_preferencia,'2');
   ui.nodes.get('native-field').value='naturezas_juridicas';await ui.nodes.get('native-field').fire('change');
   const select=ui.nodes.get('native-options');assert.equal(select.multiple,true);assert.equal(select.children[0].value,'0000');assert.match(select.children[0].textContent,/inativa/);
-  assert.equal(ui.domainRequests.at(-1).field,'naturezas_juridicas');
+  assert(ui.domainRequests.some(request=>request.field==='naturezas_juridicas'));
 });
 
 test('FILTERS-UI-07: mudar normativo preserva amparos válidos e remove incompatíveis',async()=>{
@@ -591,7 +631,7 @@ test('CONTRACTS-UI-01: trocar o tipo reinicia critérios, colunas e status e per
   assert.equal(ui.state().document_type,'contrato');assert.deepEqual(ui.state().pncp_filters,{});assert.equal(ui.nodes.get('result-title').textContent,'32 contratos');assert(ui.tableColumns().some(c=>c.field==='valor_global'));assert(!ui.tableColumns().some(c=>c.field==='valor_total_estimado'));
   assert.deepEqual(ui.nodes.get('draft-status').children.map(o=>o.value),['todos','vigente','nao_vigente']);
   const fields=ui.nodes.get('native-field').children.flatMap(g=>g.children);assert.equal(fields.find(o=>o.value==='tipos_contrato').disabled,false);assert.equal(fields.find(o=>o.value==='item_quantidade_min').disabled,true);
-  await ui.nodes.get('filters-button').fire('click');ui.nodes.get('native-field').value='tipos_contrato';await ui.nodes.get('native-field').fire('change');assert.equal(ui.domainRequests.at(-1).type,'contrato');
+  const domainsBefore=ui.domainRequests.length;await ui.nodes.get('filters-button').fire('click');ui.nodes.get('native-field').value='tipos_contrato';await ui.nodes.get('native-field').fire('change');assert.equal(ui.domainRequests.length,domainsBefore);assert(ui.domainRequests.some(request=>request.type==='contrato' && request.field===null));
   for(const option of ui.nodes.get('native-options').children)option.selected=option.value==='1';await ui.nodes.get('add-native').fire('click');
   ui.nodes.get('native-field').value='possui_nfe';await ui.nodes.get('native-field').fire('change');ui.nodes.get('native-value').value='true';await ui.nodes.get('add-native').fire('click');await ui.nodes.get('apply-filters').fire('click');assert.equal(ui.nodes.get('result-title').textContent,'8 contratos');
   await ui.nodes.get('export-button').fire('click');assert.equal(ui.exportRequests.at(-1).query.document_type,'contrato');assert.deepEqual(ui.exportRequests.at(-1).query.pncp_filters,{tipos_contrato:['1'],possui_nfe:true});

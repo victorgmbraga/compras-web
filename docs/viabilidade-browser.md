@@ -58,6 +58,6 @@ A origem HTTPS de produção ainda precisa ser escolhida e verificada com `pncp-
 
 A medição de 10.000 documentos usa fonte sintética e ritmo elevado para medir processamento. Com os padrões reais de 50 registros por página e duas chamadas por segundo, o agendamento de 200 buscas consome aproximadamente 100 segundos, próximo do prazo total de 120 segundos. A latência e as tentativas podem interromper a coleta. O CSV continua limitado a 50 MiB, e as respostas a 100 MiB por operação. A medição automatizada não expõe memória total do Worker/Blob; não foi estabelecido um limite garantido para qualquer dispositivo.
 
-Não há PWA, cache persistente, consultas reais offline ou coordenação entre abas.
+Não há PWA, consultas reais offline ou coordenação de chamadas entre abas. Apenas as opções de filtros são persistidas no `localStorage`, com validade de 4 horas e pré-carregamento dos três tipos documentais; resultados de pesquisa, detalhes e CSV não são persistidos. Listas parciais continuam usando sugestões por texto consultadas na fonte.
 
 O [guia de hospedagem](hospedagem-estatica.md) contém comandos, CSP/cache, workflow manual de GitHub Pages e diagnóstico na origem publicada. A promoção da implantação estática depende dessas verificações operacionais, conforme os critérios do plano.

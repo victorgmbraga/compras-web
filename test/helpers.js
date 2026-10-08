@@ -27,3 +27,8 @@ export function service(documents,options={},extra={}) {
 export const query = extra=>({api_version:'2.0',size:10,...extra});
 
 export const csvBytes = result => Buffer.concat(result.chunks.map(chunk => Buffer.from(chunk)));
+
+export function memoryStorage() {
+  const data=new Map();
+  return {data,getItem:key=>data.get(key) ?? null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key)};
+}

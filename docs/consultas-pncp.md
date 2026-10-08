@@ -152,7 +152,9 @@ Opções desses catálogos podem incluir `active: false`; a interface distingue 
 
 Domínios fechados são conferidos pelo Worker antes da pesquisa e da exportação. Reservas/remanescentes usam a enumeração fixa do portal, com `domain_source: reference` e sem requisição externa para obter essas opções. Domínios parciais utilizam sugestões e não são tratados como listas exaustivas; incluem sub-rogação, fornecedores, municípios de fornecedores e unidades de medida.
 
-Ao adicionar ou remover normativos, a interface consulta novamente os amparos, preserva os válidos e remove os incompatíveis com aviso. Enquanto essa conferência está em andamento, **Aplicar e pesquisar** fica desabilitado. Em caso de falha, remova o filtro de amparo ou adicione novamente o normativo para repetir a conferência.
+Na inicialização, a interface pré-carrega em segundo plano as opções de `edital`, `ata` e `contrato`, os quatro catálogos compartilhados e a referência fixa. São oito operações locais `domains`, sete delas com consulta externa quando não há cache válido. As listas normalizadas ficam no `localStorage` por 4 horas desde o carregamento, sem renovar a validade em leituras. Abrir filtros ou trocar o campo reutiliza a lista correspondente; entradas vencidas são descartadas e obtidas novamente na inicialização ou no próximo uso. Falhas de uma lista não bloqueiam a pesquisa nem as demais listas; armazenamento indisponível usa memória. O cache não altera as consultas de validação do Worker, pesquisa, detalhes, CSV ou sugestões por texto.
+
+Ao adicionar ou remover normativos, a interface obtém os amparos do cache específico do tipo e conjunto de normativos ou faz uma consulta ao PNCP. Preserva os válidos e remove os incompatíveis com aviso. Essas listas dependentes são carregadas sob demanda e têm a mesma validade de 4 horas; as demais opções reutilizam o domínio inicial. Enquanto essa conferência está em andamento, **Aplicar e pesquisar** fica desabilitado. Em caso de falha, remova o filtro de amparo ou adicione novamente o normativo para repetir a conferência.
 
 `service.call("suggest", payload)` recebe:
 

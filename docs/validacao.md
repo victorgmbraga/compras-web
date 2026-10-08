@@ -10,6 +10,8 @@ npm test
 
 O runner nativo executa `test/*.test.js`. A suíte cobre filtros dos três tipos em pesquisa/CSV, precisão, validação antes da rede, domínios, paginação, identidades e painéis. Inclui interface com DOM mínimo, núcleo do navegador e ponte RPC. Os mocks de interface recebem métodos e payloads tipados, sem adaptador HTTP.
 
+O cache de opções tem testes de pré-carga dos três tipos e catálogos compartilhados, reutilização por campo e entre inicializações, expiração exata em 4 horas (memória e `localStorage`), entradas inválidas, armazenamento bloqueado/sem quota, falhas sem persistência, deduplicação e cancelamento por leitor. Também cobre amparos por conjunto de normativos, separação entre fonte real/demonstração e inicialização da tabela sem aguardar uma pré-carga lenta. O smoke no navegador verifica a persistência real, reutilização em nova página, reabertura dos filtros e renovação após vencimento sem apagar dados alheios.
+
 Os testes de navegador do runtime verificam configuração pública, transporte sem credenciais, UTF-8 dividido entre chunks, números acima de 2^53, ausência distinta de false, 204/404/429/503, erros opacos/JSON, tentativas, timeouts, orçamentos, cancelamento de leitura/fila/CSV, excesso de operações, prazo absoluto, respostas fora de ordem, reinicialização e versão do Worker. CSVs dos três tipos são comparados byte a byte com o núcleo, incluindo limite exato, BOM, CRLF, aspas e acentos; metadados do navegador não contêm a coleção de documentos.
 
 Essa suíte usa fontes controladas, sem provocar falhas ou limitação no PNCP real. Ela não comprova a disponibilidade externa. O DOM mínimo não substitui renderização em navegador.

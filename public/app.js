@@ -1,4 +1,6 @@
-export function createApplicationUI(service,{document=globalThis.document,window=globalThis.window,Tabulator=globalThis.Tabulator}={}) {
+import { createFilterOptionsCache } from '../src/browser/filter-options-cache.js';
+
+export function createApplicationUI(service,{document=globalThis.document,window=globalThis.window,Tabulator=globalThis.Tabulator,optionsCacheSettings={}}={}) {
 const $ = id => document.getElementById(id);
 const el = (tag, text, className) => { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(className)node.className=className; return node; };
 const clone = value => structuredClone(value);
@@ -37,6 +39,7 @@ function money(value) {
 }
 const filterLabel=name=>state.schema.capabilities.find(c=>c.name===name)?.label || name;
 const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,legalAbort:null,legalSeq:0,legalPending:false,legalError:false,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
+let filterOptionsCache;
 function notice(message,kind='') { $('notice').textContent=message;$('notice').className='notice '+kind;$('notice').hidden=!message; }
 function hideWindowTooltip() { $('window-warning-tooltip').hidden=true; }
 function showWindowTooltip() {
@@ -259,7 +262,7 @@ async function openFilters(column=null) {
   await renderNativeValue();
 }
 async function getDomains(signal,field=$('native-field').value) {
-  return service.call('domains',{type:state.draft?.document_type || state.query.document_type,normatives:state.draft?.pncp_filters.normativos_base,field:field || null},{signal});
+  return filterOptionsCache.get({type:state.draft?.document_type || state.query.document_type,normatives:state.draft?.pncp_filters.normativos_base,field:field || null},{signal});
 }
 async function renderNativeValue() {
   state.domainAbort?.abort();state.suggestAbort?.abort();clearTimeout(state.suggestTimer);
@@ -557,6 +560,8 @@ async function exportCsv() {
 }
 async function init() {
   state.schema=await service.call('schema');
+  filterOptionsCache=createFilterOptionsCache(service,state.schema,{getStorage:()=>window.localStorage,...optionsCacheSettings});
+  state.optionsReady=filterOptionsCache.preload();
   state.query=defaultQuery();
   $('search').value='';
   $('source-badge').hidden=!state.schema.demo;
@@ -600,6 +605,7 @@ async function init() {
   $('window-warning').addEventListener('focus',showWindowTooltip);
   $('window-warning').addEventListener('blur',hideWindowTooltip);
   window.addEventListener('resize',hideWindowTooltip);
+  window.addEventListener('pagehide',event=>{if(!event.persisted)filterOptionsCache.close();});
   document.addEventListener('scroll',hideWindowTooltip,true);
   updateCriteria();status('idle');
   state.table.on('tableBuilt',execute);

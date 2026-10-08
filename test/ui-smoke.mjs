@@ -5,12 +5,15 @@ import { launchTestBrowser } from './browser-launch.js';
 import { defaults } from '../src/settings.js';
 import { createStaticServer } from './static-server.js';
 import { schema } from '../src/schema.js';
+import { FILTER_OPTIONS_PREFIX, FILTER_OPTIONS_TTL } from '../src/browser/filter-options-cache.js';
 const config={...defaults,DEMO_MODE:true,PNCP_REQUESTS_PER_SECOND:100000};
 const app=createStaticServer(new URL('../dist-browser-test/',import.meta.url));
 await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));
-const browser=await launchTestBrowser(),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],checks=[];
+const browser=await launchTestBrowser(),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[],checks=[];
 page.on('pageerror',error=>errors.push(error.message));
 const serviceEvent='service';
+const initialDomains=[];
+page.on(serviceEvent,message=>{if(message.method==='domains')initialDomains.push(message.payload);});
 const localApiRequests=[];
 page.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/api/'))localApiRequests.push(r.url());});
 {
@@ -45,6 +48,38 @@ try {
   await page.waitForFunction(()=>document.querySelector('.tabulator'));
   assert.match(await page.locator('#source-badge').innerText(),/dados fictícios/);check('Demonstração marcada e interface disponível');
   await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');check('Pesquisa inicial sem filtros executada automaticamente');
+  await page.waitForFunction(prefix=>Object.keys(localStorage).filter(key=>key.startsWith(prefix)).length===8,FILTER_OPTIONS_PREFIX);
+  assert.equal(initialDomains.length,8);
+  assert.deepEqual(initialDomains.filter(payload=>payload.field===null).map(payload=>payload.type),['edital','ata','contrato']);
+  const storedOptions=await page.evaluate(prefix=>Object.keys(localStorage).filter(key=>key.startsWith(prefix)).map(key=>JSON.parse(localStorage.getItem(key))),FILTER_OPTIONS_PREFIX);
+  for(const entry of storedOptions){assert.equal(entry.expires_at-entry.fetched_at,FILTER_OPTIONS_TTL);assert(!Object.hasOwn(entry.value,'raw'));}
+  for(let i=0;i<2;i++){await page.locator('#filters-button').click();await page.locator('#native-options').waitFor();await page.locator('#filters-dialog .close-dialog[aria-label="Fechar"]').click();}
+  assert.equal(initialDomains.length,8);check('Inicialização pré-carrega e persiste as opções dos três tipos; reabrir filtros não consulta a fonte');
+  const cachedPage=await page.context().newPage(),cachedDomains=[];
+  try {
+    cachedPage.on('pageerror',error=>errors.push(error.message));
+    await cachedPage.exposeFunction('__observeCachedDomains',message=>{if(message.method==='domains')cachedDomains.push(message.payload);});
+    await cachedPage.addInitScript(()=>{const NativeWorker=window.Worker;window.Worker=class extends NativeWorker {postMessage(message,...args){window.__observeCachedDomains(message);return super.postMessage(message,...args);}};});
+    await cachedPage.goto(page.url(),{waitUntil:'load'});
+    await cachedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
+    for(const [type,title] of [['edital','64 contratações'],['ata','24 atas'],['contrato','32 contratos']]){
+      await cachedPage.locator('#document-type').selectOption(type);
+      await cachedPage.waitForFunction(expected=>document.querySelector('#result-title').textContent===expected,title);
+      await cachedPage.locator('#filters-button').click();await cachedPage.locator('#native-options').waitFor();
+      await cachedPage.locator('#filters-dialog .close-dialog[aria-label="Fechar"]').click();
+    }
+    assert.equal(cachedDomains.length,0);check('Nova página reutiliza localStorage para filtros de edital, ata e contrato');
+    await cachedPage.evaluate(({prefix,ttl})=>{
+      localStorage.setItem('filter-cache-test-preference','preservar');
+      for(const key of Object.keys(localStorage).filter(key=>key.startsWith(prefix))){const entry=JSON.parse(localStorage.getItem(key));entry.fetched_at=Date.now()-ttl;entry.expires_at=entry.fetched_at+ttl;localStorage.setItem(key,JSON.stringify(entry));}
+    },{prefix:FILTER_OPTIONS_PREFIX,ttl:FILTER_OPTIONS_TTL});
+    await cachedPage.reload({waitUntil:'load'});
+    await cachedPage.waitForFunction(prefix=>Object.keys(localStorage).filter(key=>key.startsWith(prefix)).length===8 && Object.keys(localStorage).filter(key=>key.startsWith(prefix)).every(key=>JSON.parse(localStorage.getItem(key)).expires_at>Date.now()),FILTER_OPTIONS_PREFIX);
+    await cachedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
+    assert.equal(cachedDomains.length,8);
+    assert.equal(await cachedPage.evaluate(()=>localStorage.getItem('filter-cache-test-preference')),'preservar');
+    check('Listas vencidas há quatro horas são renovadas sem apagar dados alheios');
+  } finally {await cachedPage.close();}
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
   assert.equal(await page.locator('#app-header .header-toolbar .criteria-row').count(),1);
   for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);

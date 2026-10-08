@@ -4,6 +4,8 @@ Aplicação para pesquisar editais e avisos de contratações, atas de registro 
 
 Texto, filtros, ordenação e paginação são enviados ao PNCP. Cada pesquisa consulta novamente a fonte. Os resultados ficam em memória durante o uso; a aplicação não requer banco de dados nem volume persistente.
 
+As listas de opções dos filtros de editais, atas e contratos são pré-carregadas em segundo plano na inicialização e armazenadas no `localStorage` por **4 horas**, sem renovar a validade nas leituras. Reabrir os filtros ou a aplicação reutiliza essas listas. Amparos dependentes de normativos têm cache separado; sugestões por texto continuam consultando o PNCP, pois algumas listas iniciais são parciais. Se o armazenamento estiver bloqueado, o cache funciona em memória durante a sessão.
+
 ## Executar no navegador
 
 Para desenvolver e gerar os arquivos, requer **Node.js 22.12 ou superior**, com Node.js 24 recomendado, e npm. Depois do build, a hospedagem precisa apenas servir arquivos por HTTPS. Cada navegador acessa `pncp.gov.br` diretamente, sem credenciais.
