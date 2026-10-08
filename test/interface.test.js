@@ -666,6 +666,19 @@ test('CONTRACTS-UI-06: HTTP 404 de empenhos e instrumentos de cobrança exibe ab
   assert.equal(ui.nodes.get('detail-tab-termos').dataset.state,'loaded');assert.equal(ui.nodes.get('detail-tab-arquivos').textContent,'Arquivos (12)');assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (12)');assert.equal(ui.relatedRequests.length,5);
 });
 
+test('CONTRACTS-UI-07: emenda parlamentar booleana carrega os detalhes e exibe Não ou Sim',async()=>{
+  for(const [value,label]of [[false,'Não'],[true,'Sim']]){
+    const ui=await interfaceFixture({itemFetcher:async(url,init)=>{
+      const response=await demoFetch(url,init);
+      return new URL(url).pathname==='/api/pncp/v1/orgaos/00000000000000/contratos/2026/1'?Response.json({...await response.json(),emendaParlamentar:value}):response;
+    }});
+    await ui.openDocument(project(demoContracts[0]));
+    const panel=ui.nodes.get('detail-panel-detalhes'),field=panel.children[0].children.find(f=>f.children[0].textContent==='Emenda parlamentar');
+    assert(field);assert.equal(field.children[1].textContent,label);assert.equal(ui.nodes.get('detail-tab-detalhes').dataset.state,'loaded');assert.equal(panel.children[2].hidden,true);
+    assert.equal(ui.documentRequests.length,1);assert.equal(ui.relatedRequests.length,5);
+  }
+});
+
 test('DOCUMENTS-UI-01: falha de detalhes conserva a busca, permite tentar novamente e não impede as listas',async()=>{
   let failed=true;const ui=await interfaceFixture({documentHandler:async(url,options,core)=>{if(failed)return ({error:{message:'Falha de detalhes.'}});return (await core.documentDetails(project(demoAtas[0])._document,options.signal));}});
   await ui.openDocument(project(demoAtas[0]));const panel=ui.nodes.get('detail-panel-detalhes');assert.equal(ui.nodes.get('detail-tab-detalhes').dataset.state,'error');assert.equal(panel.children[0].children.length,14);assert.match(panel.children[1].textContent,/Falha de detalhes/);assert.equal(panel.children[2].hidden,false);assert.equal(ui.relatedRequests.length,4);assert.equal(ui.nodes.get('detail-tab-arquivos').dataset.state,'loaded');

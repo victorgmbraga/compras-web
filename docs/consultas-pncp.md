@@ -207,6 +207,8 @@ A pesquisa fornece `_document` com os identificadores originais e o tipo. Em ata
 
 As respostas completas contêm `api_version`, `document_type`, `fields`, `objeto`, `link_sistema_origem`, `queried_at` e `upstream_requests`. Cada entrada de `fields` tem `field`, `title`, `type` e `value`; vínculos têm também `url`. Valores monetários são strings exatas, IDs preservam zeros e booleanos mantêm ausência distinta de `false`. Campos opcionais ausentes são omitidos. O controle PNCP precisa corresponder ao documento solicitado.
 
+Nos detalhes de contratos, `emendaParlamentar` é booleano: `false` exibe **Não** e `true` exibe **Sim** no campo **Emenda parlamentar**. Ausência ou `null` omite o campo opcional, sem assumir **Não**.
+
 Atas mostram identificação, órgão/unidade, modalidade, assinatura, vigência, cancelamento, adesão, contratação de origem e informações complementares. Contratos mostram identificação, órgão/unidade e sub-rogação, processo/categoria, fornecedor e subcontratado, assinatura, vigência, valores inicial/global/acumulado e parcelas, adesão, remanejamento, vínculos com contratação/ata, CIPI e informações complementares, conforme disponibilidade da fonte. Esses campos são consultados novamente ao abrir o painel. Uma falha mantém os campos disponíveis na busca, informa o erro e oferece nova tentativa.
 
 `documentRelated` recebe os identificadores originais, `resource`, `page` e `size`. A interface pede página 1 e dez registros; os tamanhos permitidos são 10, 25, 50 e 100. O formato de paginação é o mesmo das listagens de contratações.

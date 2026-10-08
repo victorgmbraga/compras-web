@@ -126,3 +126,12 @@ test('DOCUMENTS-12: detalhes completos recusam identidade incorreta e aceitam an
   const f=fixture(()=>json({numeroControlePNCP:'01234567000189-1-000057/2025-000009',anoAta:2026,numeroAtaRegistroPreco:'0009',objetoCompra:'Objeto da ata'}));
   const detail=await f.service.documentDetails(ata);assert.equal(detail.fields.find(x=>x.field==='anoAta').value,'2026');assert.match(f.requests[0].pathname,/compras\/2025\/57\/atas\/9$/);
 });
+
+test('DOCUMENTS-15: emenda parlamentar de contrato preserva booleanos e ausência sem aceitar tipos inválidos',async()=>{
+  for(const value of [false,true]){
+    const detail=await fixture(()=>json({numeroControlePNCP:'01234567000189-2-000044/2026',emendaParlamentar:value})).service.documentDetails(contract);
+    assert.deepEqual(detail.fields.find(f=>f.field==='emendaParlamentar'),{field:'emendaParlamentar',title:'Emenda parlamentar',type:'boolean',value});
+  }
+  for(const value of [undefined,null])assert(!projectDocument('contrato',{emendaParlamentar:value}).fields.some(f=>f.field==='emendaParlamentar'));
+  for(const value of ['false','true',0,1,{},[]])assert.throws(()=>projectDocument('contrato',{emendaParlamentar:value}),e=>e.code==='INVALID_UPSTREAM');
+});
