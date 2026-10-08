@@ -1,5 +1,8 @@
 node_modules/
 dist/
+dist-browser/
+dist-browser-test/
+.playwright/
 .env
 coverage/
 *.log

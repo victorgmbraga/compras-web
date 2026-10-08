@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import vm from 'node:vm';
+import { createApplicationUI } from '../public/app.js';
+import { createHttpService } from '../public/http-service.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { schema } from '../src/schema.js';
 import { demoFetch,demoContracts,demoAtas } from '../src/demo.js';
@@ -79,18 +80,18 @@ async function interfaceFixture(options={}) {
     constructor(selector,options){this.options=options;this.size=options.paginationSize;this.handlers={};}on(name,fn){this.handlers[name]=fn;}clearSort(){}getPageSize(){return this.size;}
     setData(url,params){const task=this.options.ajaxRequestFunc(url,{},params);pending.push(task);return task;}setPage(page){return this.setData('/api/query',{page,size:this.size});}redraw(){}clearData(){}setColumns(columns){this.options.columns=columns;}
   }
-  const context=vm.createContext({document:dom,window:{addEventListener(){}},Tabulator:Table,fetch:fetcher,structuredClone,Intl,Date,Number,URL,URLSearchParams,AbortController,AbortSignal,DOMException,setTimeout,clearTimeout,console});
-  vm.runInContext(await readFile(new URL('../public/app.js',import.meta.url),'utf8'),context);
+  const uiCore=createApplicationUI(createHttpService({fetcher}),{document:dom,window:{addEventListener(){}},Tabulator:Table});
+  await uiCore.ready;
   await settle();assert.equal(nodes.get('startup-error').hidden,true);
-  const buildTable=async()=>{vm.runInContext('state.table.handlers.tableBuilt()',context);await Promise.allSettled(pending);await settle();};
+  const buildTable=async()=>{uiCore.state.table.handlers.tableBuilt();await Promise.allSettled(pending);await settle();};
   if(!options.deferTableBuilt)await buildTable();
-  const state=()=>JSON.parse(vm.runInContext('JSON.stringify(state.query)',context));
-  const openDocument=doc=>vm.runInContext('state.table.handlers.rowClick',context)({}, {getData:()=>doc});
-  const tableColumns=()=>JSON.parse(vm.runInContext('JSON.stringify(state.table.options.columns)',context));
-  const request=params=>vm.runInContext('requestTable',context)('/api/query',{},params);
-  const footer=()=>vm.runInContext('state.table.options.paginationCounter',context)();
-  const draft=()=>JSON.parse(vm.runInContext('JSON.stringify(state.draft)',context));
-  const setFilter=(name,value)=>vm.runInContext('setDraftFilter',context)(name,value);
+  const state=()=>structuredClone(uiCore.state.query);
+  const openDocument=doc=>uiCore.state.table.handlers.rowClick({}, {getData:()=>doc});
+  const tableColumns=()=>uiCore.state.table.options.columns;
+  const request=params=>uiCore.requestTable('/api/query',{},params);
+  const footer=()=>uiCore.state.table.options.paginationCounter();
+  const draft=()=>structuredClone(uiCore.state.draft);
+  const setFilter=(name,value)=>uiCore.setDraftFilter(name,value);
   return {nodes,all,requests,itemRequests,relatedRequests,documentRequests,childRequests,exportRequests,domainRequests,suggestRequests,downloads,state,draft,setFilter,openDocument,tableColumns,request,footer,buildTable};
 }
 async function settle(){for(let i=0;i<8;i++)await tick();}

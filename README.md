@@ -1,27 +1,44 @@
 # Compras Web
 
-Aplicação para pesquisar editais e avisos de contratações, atas de registro de preços e contratos públicos diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A interface usa Tabulator, e o servidor Node.js entrega tanto a página quanto a API da aplicação.
+Aplicação para pesquisar editais e avisos de contratações, atas de registro de preços e contratos públicos diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A distribuição estática executa consultas, filtros e geração de CSV no navegador, em um Web Worker. A hospedagem entrega somente arquivos; não precisa executar Node.js, API própria ou proxy. A distribuição Node.js permanece disponível como alternativa e para consumidores da API HTTP.
 
 Texto, filtros, ordenação e paginação são enviados ao PNCP. Cada pesquisa consulta novamente a fonte. Os resultados ficam em memória durante o uso; a aplicação não requer banco de dados nem volume persistente.
 
-## Executar localmente
+## Executar no navegador
 
-Requer **Node.js 22.9 ou superior**, com Node.js 24 recomendado, e npm. Para consultas reais, o servidor precisa de acesso HTTPS a `pncp.gov.br`; a API pública utilizada não exige credenciais.
+Para desenvolver e gerar os arquivos, requer **Node.js 22.12 ou superior**, com Node.js 24 recomendado, e npm. Depois do build, a hospedagem precisa apenas servir arquivos por HTTPS. Cada navegador acessa `pncp.gov.br` diretamente, sem credenciais.
 
 ```sh
 npm ci
-npm start
+npm run dev:browser
 ```
 
-No computador em que o servidor estiver rodando, abra `http://localhost:8000`. Para ajustar porta, endereço de escuta, timeouts ou limites, copie [`.env.example`](.env.example) para `.env` e consulte o [guia de configuração](docs/configuracao.md).
-
-Para usar a aplicação sem acesso ao PNCP:
+Abra `http://localhost:8000`. Para usar dados fictícios explicitamente:
 
 ```sh
+npm run demo:browser
+```
+
+A demonstração identifica sua fonte e contém 64 contratações, 24 atas e 32 contratos, incluindo itens e listagens relacionadas. Ela também pode ser escolhida com `?demo=1` na URL da versão estática. Falhas de acesso ao PNCP nunca ativam a demonstração automaticamente.
+
+Para gerar e verificar a distribuição:
+
+```sh
+npm run build:browser
+npm run preview:browser
+```
+
+Publique **o conteúdo de `dist-browser/`** em uma hospedagem estática. Funciona na raiz e em `/compras-web/`, com assets locais. Não abra o HTML por `file://`. A configuração pública está em [`public/browser-config.json`](public/browser-config.json); consulte [Configuração](docs/configuracao.md) e [Hospedagem estática](docs/hospedagem-estatica.md).
+
+## Alternativa Node.js
+
+```sh
+npm start
+# ou dados fictícios
 npm run demo
 ```
 
-A demonstração é identificada na interface e usa 64 contratações fictícias, com dois itens e resultados sintéticos por contratação, 24 atas e 32 contratos fictícios. Ela aplica os filtros do catálogo; status de atas e contratos usam a referência fixa de 7 de outubro de 2026, enquanto status de propostas e relevância não reproduzem a API real. Falhas na fonte real são apresentadas como erros, sem ativar a demonstração automaticamente.
+Abra `http://localhost:8000`. Esse modo mantém a API HTTP e consulta o PNCP pelo servidor. Para personalizar porta, proxy e limites, use [`.env.example`](.env.example) e o [guia de configuração](docs/configuracao.md). Os dois modos compartilham filtros, projeções, validações e conferências de coleta.
 
 ## Usar a interface
 
@@ -30,9 +47,9 @@ A demonstração é identificada na interface e usa 64 contratações fictícias
 3. Use a paginação para consultar outras páginas. **Atualizar** repete os últimos critérios concluídos na página atual; novos critérios começam na primeira página. **Cancelar** interrompe a pesquisa em andamento. Uma falha mantém e identifica o resultado anterior.
 4. Clique em um documento para abrir seus detalhes. Os links **Abrir no PNCP** e **Sistema de origem**, quando disponíveis, ficam junto ao botão de fechar. Em contratações, as abas **Detalhes**, **Itens**, **Arquivos**, **Atas de Registro de Preço**, **Contratos/Empenhos** e **Histórico** têm contadores; as cinco listagens carregam sua primeira página automaticamente em segundo plano. Cada aba preserva sua paginação e permite repetir uma consulta que falhou. Arquivos têm links de download; atas e contratos têm links para o PNCP. Atas têm abas **Detalhes**, **Partes envolvidas**, **Contratos**, **Arquivos** e **Histórico**. Contratos têm **Detalhes**, **Empenhos**, **Instrumentos de cobrança**, **Termos**, **Arquivos** e **Histórico**. Seus dados completos e primeiras páginas carregam em segundo plano. Os detalhes incluem a contratação de origem, assinatura e vigência; atas mostram cancelamento e adesão, enquanto contratos mostram processo, fornecedor, valores e parcelas. Arquivos de termos e detalhes de empenhos/instrumentos podem ser abertos no registro selecionado.
 5. Use **Colunas** para escolher os campos visíveis. O menu de cada coluna oferece as ações de filtro e ordenação nativas disponíveis.
-6. **Exportar CSV** faz uma nova coleta com os últimos critérios concluídos e inicia o download. O arquivo contém todas as colunas documentais, independentemente da seleção visual.
+6. **Exportar CSV** faz uma nova coleta com os últimos critérios concluídos e inicia o download. O arquivo contém todas as colunas documentais, independentemente da seleção visual. A exportação mostra progresso e pode ser interrompida com **Cancelar CSV**.
 
-Os **80 filtros do catálogo estão implementados**, sem filtros pendentes: 71 aplicáveis a contratações, 16 a atas e 32 a contratos. A compatibilidade é informada por documento. `/api/schema` publica tipos, contextos, domínios e alcance da validação. Nas condições Sim/Não, informação ausente não equivale a Não. Filtros de itens e resultados selecionam contratações; os detalhes mantêm todos os itens, e condições diferentes podem corresponder a registros filhos diferentes. Tabela e CSV têm uma linha por documento.
+Os **80 filtros do catálogo estão implementados**, sem filtros pendentes: 71 aplicáveis a contratações, 16 a atas e 32 a contratos. A compatibilidade é informada por documento. O esquema compartilhado publica tipos, contextos, domínios e alcance da validação. Nas condições Sim/Não, informação ausente não equivale a Não. Filtros de itens e resultados selecionam contratações; os detalhes mantêm todos os itens, e condições diferentes podem corresponder a registros filhos diferentes. Tabela e CSV têm uma linha por documento.
 
 O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 10.000 documentos; acima desse valor, a interface exibe um aviso. A exportação exige que o total caiba no limite configurado: delimite a pesquisa quando necessário. Alterações na fonte entre chamadas podem fazer o CSV diferir da tabela.
 
@@ -40,15 +57,23 @@ O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 
 
 | Comando | Finalidade |
 | --- | --- |
+| `npm run dev:browser` | Desenvolvimento estático com Vite |
+| `npm run demo:browser` | Desenvolvimento estático com fonte fictícia |
+| `npm run build:browser` | Compila aplicação e Worker em `dist-browser/` |
+| `npm run preview:browser` | Serve somente o artefato estático para verificação |
+| `npm run test:browser` | Testa interface estática, CORS controlado, artefato e CSV de 10.000 documentos |
+| `npm run test:ui` | Testa a interface no modo Node.js |
 | `npm run dev` | Servidor com reinício e recarga automática ao alterar a aplicação |
 | `npm run dev -- --demo` | Desenvolvimento com dados fictícios |
 | `npm test` | Suíte automatizada com o runner nativo do Node.js |
 | `npm run build` | Recria a distribuição em `dist/` |
 | `npm run benchmark:demo` | Mede pesquisa, paginação e exportação com fonte sintética |
 
-O modo de desenvolvimento observa `src/`, `public/`, `.env`, `package.json` e `package-lock.json`. As tarefas do editor Zed estão em [`.zed/tasks.json`](.zed/tasks.json). O [guia de validação](docs/validacao.md) descreve a cobertura, a verificação HTTP e o teste opcional em navegador, incluindo suas limitações atuais.
+O modo de desenvolvimento Node.js observa `src/`, `public/`, `.env`, `package.json` e `package-lock.json`. As tarefas do editor Zed estão em [`.zed/tasks.json`](.zed/tasks.json). O [guia de validação](docs/validacao.md) descreve a cobertura, a verificação HTTP e o teste opcional em navegador, incluindo suas limitações atuais.
 
-## API
+## API da distribuição Node.js
+
+As rotas abaixo existem somente quando o servidor Node.js é utilizado. A versão estática chama métodos locais no Worker e acessa diretamente o PNCP.
 
 | Método | Rota | Finalidade |
 | --- | --- | --- |
@@ -90,6 +115,8 @@ Não é necessário preencher `PNCP_VALIDATED_FILTERS` para usar o catálogo. O 
 
 ## Distribuir e publicar
 
+A versão estática usa `npm run build:browser` e publica `dist-browser/`, conforme o [guia de hospedagem estática](docs/hospedagem-estatica.md). Antes de substituir uma implantação operacional, execute `pncp-diagnostic.html` no domínio HTTPS de destino e confira os navegadores utilizados. Consulte o [alcance dos testes](docs/validacao.md).
+
 Para executar a distribuição Node.js:
 
 ```sh
@@ -120,6 +147,7 @@ O [guia Railway](docs/railway.md) explica como publicar o serviço e obter um do
 - [Configuração, rede e limites](docs/configuracao.md)
 - [Contrato da API e consultas ao PNCP](docs/consultas-pncp.md)
 - [Testes e validação](docs/validacao.md)
+- [Hospedagem estática sem backend](docs/hospedagem-estatica.md)
 - [Publicação no Railway](docs/railway.md)
 
-Os avisos de licença do Tabulator e dos ícones usados na interface estão em [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+Os avisos de licença do Tabulator, de lossless-json e dos ícones usados na interface estão em [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

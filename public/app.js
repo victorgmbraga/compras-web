@@ -1,3 +1,4 @@
+export function createApplicationUI(service,{document=globalThis.document,window=globalThis.window,Tabulator=globalThis.Tabulator}={}) {
 const $ = id => document.getElementById(id);
 const el = (tag, text, className) => { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(className)node.className=className; return node; };
 const clone = value => structuredClone(value);
@@ -51,6 +52,7 @@ function updateExportButton() {
   const busy=!!state.exportAbort;
   $('export-button').disabled=busy || !['success','empty'].includes(state.status);
   $('export-button').setAttribute('aria-busy',String(busy));
+  $('cancel-export-button').hidden=!busy;
   $('export-button').title=busy?'Consultando e gerando CSV…':'Exportar CSV';
   $('export-button').setAttribute('aria-label',busy?'Gerando CSV':'Exportar CSV');
 }
@@ -78,11 +80,6 @@ document.addEventListener('keydown',event=>{
 for(const dialog of document.querySelectorAll('dialog')) {
   dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left || event.clientX>rect.right || event.clientY<rect.top || event.clientY>rect.bottom)closeDialog(dialog);}});
   dialog.querySelectorAll('.close-dialog').forEach(button=>button.addEventListener('click',()=>closeDialog(dialog)));
-}
-async function api(url,options={}) {
-  const response=await fetch(url,{cache:'no-store',...options});
-  if(!response.ok){let payload;try{payload=await response.json();}catch{}const error=new Error(payload?.error?.message || `Erro HTTP ${response.status}.`);error.code=payload?.error?.code;error.details=payload?.error?.details;throw error;}
-  return response;
 }
 function updateCriteria() {
   const q=state.query;$('order').value=q.order;
@@ -150,8 +147,7 @@ async function requestTable(url,config,params) {
   const seq=++state.seq;const controller=new AbortController();state.abort=controller;status('loading',query);
   notice('');
   try {
-    const response=await api('/api/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(query),signal:controller.signal});
-    const result=await response.json();
+    const result=await service.call('execute',{query},{signal:controller.signal});
     if(seq!==state.seq)throw new DOMException('Resposta anterior descartada.','AbortError');
     renderResult(result,query);return result;
   }catch(error) {
@@ -166,7 +162,7 @@ function execute() {
   state.query.q=$('search').value;state.query.order=$('order').value;
   if(state.query.order==='relevancia' && !state.query.q.trim())state.query.order='-data';
   updateCriteria();
-  state.table.setData('/api/query',{page:1,size:TABLE_PAGE_SIZE}).catch(()=>{});
+  state.table.setData('pncp-query',{page:1,size:TABLE_PAGE_SIZE}).catch(()=>{});
 }
 function defaultQuery(type=state.query?.document_type || 'edital') {return {api_version:'2.0',document_type:type,q:'',status:'todos',pncp_filters:{},order:'-data',page:1,size:TABLE_PAGE_SIZE};}
 function renderFilterOptions() {
@@ -258,11 +254,7 @@ async function openFilters(column=null) {
   await renderNativeValue();
 }
 async function getDomains(signal,field=$('native-field').value) {
-  const params=new URLSearchParams({tipos_documento:state.draft?.document_type || state.query.document_type});
-  if(field)params.set('campo',field);
-  const normatives=state.draft?.pncp_filters.normativos_base;
-  if(normatives?.length)params.set('normativos_base',normatives.join('|'));
-  const response=await api(`/api/pncp/filters?${params}`,{signal});return response.json();
+  return service.call('domains',{type:state.draft?.document_type || state.query.document_type,normatives:state.draft?.pncp_filters.normativos_base,field:field || null},{signal});
 }
 async function renderNativeValue() {
   state.domainAbort?.abort();state.suggestAbort?.abort();clearTimeout(state.suggestTimer);
@@ -296,7 +288,7 @@ async function renderNativeValue() {
           suggestions.replaceChildren(el('p','Consultando opções do PNCP…','panel-note'));
           state.suggestTimer=setTimeout(async()=>{
             const controller=new AbortController();state.suggestAbort=controller;
-            try{const response=await api(`/api/pncp/suggest?${new URLSearchParams({tipos_documento:state.draft.document_type,campo:cap.name,q:input.value,tam_pagina:'20'})}`,{signal:controller.signal});const result=await response.json();if(seq===state.domainSeq && token===state.suggestSeq)showSuggestions(result.items);}
+            try{const result=await service.call('suggest',{type:state.draft.document_type,field:cap.name,q:input.value,size:20},{signal:controller.signal});if(seq===state.domainSeq && token===state.suggestSeq)showSuggestions(result.items);}
             catch(error){if(error.name!=='AbortError' && seq===state.domainSeq && token===state.suggestSeq){suggestions.replaceChildren(el('p','Sugestões indisponíveis. Tente novamente.','panel-note'));$('domain-error').textContent=error.message;$('domain-error').hidden=false;}}
           },450);
         });
@@ -356,10 +348,10 @@ function detailScheduler() {
     signal.addEventListener('abort',abort,{once:true});waiting.push(job);pump();
   });
 }
-function documentEndpoint(doc) {
+function detailIdentity(doc) {
   const d=doc._document || (doc.tipo_documento==='edital' && doc._purchase?{type:'edital',...doc._purchase}:null);
   if(!d)return null;
-  return `/api/${{edital:'contratacoes',ata:'atas',contrato:'contratos'}[d.type]}/${d.cnpj}/${d.ano}/${d.type==='ata'?d.sequencial_compra+'/':''}${d.sequencial}`;
+  return d;
 }
 function appendFields(container,fields,className='related-values') {
   const values=el('dl',undefined,className);
@@ -388,7 +380,7 @@ function relatedSection(resource,title,doc,token,signal,schedule,updateCount) {
     if(!loaded)updateCount(null,'loading');
     try {
       const requestSignal=AbortSignal.any([signal,controller.signal]);
-      const result=await schedule(async()=>{status.textContent='Consultando o PNCP…';const response=await api(`${documentEndpoint(doc)}/${resource}?pagina=${target}&tamanhoPagina=10`,{signal:requestSignal});return response.json();},requestSignal);
+      const result=await schedule(async()=>{status.textContent='Consultando o PNCP…';return service.call('documentRelated',{document:detailIdentity(doc),resource,page:target,size:10},{signal:requestSignal});},requestSignal);
       if(!current())return;loaded=true;page=result.page;hasMore=result.has_more;list.replaceChildren();
       for(const record of result.data) {
         const card=el('article',undefined,'related-card');
@@ -403,7 +395,7 @@ function relatedSection(resource,title,doc,token,signal,schedule,updateCount) {
               if(extra.hidden || fetched)return;
               busy=true;button.disabled=true;extra.replaceChildren(el('p','Consultando o PNCP…','panel-note'));
               try {
-                const data=await schedule(async()=>{const response=await api(`${documentEndpoint(doc)}/${resource}/${record.sequencial}`,{signal:requestSignal});return response.json();},requestSignal);
+                const data=await schedule(async()=>{return service.call('contractChild',{document:detailIdentity(doc),resource,sequence:record.sequencial},{signal:requestSignal});},requestSignal);
                 if(!current())return;extra.replaceChildren();
                 if(data.fields)appendFields(extra,data.fields);
                 if(data.files){for(const file of data.files){const fileCard=el('article',undefined,'related-card');fileCard.append(el('h4',file.titulo ?? 'Arquivo sem título'));appendFields(fileCard,[{title:'Tipo',value:file.tipo},{title:'Publicação',type:'datetime',value:file.data_publicacao}]);const link=safeAnchor('Baixar arquivo',file.url);if(link)fileCard.append(link);extra.append(fileCard);}if(!data.files.length)extra.append(el('p','Este termo não possui arquivos.','panel-note'));}
@@ -437,10 +429,10 @@ function relatedSection(resource,title,doc,token,signal,schedule,updateCount) {
       if(!loaded)updateCount(null,'error');
     }}finally{if(current())section.setAttribute('aria-busy','false');}
   }
-  if(documentEndpoint(doc)) {
+  if(detailIdentity(doc)) {
     retry.addEventListener('click',()=>load(page));previous.addEventListener('click',()=>load(page-1));next.addEventListener('click',()=>load(page+1));
   } else {status.textContent='A fonte não forneceu CNPJ, ano e sequencial originais suficientes para consultar esta listagem.';updateCount(null,'unavailable');}
-  return {section,load:()=>documentEndpoint(doc)?load(1):Promise.resolve()};
+  return {section,load:()=>detailIdentity(doc)?load(1):Promise.resolve()};
 }
 async function openDetails(doc) {
   state.detailAbort?.abort();state.detailSeq++;const token=state.detailSeq;
@@ -482,7 +474,7 @@ async function openDetails(doc) {
     async function loadDetails(){
       retryDetails.hidden=true;detailPanel.setAttribute('aria-busy','true');
       try {
-        const data=await schedule(async()=>{detailStatus.textContent='Consultando detalhes no PNCP…';const response=await api(documentEndpoint(doc),{signal:detailController.signal});return response.json();},detailController.signal);
+        const data=await schedule(async()=>{detailStatus.textContent='Consultando detalhes no PNCP…';return service.call('documentDetails',{document:detailIdentity(doc)},{signal:detailController.signal});},detailController.signal);
         if(token!==state.detailSeq)return;
         const holder=el('div');grid=appendFields(holder,data.fields,'detail-grid');detailPanel.replaceChildren(grid,detailStatus,retryDetails);
         updateDetails(data.fields.length,'loaded');if(data.objeto)content.children[0].textContent=data.objeto;
@@ -491,7 +483,7 @@ async function openDetails(doc) {
       }catch(error){if(token===state.detailSeq && error.name!=='AbortError'){detailStatus.textContent=`${error.message} Os dados disponíveis na busca permanecem visíveis.`;retryDetails.hidden=false;updateDetails(null,'error');}}
       finally{if(token===state.detailSeq)detailPanel.setAttribute('aria-busy','false');}
     }
-    if(documentEndpoint(doc)){retryDetails.addEventListener('click',loadDetails);loads.push(loadDetails);updateDetails(null,'loading');}
+    if(detailIdentity(doc)){retryDetails.addEventListener('click',loadDetails);loads.push(loadDetails);updateDetails(null,'loading');}
     else {detailStatus.textContent='A fonte não forneceu os identificadores originais para consultar os detalhes completos.';updateDetails(null,'unavailable');}
   }
   if(kind==='edital'){
@@ -506,7 +498,7 @@ async function openDetails(doc) {
     section.setAttribute('aria-busy','true');if(!itemsLoaded)updateItems(null,'loading');
     try {
       const p=doc._purchase,signal=AbortSignal.any([detailController.signal,controller.signal]);
-      const result=await schedule(async()=>{const response=await api(`/api/contratacoes/${p.cnpj}/${p.ano}/${p.sequencial}/itens?pagina=${target}&tamanhoPagina=100`,{signal});return response.json();},signal);
+      const result=await schedule(async()=>{return service.call('details',{document:{type:'edital',...p},page:target,size:100},{signal});},signal);
       if(token!==state.detailSeq)return;page=result.page;list.replaceChildren();
       itemsLoaded=true;updateItems(result.total_items,'loaded');
       for(const item of result.data) {
@@ -534,7 +526,7 @@ async function openDetails(doc) {
   for(const [resource,title]of sections[kind]){
     let updateCount=()=>{};
     const related=relatedSection(resource,title,doc,token,detailController.signal,schedule,(...args)=>updateCount(...args));
-    updateCount=addTab(resource,title,related.section);if(!documentEndpoint(doc))updateCount(null,'unavailable');
+    updateCount=addTab(resource,title,related.section);if(!detailIdentity(doc))updateCount(null,'unavailable');
     loads.push(related.load);
   }
   activate(0);openDialog('details-dialog');
@@ -546,15 +538,18 @@ async function exportCsv() {
   const seq=++state.exportSeq;const controller=new AbortController();state.exportAbort=controller;
   updateExportButton();notice('Consultando o PNCP e gerando CSV dos últimos critérios concluídos. Os dados podem diferir da tabela.');
   try {
-    const response=await api('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query}),signal:controller.signal});
-    const blob=await response.blob();if(seq!==state.exportSeq)return;
-    const href=URL.createObjectURL(blob),link=el('a');link.href=href;link.download=response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || 'compras-pncp.csv';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(href),10000);
-    notice(`${response.headers.get('x-exported-rows')} linhas exportadas. Nova coleta de ${time(response.headers.get('x-pncp-started-at'))} a ${time(response.headers.get('x-pncp-finished-at'))}.`);
+    const result=await service.call('export',{query},{signal:controller.signal,onProgress:progress=>{
+      if(seq===state.exportSeq)notice(`Coletando ${fmtInt(progress.rows)} de ${fmtInt(progress.total)} documentos para CSV…`);
+    }});
+    if(seq!==state.exportSeq || controller.signal.aborted)return;
+    const blob=new Blob(result.chunks,{type:result.mime});
+    const href=URL.createObjectURL(blob),link=el('a');link.href=href;link.download=result.filename;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(href),10000);
+    notice(`${result.metadata.exported_rows} linhas exportadas. Nova coleta de ${time(result.metadata.started_at)} a ${time(result.metadata.finished_at)}.`);
   }catch(error){if(seq===state.exportSeq && error.name!=='AbortError')notice(`Falha ao exportar CSV: ${error.message}${error.code?' ['+error.code+']':''}`,'error');}
   finally{if(seq===state.exportSeq){state.exportAbort=null;updateExportButton();}}
 }
 async function init() {
-  state.schema=await (await api('/api/schema')).json();
+  state.schema=await service.call('schema');
   state.query=defaultQuery();
   $('search').value='';
   $('source-badge').hidden=!state.schema.demo;
@@ -584,6 +579,7 @@ async function init() {
   });
   $('retry-button').addEventListener('click',execute);
   $('cancel-button').addEventListener('click',()=>{state.abort?.abort();});
+  $('cancel-export-button').addEventListener('click',()=>{state.exportAbort?.abort();notice('Exportação cancelada.');});
   $('order').addEventListener('change',()=>{state.query.order=$('order').value;state.table.clearSort();execute();});
   $('clear-button').addEventListener('click',()=>{state.query=defaultQuery();$('search').value='';state.table.clearSort();updateCriteria();execute();});
   $('native-field').addEventListener('change',renderNativeValue);$('add-native').addEventListener('click',addNative);
@@ -601,4 +597,7 @@ async function init() {
   updateCriteria();status('idle');
   state.table.on('tableBuilt',execute);
 }
-init().catch(error=>{$('startup-error').hidden=false;$('startup-error').textContent=`Não foi possível iniciar a interface: ${error.message}. Recarregue a página.`;notice('Falha ao carregar o esquema da aplicação.','error');});
+const ready=init().catch(error=>{$('startup-error').hidden=false;$('startup-error').textContent=`Não foi possível iniciar a interface: ${error.message}. Recarregue a página.`;notice('Falha ao carregar o esquema da aplicação.','error');});
+
+return {ready,state,requestTable,setDraftFilter};
+}

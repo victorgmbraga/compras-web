@@ -1,47 +1,59 @@
 # Testes e validação
 
-Execute os comandos na raiz do repositório com Node.js 22.9 ou superior e as dependências instaladas por `npm ci`. Node.js 24 é recomendado.
+Execute os comandos na raiz com Node.js 22.12 ou superior (Node.js 24 recomendado) e dependências instaladas por `npm ci`. Playwright 1.58.2 e Vite 8.3.4 estão fixados no projeto/lockfile.
 
-## Suíte automatizada
+## Núcleo, adaptadores e interface
 
 ```sh
 npm test
 ```
 
-O comando usa `node --test --test-concurrency=1 test/*.test.js`. A suíte cobre:
+O runner nativo executa `test/*.test.js`. A suíte cobre filtros dos três tipos em pesquisa/CSV, precisão, validação antes da rede, domínios, paginação, identidades e painéis. Inclui API HTTP e interface com DOM mínimo, além de serviço portável do navegador e ponte RPC.
 
-- Contrato HTTP, capacidades, tipos, datas, intervalos e serialização dos filtros.
-- Identificadores, projeção documental, precisão numérica e normalização de links.
-- Paginação remota, totais, janela de resultados e consistência da exportação.
-- Quantidade, paginação, campos e falhas dos itens.
-- Arquivos, atas, contratos/empenhos e histórico: rotas oficiais, contagens, HTTP 204, links, valores exatos, carregamento em segundo plano, paginação independente, nova tentativa e cancelamento.
-- Abas de detalhes: campos e rótulos, vínculos ARIA, navegação por teclado, contadores, até duas consultas simultâneas e descarte de chamadas pendentes ao fechar.
-- Pesquisa, status e CSV de atas; distinção entre sequencial da compra e da ata.
-- Dados completos de atas/contratos, identidade do documento, partes envolvidas, termos, empenhos, instrumentos de cobrança e arquivos de termos.
-- Cancelamento, timeouts, tentativas e orçamentos de recursos.
-- Handlers da interface com DOM mínimo, controle de respostas atrasadas e recuperação de erros.
-- Filtros documentais, enumerações singulares, catálogos auxiliares, domínios parciais e reconciliação de normativos/amparos.
-- Reinício e recarga automática no desenvolvimento.
+Os testes de navegador do runtime verificam configuração pública, transporte sem credenciais, UTF-8 dividido entre chunks, números acima de 2^53, ausência distinta de false, 204/404/429/503, erros opacos/JSON, tentativas, timeouts, orçamentos, cancelamento de leitura/fila/CSV, excesso de operações, prazo absoluto, respostas fora de ordem, reinicialização e versão do Worker. CSVs dos três tipos são comparados byte a byte com Node.js, incluindo limite exato, BOM, CRLF, aspas e acentos; metadados do navegador não contêm a coleção de documentos.
 
-As respostas externas são sintéticas. A suíte verifica o comportamento da aplicação, mas não comprova disponibilidade do PNCP nem a renderização completa em navegador. O script `test/ui-smoke.mjs` é uma verificação separada.
+Essa suíte usa fontes controladas, sem provocar falhas ou limitação no PNCP real. Ela não comprova a disponibilidade externa. O DOM mínimo não substitui renderização em navegador.
 
-## Verificação HTTP
+## Testes em navegador real
 
-Inicie `npm run demo` para validar o fluxo local com a fonte sintética ou `npm start` para validar o acesso real. Em outro terminal:
+Instale os navegadores necessários uma vez:
 
 ```sh
-curl --fail-with-body -sS http://localhost:8000/api/health
-curl --fail-with-body -sS http://localhost:8000/api/schema
-curl --fail-with-body -sS http://localhost:8000/api/query \
-  -H 'Content-Type: application/json' \
-  -d '{"api_version":"2.0","q":"firewall","size":10}'
+npx playwright install chromium firefox
+npm run test:browser
+npm run test:ui
 ```
 
-Confira HTTP 200, `status: "ok"` no healthcheck e `source` correspondente ao modo escolhido. Na pesquisa, confira `data`, totais e paginação. Em demonstração, a pesquisa por `firewall` retorna seis contratações; a pesquisa sem texto retorna 64 contratações, 24 atas ou 32 contratos, conforme o tipo escolhido. Com a fonte real, os resultados e totais variam.
+`test:browser` compila um build de testes em `dist-browser-test/`, com provedor sintético no próprio Worker, e serve somente arquivos. Percorre todos os controles de filtros, buscas, colunas, paginação, três painéis, registros filhos, CSV, progresso/cancelamento, respostas atrasadas, XSS como texto, teclado e responsividade. Verifica ausência de chamadas `/api/...` à hospedagem.
 
-Pela interface, verifique pesquisa inicial, todos os filtros, paginação, itens, troca entre os três tipos, cancelamento e CSV de cada tipo. Abra os detalhes de uma contratação, confira o carregamento das cinco listagens em segundo plano e percorra suas abas por mouse e teclado. Confira downloads, links de atas/contratos, contadores e páginas de arquivos/histórico. Verifique também a identificação de erro sem perda silenciosa do resultado anterior. O [contrato da API](consultas-pncp.md) inclui exemplos de detalhes, sugestões e exportação.
+Depois compila **o build de produção** em `dist-browser/`, verifica seus assets e Worker na raiz e em `/compras-web/`, e inspeciona bundles para dependências de Node, variáveis do processo e fixtures indevidas. As fixtures de falha/volume não são incluídas em produção.
 
-## Build e distribuição
+Dois servidores de origem controlada conferem CORS por requisições normais: controle positivo, negativo sem permissão e exposição de `Retry-After`. Não há interceptação de respostas ou segurança de origem/TLS desativada. Esse ensaio verifica o mecanismo do navegador, separado das chamadas reais ao PNCP.
+
+O teste também exporta 10.000 documentos no Worker, mede tempo/bytes/chamadas e usa um temporizador da interface para conferir que ela continua recebendo eventos. Cancela uma segunda coleta no progresso e verifica uma pesquisa seguinte. A medição de memória total do Worker/Blob não está disponível nesse ensaio e é identificada como indisponível.
+
+`test:ui` cria a aplicação Node.js com fonte sintética e verifica o mesmo layout/fluxos através do adaptador HTTP. Esse modo permite cancelar CSV, mas não transmite progresso por páginas pela API HTTP existente.
+
+Para repetir a versão estática em Firefox:
+
+```sh
+COMPRAS_QA_BROWSER=firefox npm run test:browser
+```
+
+`COMPRAS_QA_BROWSER` aceita `chromium` (padrão), `firefox` e `webkit`; WebKit não substitui Safari real. O sistema precisa das bibliotecas dos navegadores. `COMPRAS_QA_BROWSER_EXECUTABLE` aceita um binário instalado no ambiente. `COMPRAS_QA_CHROMIUM_EXECUTABLE`, `COMPRAS_QA_CHROMIUM_MODULE` e `COMPRAS_QA_PLAYWRIGHT_MODULE` mantêm compatibilidade com instalações externas. `COMPRAS_QA_SCREENSHOT_DIR` salva capturas em um diretório já existente.
+
+Em ambientes gerenciados, preserve proxy e confiança TLS. Use perfis temporários; não altere confiança compartilhada nem contorne CORS/TLS para declarar integração aprovada. Limitações de inicialização devem ser registradas separadamente. Considere a execução aprovada somente quando terminar com código zero e emitir o resumo final.
+
+## Build e execução
+
+```sh
+npm run build:browser
+npm run preview:browser
+```
+
+Abra `http://localhost:8000` para consultas reais e `/?demo=1` para demonstração explícita. Teste também `npm run demo:browser` no desenvolvimento. As consultas sintéticas iniciais retornam 64 contratações, 24 atas e 32 contratos; `firewall` retorna seis contratações.
+
+A alternativa Node.js continua sendo gerada e executada assim:
 
 ```sh
 npm run build
@@ -50,48 +62,34 @@ npm ci --omit=dev
 npm run demo
 ```
 
-O build recria `dist/` e copia código, documentação e arquivos de execução. Ele não compila o frontend nem executa testes. Pare o servidor anterior ou use outra porta antes de iniciar a distribuição. Repita as verificações HTTP a partir do processo distribuído, incluindo o carregamento de `/` e `/vendor/tabulator.min.js`.
+Use outra porta se necessário. Verifique `/`, módulos da interface, `/api/health`, `/api/schema`, pesquisa e CSV dos três tipos. Saúde confirma o processo, sem certificar acesso ao PNCP.
 
-## Navegador
+## Diagnóstico da integração real
 
-O teste opcional [`test/ui-smoke.mjs`](../test/ui-smoke.mjs) requer Playwright e Chromium. Ele cria seu próprio servidor temporário com fonte sintética. Para preparar as ferramentas sem mudar as dependências do projeto, em um terminal POSIX:
+Sirva o build final e abra `pncp-diagnostic.html`. Execute **Verificar acesso** e **Salvar evidência**. O diagnóstico consulta diretamente o PNCP na página e no Worker, registra origem/data/navegador, status e cabeçalhos legíveis de uma consulta da página e resultados tipados da matriz de recursos. Inclui pesquisas dos três tipos, página seguinte, ordenação/UF, filtros, sugestões, quatro catálogos auxiliares, detalhes e registros filhos. Exemplos públicos são fixos, com filhos escolhidos da listagem quando disponíveis.
 
-```sh
-QA_DIR="$(mktemp -d)"
-npm install --prefix "$QA_DIR" --no-package-lock playwright@1.58.2
-"$QA_DIR/node_modules/.bin/playwright" install chromium
-COMPRAS_QA_PLAYWRIGHT_MODULE="$QA_DIR/node_modules/playwright/index.mjs" \
-  node test/ui-smoke.mjs
-```
+Repita na origem HTTPS publicada em Chromium, Firefox e Safari, incluindo dispositivo móvel real e retomada de aba suspensa. Registros ausentes/404 não homologam uma amostra positiva; listas vazias legítimas e falhas são resultados distintos. A exceção 404 de contratos vinculados à contratação não se aplica a empenhos de contrato ou arquivos de termo. Respostas sem CORS não oferecem necessariamente status HTTP ao JavaScript.
 
-O sistema operacional também precisa das bibliotecas exigidas pelo navegador. `COMPRAS_QA_PLAYWRIGHT_MODULE` aceita o caminho do módulo Playwright instalado fora do projeto. Para um binário gerenciado pelo ambiente, o script oferece `COMPRAS_QA_CHROMIUM_MODULE` (módulo cujo export padrão fornece `executablePath()`) e `COMPRAS_QA_CHROMIUM_EXECUTABLE` (caminho explícito, usado junto desse módulo). Quando o módulo de Chromium é usado, o script adiciona os argumentos de execução para ambiente isolado. `COMPRAS_QA_SCREENSHOT_DIR` permite salvar capturas em um diretório existente.
+## Resultado verificado
 
-O script verifica pesquisa, paginação, detalhes, CSV, filtros e outros cenários de interface. Considere a execução aprovada apenas quando ele concluir com código zero e emitir o resumo final. Verificações posteriores a uma falha não foram executadas.
-
-## Medição local
-
-```sh
-npm run benchmark:demo
-```
-
-O comando escreve um JSON na saída com duração, quantidade de linhas, chamadas, tamanho do CSV e memória RSS para pesquisa, paginação e exportação. Ele usa fonte sintética e ritmo de chamadas elevado para medir processamento local. Não representa latência ou capacidade do PNCP. Guarde saídas e capturas fora dos arquivos versionados de documentação.
-
-## Situação verificada e alcance
-
-Revisão atual: 7 de outubro de 2026, Linux, Node.js 24.19.0.
+Medições de 8 de outubro de 2026, Linux, Node.js 24.19.0, Chromium 151 e Firefox 146.
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm test` | 155 testes passaram, sem falhas ou testes ignorados |
-| Build e distribuição em demonstração | Build concluído; saúde, esquema, estáticos, pesquisa, domínios, sugestões, itens, listagens dos três tipos, detalhes completos de atas/contratos, registros filhos e CSV verificados |
-| Chromium com Playwright 1.58.2 | 61 verificações passaram, incluindo todos os 71 controles de contratações, os 16 de atas e os 32 de contratos, abas, carregamento em segundo plano, contadores, teclado, paginação, status, CSV e responsividade; sem erros JavaScript não tratados |
-| Catálogo | 80 filtros implementados, 71 de edital, 16 de ata e 32 de contrato; nenhum filtro pendente |
-| Integração real | Respostas válidas para as quatro listagens de detalhes, incluindo duas páginas de atas, além de parte dos filtros e contratos; outras chamadas receberam HTTP 503. O alcance dos filtros está no respectivo guia |
+| `npm test` | 172 testes passaram, sem falhas/ignorados; inclui 17 novos testes de runtime/RPC/CSV do navegador |
+| Interface Node.js em Chromium | 62 verificações, com API de referência e cancelamento CSV |
+| Interface estática em Chromium | 63 verificações, todos os 71/16/32 controles, painéis e CSV, sem API local ou erro JavaScript não tratado |
+| Interface estática em Firefox | 63 verificações equivalentes |
+| Artefato e CORS em Chromium/Firefox | Build de produção na raiz e subdiretório, assets/Worker locais, controle CORS negativo e cabeçalhos expostos; bundles sem dependências Node ou fixtures de teste |
+| Exportação sintética no Worker | 10.000 documentos, 100 chamadas/páginas, 4.264.313 bytes; aproximadamente 3,2 s no Chromium e 1,5 s no Firefox nas medições locais; cancelamento após primeira página e pesquisa posterior concluída |
+| Build Node.js distribuído | Estáticos, módulos, API, pesquisa e CSV dos três tipos passaram com dependências de produção |
+| Vite de desenvolvimento | Demonstração abriu, Worker pesquisou e não houve erro JavaScript não tratado |
+| PNCP direto no Firefox | 32 operações da matriz: 29 concluídas e três HTTP 404 legíveis; consulta da página HTTP 200 com JSON/CORS legível |
 
-A cobertura funcional verifica todos os filtros na pesquisa e na exportação, tipos e intervalos inválidos antes da rede, pertinência aos domínios, IDs alfabéticos, espaços em unidades, zeros à esquerda, ausência distinta de false e precisão decimal além da faixa segura de inteiros. Contratos têm projeção e CSV próprios; o sequencial do contrato não inicia consultas de itens de uma compra.
+A medição externa está em [`evidencias-browser-implementacao.json`](evidencias-browser-implementacao.json). Ela usa a distribuição estática, origem localhost, fetch nativo e TLS ativo, sem API de aplicação ou interceptação. O proxy de rede do ambiente permaneceu configurado; sua CA foi confiada apenas no perfil temporário. O Firefox precisou executar fora do isolamento de processos para inicializar, preservando segurança de origem e TLS.
 
-Os testes de interface verificam edição de Não, reconciliação legal, status e colunas por documento, limpeza de critérios ao trocar de tipo e descarte de respostas atrasadas. A demonstração preserva todos os itens nos detalhes e mantém uma linha por documento no CSV. O navegador percorre os controles completos, aplica combinações e baixa CSV dos três tipos. Atas e contratos carregam seus dados completos e abas específicas; arquivos de termos e detalhes de empenhos/instrumentos são consultados sob demanda.
+O registro confirma acesso direto a buscas, domínios, catálogos, sugestões e principais recursos dos painéis. Empenhos e arquivos de termo retornaram 404 nas amostras; seus registros positivos são cobertos por fixtures. Os exemplos de vínculos incluíram atas e contrato existentes. Essas respostas e totais são observações daquela data, sujeitos a mudanças do PNCP.
 
-As quatro listagens de detalhes foram verificadas nos serviços reais usados pelo portal oficial: arquivos e histórico de `00394452000103-1-021678/2026`, contrato vinculado à contratação `18629840000183-1-000051/2026` e 11 atas em duas páginas de `88585518000185-1-000469/2026`. A conferência incluiu formatos, contagens, campos e URLs retornadas pela API da aplicação. Os detalhes completos da ata `88585518000185-1-000469/2026-000001` e do contrato `18629840000183-2-000044/2026` também foram conferidos, assim como partes envolvidas da ata. Termos e instrumentos de cobrança retornaram registros válidos para `10870883000144-2-000030/2021` e `04892707000100-2-000006/2022`. Empenhos retornaram HTTP 404 nos contratos sondados; a aplicação preserva esse erro, sem presumir total zero. A conferência não baixou o conteúdo binário dos arquivos nem certifica disponibilidade contínua da fonte.
+As durações sintéticas usam ritmo elevado para medir processamento, sem representar latência do PNCP. Os padrões de 50 registros por página, duas chamadas por segundo e 120 segundos podem interromper uma coleta real de 10.000 registros. Limites por byte foram conferidos em fronteiras exatas, sem remover orçamentos.
 
-As sondagens externas verificam respostas e controles selecionados, sem homologar todos os predicados e combinações. O formulário oficial do PNCP confirmou o uso do ID do catálogo de países, o catálogo de situações de resultados e os status vigente/nao_vigente. Falhas intermitentes impedem afirmar disponibilidade contínua ou correlação no mesmo item/resultado. Consulte [Implementação e verificação dos filtros](viabilidade-filtros-pncp.md).
+A origem HTTPS de produção, Safari e dispositivo móvel real ainda não foram homologados. Viewports móveis e prazos conferidos após retomada não certificam suspensão física do dispositivo. A promoção e o retorno estão em [Hospedagem estática](hospedagem-estatica.md) e no [plano](plano-implementacao-browser.md).

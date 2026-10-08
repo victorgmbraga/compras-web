@@ -35,7 +35,7 @@ test('ITEM-FILTER-03: booleanos refletem a contratação e os detalhes mantêm i
     const details=await s.details(csv.metadata.data[0]._purchase,1,100);assert.equal(details.data.length,2);
     assert(details.data.some(item=>item[fields[index]]===value));
     assert(details.data.some(item=>item[fields[index]]!==value));
-    const page2=await s.details(csv.metadata.data[0]._purchase,2,1);assert.equal(page2.data[0].numeroItem,2);assert.equal(page2.has_more,false);
+    await assert.rejects(s.details(csv.metadata.data[0]._purchase,2,1),error=>error.code==='INVALID_PAGINATION');
   }
 });
 

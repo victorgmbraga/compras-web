@@ -1,6 +1,29 @@
 import { assert, checkKeys } from './errors.js';
 import { capabilities, reserved, documentStatuses } from './schema.js';
 
+export function validateDocumentType(type) {
+  assert(Object.hasOwn(documentStatuses, type), 'DOCUMENT_TYPE_UNAVAILABLE', 'Escolha edital, ata ou contrato.', 409);
+  return type;
+}
+export function validateDomains(type, normatives, field, config) {
+  validateDocumentType(type);
+  assert(!field || capabilities(config).some(c => !c.reserved && c.name === field && c.domain && c.documents.includes(type)), 'INVALID_DOMAIN_FIELD', 'Campo de domínio não disponível para o tipo documental.');
+  assert(normatives == null || Array.isArray(normatives) && normatives.length > 0 && normatives.length <= 100 && normatives.every(n => typeof n === 'string' && /^\d+$/.test(n)), 'INVALID_DOMAIN', 'Normativos devem ser IDs separados por pipe.');
+}
+export function validateSuggest(type, field, text, size, config) {
+  validateDocumentType(type);
+  assert(capabilities(config).some(c => !c.reserved && c.name === field && c.state === 'enabled' && c.domain_kind === 'suggest' && c.documents.includes(type)), 'INVALID_SUGGEST_FIELD', 'Campo de sugestão não habilitado para o tipo documental.');
+  assert(typeof text === 'string' && text.length >= 3 && text.length <= 128 && Number.isSafeInteger(size) && size >= 1 && size <= 20, 'INVALID_SUGGEST', 'Sugestões exigem 3–128 caracteres e tamanho de 1–20.');
+}
+export function validateDocument(document, allowed = ['edital', 'ata', 'contrato']) {
+  assert(document && allowed.includes(document.type ?? 'edital') && typeof document.cnpj === 'string' && /^\d{14}$/.test(document.cnpj) && typeof document.ano === 'string' && /^\d{4}$/.test(document.ano), 'INVALID_DOCUMENT_IDENTITY', 'Identificadores do documento inválidos.');
+  const positive = value => typeof value === 'string' && value.length <= 256 && /^\d+$/.test(value) && BigInt(value) > 0n;
+  assert(positive(document.sequencial) && (document.type !== 'ata' || positive(document.sequencial_compra)), 'INVALID_DOCUMENT_IDENTITY', 'Identificadores do documento inválidos.');
+}
+export function validateDetailPage(page, size) {
+  assert(Number.isSafeInteger(page) && page > 0 && [10,25,50,100].includes(size), 'INVALID_PAGINATION', 'Paginação de detalhes inválida.');
+}
+
 export const validDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s;
 export const validDecimal = s => typeof s === 'string' && /^\d+(?:\.\d+)?$/.test(s) && s.length <= 100;
 export function compareDecimal(a, b) {

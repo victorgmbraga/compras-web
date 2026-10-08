@@ -1,5 +1,7 @@
 # Contrato da API e consultas ao PNCP
 
+Este guia descreve a API HTTP **da distribuição Node.js**. A distribuição estática não oferece essas rotas: usa os mesmos formatos de critérios/dados através do serviço local no Worker, conforme [Arquitetura](arquitetura.md).
+
 A API da aplicação usa a versão `2.0` e habilita `edital` (editais e avisos de contratações), `ata` (atas de registro de preços) e `contrato`. O servidor consulta `https://pncp.gov.br/api/search/` para pesquisas e `https://pncp.gov.br/api/pncp/v1` para documentos, itens, listagens relacionadas e catálogos. Os endereços são configuráveis conforme o [guia de configuração](configuracao.md).
 
 ## Pesquisa

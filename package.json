@@ -1,11 +1,11 @@
 {
   "name": "compras-web-pncp",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
-  "description": "Pesquisa de contratações no PNCP em tempo real, com Node.js e Tabulator",
+  "description": "Pesquisa PNCP no navegador, com distribuição estática e adaptador Node.js opcional",
   "engines": {
-    "node": ">=22.9.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "start": "node --max-old-space-size=512 --env-file-if-exists=.env src/server.js",
@@ -13,7 +13,13 @@
     "demo": "node --max-old-space-size=512 --env-file-if-exists=.env src/server.js --demo",
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "build": "node scripts/build.js",
-    "benchmark:demo": "node scripts/benchmark-demo.js"
+    "benchmark:demo": "node scripts/benchmark-demo.js",
+    "build:browser": "vite build",
+    "dev:browser": "vite",
+    "demo:browser": "vite --mode demo",
+    "preview:browser": "vite preview",
+    "test:ui": "node test/ui-smoke.mjs",
+    "test:browser": "node test/browser-smoke.mjs"
   },
   "dependencies": {
     "lossless-json": "4.3.0",
@@ -21,6 +27,8 @@
     "undici": "7.16.0"
   },
   "devDependencies": {
-    "railway": "3.12.0"
+    "playwright": "1.58.2",
+    "railway": "3.12.0",
+    "vite": "8.3.4"
   }
 }

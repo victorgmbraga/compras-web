@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { loadConfig } from './config.js';
-import { schema, capabilities } from './schema.js';
+import { schema } from './schema.js';
+import { validateDocumentType } from './validation.js';
 import { AppError, assert, checkKeys, fail } from './errors.js';
 import { PncpClient } from './pncp.js';
 import { QueryService } from './query.js';
@@ -21,7 +22,7 @@ const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application
 function getParams(url, allowed) {
   for(const key of url.searchParams.keys())assert(allowed.includes(key) && url.searchParams.getAll(key).length===1,'UNKNOWN_PARAMETER',`Parâmetro inválido ou repetido: ${key}.`);
 }
-function documentType(url) {const type=url.searchParams.get('tipos_documento') ?? 'edital';assert(['edital','ata','contrato'].includes(type),'DOCUMENT_TYPE_UNAVAILABLE','Escolha edital, ata ou contrato.',409);return type;}
+function documentType(url) {return validateDocumentType(url.searchParams.get('tipos_documento') ?? 'edital');}
 export function createApplication(config,{fetcher,logger=()=>{},liveReload=false}={}) {
   const devReload=liveReload?createDevReload():null;
   const client=new PncpClient(config,{fetcher:fetcher || (config.DEMO_MODE?demoFetch:undefined),logger});
@@ -53,33 +54,27 @@ export function createApplication(config,{fetcher,logger=()=>{},liveReload=false
         if(url.pathname==='/api/pncp/filters' && req.method==='GET') {
           getParams(url,['tipos_documento','normativos_base','campo']);const norm=url.searchParams.get('normativos_base'),field=url.searchParams.get('campo');
           const type=documentType(url);
-          assert(!field || capabilities(config).some(c=>!c.reserved && c.name===field && c.domain && c.documents.includes(type)),'INVALID_DOMAIN_FIELD','Campo de domínio não disponível para o tipo documental.');
-          assert(!norm || /^\d+(?:\|\d+)*$/.test(norm),'INVALID_DOMAIN','Normativos devem ser IDs separados por pipe.');
           return json(res,200,await service.domains(type,norm?.split('|'),controller.signal,id,field));
         }
         if(url.pathname==='/api/pncp/suggest' && req.method==='GET') {
           getParams(url,['tipos_documento','campo','q','tam_pagina']);const field=url.searchParams.get('campo'),q=url.searchParams.get('q'),size=Number(url.searchParams.get('tam_pagina') ?? 20);
           const type=documentType(url);
-          assert(capabilities(config).some(c=>!c.reserved && c.name===field && c.state==='enabled' && c.domain_kind==='suggest' && c.documents.includes(type)),'INVALID_SUGGEST_FIELD','Campo de sugestão não habilitado para o tipo documental.');
-          assert(typeof q==='string' && q.length>=3 && q.length<=128 && Number.isSafeInteger(size) && size>=1 && size<=20,'INVALID_SUGGEST','Sugestões exigem 3–128 caracteres e tamanho de 1–20.');
           return json(res,200,await service.suggest(type,field,q,size,controller.signal,id));
         }
         const detail=url.pathname.match(/^\/api\/contratacoes\/(\d{14})\/(\d{4})\/(\d+)\/(itens|arquivos|atas|contratos|historico)$/);
         if(detail && req.method==='GET') {
           getParams(url,['pagina','tamanhoPagina']);const page=Number(url.searchParams.get('pagina') ?? 1),size=Number(url.searchParams.get('tamanhoPagina') ?? 100);
-          assert(Number.isSafeInteger(page) && page>0 && [10,25,50,100].includes(size) && BigInt(detail[3])>0n,'INVALID_PAGINATION','Paginação de detalhes inválida.');
           const purchase={cnpj:detail[1],ano:detail[2],sequencial:detail[3]};
           return json(res,200,await (detail[4]==='itens' ? service.details(purchase,page,size,controller.signal,id) : service.related(purchase,detail[4],page,size,controller.signal,id)));
         }
         const documentDetail=url.pathname.match(/^\/api\/(contratos|atas)\/(\d{14})\/(\d{4})\/(\d+)(?:\/(\d+))?(?:\/(arquivos|historico|termos|empenhos|instrumentocobranca|partesenvolvidas|contratos)(?:\/(\d+))?)?$/);
         if(documentDetail && req.method==='GET'){
           const [,kind,cnpj,ano,first,second,resource,child]=documentDetail;
-          assert(BigInt(first)>0n && (kind==='atas'?second && BigInt(second)>0n:!second),'INVALID_DOCUMENT_IDENTITY','Identificadores do documento inválidos.');
+          assert(kind==='atas'?!!second:!second,'INVALID_DOCUMENT_IDENTITY','Identificadores do documento inválidos.');
           const document={type:kind==='atas'?'ata':'contrato',cnpj,ano,sequencial:second || first,...(kind==='atas'?{sequencial_compra:first}:{})};
           if(child){getParams(url,[]);return json(res,200,await service.contractChild(document,resource,child,controller.signal,id));}
           if(!resource){getParams(url,[]);return json(res,200,await service.documentDetails(document,controller.signal,id));}
           getParams(url,['pagina','tamanhoPagina']);const page=Number(url.searchParams.get('pagina') ?? 1),size=Number(url.searchParams.get('tamanhoPagina') ?? 10);
-          assert(Number.isSafeInteger(page) && page>0 && [10,25,50,100].includes(size),'INVALID_PAGINATION','Paginação de detalhes inválida.');
           return json(res,200,await service.documentRelated(document,resource,page,size,controller.signal,id));
         }
         fail('NOT_FOUND','Rota ou método não encontrado.',404);
@@ -88,6 +83,8 @@ export function createApplication(config,{fetcher,logger=()=>{},liveReload=false
       const routes={
         '/':['../public/index.html','text/html; charset=utf-8'],
         '/app.js':['../public/app.js','text/javascript; charset=utf-8'],
+        '/node-entry.js':['../public/node-entry.js','text/javascript; charset=utf-8'],
+        '/http-service.js':['../public/http-service.js','text/javascript; charset=utf-8'],
         '/styles.css':['../public/styles.css','text/css; charset=utf-8'],
         '/favicon.svg':['../public/favicon.svg','image/svg+xml'],
         '/vendor/tabulator.min.js':['../node_modules/tabulator-tables/dist/js/tabulator.min.js','text/javascript; charset=utf-8'],

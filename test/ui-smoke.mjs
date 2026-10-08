@@ -1,41 +1,32 @@
-// Optional UI verification: install Playwright and its Chromium browser first.
+// UI verification against Node.js or the static artifact; see docs/validacao.md.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
+import { launchTestBrowser } from './browser-launch.js';
 import { createApplication } from '../src/server.js';
 import { loadConfig } from '../src/config.js';
-import { demoFetch, demoDocuments } from '../src/demo.js';
-const { chromium }=await import(process.env.COMPRAS_QA_PLAYWRIGHT_MODULE || 'playwright');
-let launch={headless:true};
-if(process.env.COMPRAS_QA_CHROMIUM_MODULE) {
-  const {default:binary}=await import(pathToFileURL(process.env.COMPRAS_QA_CHROMIUM_MODULE));
-  launch={headless:true,executablePath:process.env.COMPRAS_QA_CHROMIUM_EXECUTABLE || await binary.executablePath(),args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-zygote']};
-}
+import { uiDemoFetch } from './browser-fixtures.js';
+import { createStaticServer } from './static-server.js';
+import { schema } from '../src/schema.js';
 const config={...loadConfig({}),DEMO_MODE:true,PNCP_REQUESTS_PER_SECOND:100000};
-const app=createApplication(config,{fetcher:async(url,init)=>{
-  const u=new URL(url);
-  if(u.searchParams.get('q')==='falha-ui')return new Response('<html>falha</html>',{headers:{'Content-Type':'text/html'}});
-  if(u.searchParams.get('q')==='lenta-ui')await new Promise(resolve=>setTimeout(resolve,500));
-  if(u.searchParams.get('q')==='janela-ui') {
-    const size=Number(u.searchParams.get('tam_pagina')),page=Number(u.searchParams.get('pagina'));
-    const docs=Array.from({length:size},(_,i)=>({...demoDocuments[i%demoDocuments.length],id:`janela-${(page-1)*size+i+1}`,numero_controle_pncp:`janela-${(page-1)*size+i+1}`}));
-    return Response.json({items:docs,total:4143240});
-  }
-  if(u.searchParams.get('q')==='pagina-ui') {
-    const docs=Array.from({length:164},(_,i)=>({...demoDocuments[i%demoDocuments.length],id:`pagina-${i+1}`,numero_controle_pncp:`pagina-${i+1}`}));
-    const size=Number(u.searchParams.get('tam_pagina')),page=Number(u.searchParams.get('pagina'));
-    return Response.json({items:docs.slice((page-1)*size,page*size),total:docs.length});
-  }
-  if(u.searchParams.get('q')==='xss-ui')return new Response(JSON.stringify({items:[{id:'xss',doc_type:'_doc',document_type:'edital',description:'<img src=x onerror="window.pwned=true">',orgao_cnpj:'00000000000000',ano:'2026',numero_sequencial:'1'}],total:1}),{headers:{'Content-Type':'application/json'}});
-  return demoFetch(url,init);
-}});
+const staticMode=process.env.COMPRAS_QA_STATIC==='1';
+const app=staticMode ? createStaticServer(new URL('../dist-browser-test/',import.meta.url)) : createApplication(config,{fetcher:uiDemoFetch});
 await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));
-const browser=await chromium.launch(launch),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],checks=[];
+const browser=await launchTestBrowser(),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],checks=[];
 page.on('pageerror',error=>errors.push(error.message));
+const serviceEvent=staticMode?'service':'request';
+const localApiRequests=[];
+page.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/api/'))localApiRequests.push(r.url());});
+if(staticMode){
+  await page.exposeFunction('__observeService',message=>page.emit('service',message));
+  await page.addInitScript(()=>{const NativeWorker=window.Worker;window.Worker=class extends NativeWorker {postMessage(message,...args){window.__observeService(message);return super.postMessage(message,...args);}};});
+}
+function waitQuery(predicate){
+  return staticMode?page.waitForEvent('service',{predicate:m=>m.method==='execute' && predicate(m.payload.query)}).then(m=>m.payload.query):page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && predicate(r.postDataJSON())).then(r=>r.postDataJSON());
+}
 const check=name=>{checks.push(name);console.log('PASS '+name);};
 async function search(text) {await page.locator('#search').fill(text);await page.locator('#search-button').click();}
 async function addEveryFilter(type) {
-  const response=await page.request.get(`http://127.0.0.1:${app.server.address().port}/api/schema`),catalog=await response.json();
+  const catalog=schema(config);
   const caps=catalog.capabilities.filter(c=>!c.reserved && c.documents.includes(type));
   await page.locator('#filters-button').click();
   for(const cap of caps){
@@ -48,8 +39,8 @@ async function addEveryFilter(type) {
     else await page.locator('#native-value').fill(cap.type==='date'?'2026-09-01':cap.type==='integer'?'0':cap.name==='codigo_ibge'?'5300108':'0.00');
     await page.locator('#add-native').click();
   }
-  const request=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && Object.keys(r.postDataJSON().pncp_filters).length===caps.length);
-  await page.locator('#apply-filters').click();const input=(await request).postDataJSON();assert.equal(input.document_type,type);assert.equal(Object.keys(input.pncp_filters).length,caps.length);
+  const request=waitQuery(input=>Object.keys(input.pncp_filters).length===caps.length);
+  await page.locator('#apply-filters').click();const input=await request;assert.equal(input.document_type,type);assert.equal(Object.keys(input.pncp_filters).length,caps.length);
   await page.waitForFunction(()=>!document.querySelector('#export-button').disabled);return caps.length;
 }
 try {
@@ -85,7 +76,7 @@ try {
   await page.locator('.tabulator-page[data-page="next"]').click();await page.waitForFunction(()=>/101\s*[-–]\s*164\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de próxima página avança');
   await page.locator('.tabulator-page[data-page="prev"]').click();await page.waitForFunction(()=>/1\s*[-–]\s*100\s+de\s+164/.test(document.querySelector('.tabulator-page-counter')?.textContent || ''));check('Ícone de página anterior retorna');
   await search('firewall');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='6 contratações');assert.equal(await page.locator('.tabulator-page.active').getAttribute('data-page'),'1');check('Novos critérios voltam à página 1');
-  const tabRequests=[];const observeTabs=request=>{if(request.url().includes('/api/contratacoes/'))tabRequests.push(request.url());};page.on('request',observeTabs);
+  const tabRequests=[];const observeTabs=request=>{if(staticMode?['details','documentRelated'].includes(request.method) && request.payload.document.type==='edital':request.url().includes('/api/contratacoes/'))tabRequests.push(request);};page.on(serviceEvent,observeTabs);
   await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});assert.equal(await page.locator('#detail-tab-detalhes').getAttribute('aria-selected'),'true');assert.equal(await page.locator('#detail-panel-detalhes dt').count(),12);check('Detalhes abre com seis abas e os doze campos solicitados');
   await page.waitForFunction(()=>[...document.querySelectorAll('.detail-tab')].every(button=>button.dataset.state==='loaded'));assert.equal(tabRequests.length,5);check('Cinco listagens carregam em background antes da troca de abas');
   assert.equal(await page.locator('#details-content .detail-links').count(),0);assert.equal(await page.locator('.details-actions #details-links a').count(),1);assert.equal(Math.round((await page.locator('#details-dialog').boundingBox()).width),888);check('Links junto ao botão de fechar e painel ampliado em 20%');
@@ -106,13 +97,13 @@ try {
   for(const width of [320,390,768]){await page.setViewportSize({width,height:844});assert.equal(await page.locator('#details-dialog').evaluate(node=>node.scrollWidth<=node.clientWidth+1),true);await page.locator('#detail-tab-historico').click();assert(await page.locator('#detail-panel-historico').isVisible());await page.locator('#detail-tab-detalhes').click();}
   if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:`${process.env.COMPRAS_QA_SCREENSHOT_DIR}/details-tabs-mobile.png`});
   await page.setViewportSize(previousViewport);check('Abas, listagens e links cabem no painel em telas menores');
-  await page.locator('#details-dialog .close-dialog').click();page.off('request',observeTabs);
+  await page.locator('#details-dialog .close-dialog').click();page.off(serviceEvent,observeTabs);
   const downloadPromise=page.waitForEvent('download');await page.locator('#export-button').click();const download=await downloadPromise;assert.match(download.suggestedFilename(),/^compras-demo-/);assert.equal(await page.locator('#export-dialog').count(),0);check('CSV baixado diretamente por nova coleta, sem confirmação');
-  await page.locator('#filters-button').click();await page.locator('#native-options').waitFor();await page.locator('#native-options').selectOption('GO');await page.locator('#add-native').click();await page.locator('#apply-filters').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='0 contratações');check('Filtro nativo UF aplicado no backend');
+  await page.locator('#filters-button').click();await page.locator('#native-options').waitFor();await page.locator('#native-options').selectOption('GO');await page.locator('#add-native').click();await page.locator('#apply-filters').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='0 contratações');check('Filtro nativo UF aplicado no serviço');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
   await page.locator('#filters-button').click();await page.locator('#native-field').selectOption('srp');await page.locator('#native-value').selectOption('false');await page.locator('#add-native').click();
-  const srpRequest=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && r.postDataJSON().pncp_filters.srp===false);
-  await page.locator('#apply-filters').click();assert.equal((await srpRequest).postDataJSON().pncp_filters.srp,false);
+  const srpRequest=waitQuery(input=>input.pncp_filters.srp===false);
+  await page.locator('#apply-filters').click();assert.equal((await srpRequest).pncp_filters.srp,false);
   await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratações');check('Filtro SRP envia false e exibe somente registros correspondentes');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
   await page.locator('#filters-button').click();
@@ -121,8 +112,8 @@ try {
   }
   const conditions=['indicador_orcamento_sigiloso','tem_ata_registro_preco','tem_contrato_empenho','tem_nfe_contrato','exigencia_conteudo_nacional'];
   for(const name of conditions){await page.locator('#native-field').selectOption(name);await page.locator('#native-value').selectOption('false');await page.locator('#add-native').click();}
-  const documentaryRequest=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && r.postDataJSON().pncp_filters.fontes?.length===2);
-  await page.locator('#apply-filters').click();const documentaryFilters=(await documentaryRequest).postDataJSON().pncp_filters;
+  const documentaryRequest=waitQuery(input=>input.pncp_filters.fontes?.length===2);
+  await page.locator('#apply-filters').click();const documentaryFilters=(await documentaryRequest).pncp_filters;
   assert.deepEqual(documentaryFilters.fontes,['3','5']);assert.deepEqual(documentaryFilters.modos_disputa,['1','2']);assert(conditions.every(name=>documentaryFilters[name]===false));
   await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='11 contratações');check('Origem, modo de disputa e cinco condições documentais são aplicados juntos');
   await page.locator('#filters-button').click();
@@ -138,23 +129,23 @@ try {
   }
   const itemConditions=['incentivo_produtivo_basico','aplicabilidade_margem_preferencia_normal','aplicabilidade_margem_preferencia_adicional','possui_emenda_parlamentar'];
   for(const name of itemConditions){await page.locator('#native-field').selectOption(name);await page.locator('#native-value').selectOption('true');await page.locator('#add-native').click();}
-  const itemRequest=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && r.postDataJSON().pncp_filters.beneficios?.includes('1'));
-  await page.locator('#apply-filters').click();const itemFilters=(await itemRequest).postDataJSON().pncp_filters;assert(itemConditions.every(name=>itemFilters[name]===true));assert.deepEqual(itemFilters.categorias_leilao,['1']);
+  const itemRequest=waitQuery(input=>input.pncp_filters.beneficios?.includes('1'));
+  await page.locator('#apply-filters').click();const itemFilters=(await itemRequest).pncp_filters;assert(itemConditions.every(name=>itemFilters[name]===true));assert.deepEqual(itemFilters.categorias_leilao,['1']);
   await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='6 contratações');check('Emenda e seis filtros de itens são aplicados juntos');
   await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});await page.locator('#detail-tab-itens').click();await page.waitForFunction(()=>document.querySelectorAll('.item-card').length===2);
   assert.match(await page.locator('.item-card').nth(1).innerText(),/Item complementar/);await page.locator('#details-dialog .close-dialog').click();check('Detalhes preservam os dois itens após a pesquisa filtrada');
   const itemDownload=page.waitForEvent('download');await page.locator('#export-button').click();const itemExport=await itemDownload;assert.equal((await readFile(await itemExport.path(),'utf8')).split('\r\n').length,8);check('CSV exporta seis contratações, sem multiplicar linhas pelos itens');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
   await page.locator('#filters-button').click();await page.locator('#native-field').selectOption('codigo_ibge');await page.locator('#native-value').fill('5300108');await page.locator('#add-native').click();
-  const ibgeRequest=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && r.postDataJSON().pncp_filters.codigo_ibge==='5300108');
-  await page.locator('#apply-filters').click();assert.equal((await ibgeRequest).postDataJSON().pncp_filters.codigo_ibge,'5300108');check('Código IBGE preservado como texto na pesquisa');
+  const ibgeRequest=waitQuery(input=>input.pncp_filters.codigo_ibge==='5300108');
+  await page.locator('#apply-filters').click();assert.equal((await ibgeRequest).pncp_filters.codigo_ibge,'5300108');check('Código IBGE preservado como texto na pesquisa');
   await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratações');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
   await page.locator('#filters-button').click();await page.locator('#native-field').selectOption('amparos_legais');await page.locator('#native-options').selectOption(['19','98']);await page.locator('#add-native').click();
   await page.locator('#native-field').selectOption('normativos_base');await page.locator('#native-options').selectOption('1');await page.locator('#add-native').click();
   await page.waitForFunction(()=>document.querySelector('#legal-error').textContent.includes('incompatíveis') && !document.querySelector('#apply-filters').disabled);
-  const legalRequest=page.waitForRequest(r=>r.url().endsWith('/api/query') && r.method()==='POST' && r.postDataJSON().pncp_filters.normativos_base?.includes('1'));
-  await page.locator('#apply-filters').click();const legalFilters=(await legalRequest).postDataJSON().pncp_filters;assert.deepEqual(legalFilters.amparos_legais,['19']);assert.deepEqual(legalFilters.normativos_base,['1']);check('Normativo reconcilia amparos legais e aplica os critérios válidos');
+  const legalRequest=waitQuery(input=>input.pncp_filters.normativos_base?.includes('1'));
+  await page.locator('#apply-filters').click();const legalFilters=(await legalRequest).pncp_filters;assert.deepEqual(legalFilters.amparos_legais,['19']);assert.deepEqual(legalFilters.normativos_base,['1']);check('Normativo reconcilia amparos legais e aplica os critérios válidos');
   await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='11 contratações');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');
   await page.locator('#filters-button').click();await page.locator('#native-field').selectOption('anos');await page.locator('#native-options').waitFor();assert.equal(await page.locator('#native-options option').innerText(),'2026');await page.locator('#filters-dialog .close-dialog[aria-label="Fechar"]').click();check('Domínio de anos no formato real do PNCP');
@@ -164,7 +155,7 @@ try {
   assert(await page.locator('.tabulator-col[tabulator-field="valor_global"]').isVisible());assert.equal(await page.locator('.tabulator-col[tabulator-field="valor_total_estimado"]').count(),0);check('Troca para contratos consulta a fonte e apresenta as colunas próprias');
   await page.locator('#filters-button').click();await page.locator('#draft-status').selectOption('vigente');await page.locator('#apply-filters').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='16 contratos');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratos');check('Status Vigentes usa o domínio temporal de contratos e limpar mantém o tipo');
-  const detailRequests=[];const observe=r=>{if(r.url().includes('/itens'))detailRequests.push(r.url());};page.on('request',observe);
+  const detailRequests=[];const observe=r=>{if(staticMode?r.method==='details':r.url().includes('/itens'))detailRequests.push(r);};page.on(serviceEvent,observe);
   await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});
   await page.waitForFunction(()=>[...document.querySelectorAll('.detail-tab')].every(button=>button.dataset.state==='loaded'));
   assert.equal(await page.locator('#detail-panel-detalhes dt').count(),34);assert.match(await page.locator('#details-content').innerText(),/Valor inicial/);assert.equal(await page.locator('.items-section').count(),0);assert.equal(detailRequests.length,0);check('Contrato carrega os dados nativos e cinco listas sem confundir seu sequencial com a compra');
@@ -175,26 +166,33 @@ try {
     check(`Contrato exibe ${resource} e consulta os detalhes do registro selecionado`);
   }
   await page.locator('#detail-tab-detalhes').click();if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:`${process.env.COMPRAS_QA_SCREENSHOT_DIR}/contract-details-desktop.png`});
-  await page.locator('#details-dialog .close-dialog').click();page.off('request',observe);
+  await page.locator('#details-dialog .close-dialog').click();page.off(serviceEvent,observe);
   await page.locator('#filters-button').click();await page.locator('#native-field').selectOption('tipos_contrato');await page.locator('#native-options').selectOption('1');await page.locator('#add-native').click();await page.locator('#native-field').selectOption('possui_nfe');await page.locator('#native-value').selectOption('true');await page.locator('#add-native').click();await page.locator('#apply-filters').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='8 contratos');
   const contractDownload=page.waitForEvent('download');await page.locator('#export-button').click();const exportedContracts=await contractDownload,contractCsv=await readFile(await exportedContracts.path(),'utf8');assert.equal(contractCsv.split('\r\n').length,10);assert(contractCsv.split('\r\n')[0].includes('"valor_global"'));check('Filtros exclusivos de contratos e CSV de oito contratos usam os mesmos critérios');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='32 contratos');assert.equal(await addEveryFilter('contrato'),32);check('Todos os 32 filtros de contratos podem ser preenchidos e aplicados no navegador');
   assert.deepEqual(await page.locator('#document-type option').evaluateAll(nodes=>nodes.map(n=>n.textContent)),['Editais e Avisos de Contratações','Atas de Registro de Preços','Contratos']);
   await page.locator('#document-type').selectOption('ata');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='24 atas');
   assert(await page.locator('.tabulator-col[tabulator-field="cancelado"]').isVisible());assert.equal(await page.locator('.tabulator-col[tabulator-field="valor_global"]').count(),0);check('Os três tipos oficiais estão disponíveis e atas apresentam colunas próprias');
-  const ataRequests=[];const observeAta=r=>{if(r.url().includes('/api/atas/'))ataRequests.push(r.url());};page.on('request',observeAta);
+  const ataRequests=[];const observeAta=r=>{if(staticMode?['documentDetails','documentRelated'].includes(r.method) && r.payload.document.type==='ata':r.url().includes('/api/atas/'))ataRequests.push(r);};page.on(serviceEvent,observeAta);
   await page.locator('.tabulator-row').first().click();await page.locator('#details-dialog').waitFor({state:'visible'});await page.waitForFunction(()=>[...document.querySelectorAll('.detail-tab')].every(button=>button.dataset.state==='loaded'));
   assert.equal(ataRequests.length,5);assert.equal(await page.locator('#detail-panel-detalhes dt').count(),22);assert.match(await page.locator('#detail-panel-detalhes').innerText(),/Número da ata/);assert.equal(await page.locator('#detail-tab-itens').count(),0);assert.equal(await page.locator('#detail-tab-termos').count(),0);check('Ata carrega seus dados completos e quatro listas em background');
   await page.locator('#detail-tab-partesenvolvidas').click();assert.match(await page.locator('#detail-panel-partesenvolvidas').innerText(),/Gerenciadora/);await page.locator('#detail-tab-contratos').click();assert.match(await page.locator('#detail-panel-contratos').innerText(),/Valor global/);assert.equal(ataRequests.length,5);check('Partes envolvidas e contratos vinculados da ata aparecem sem repetir consultas');
   await page.locator('#detail-tab-detalhes').click();const ataOrigin=page.locator('#detail-panel-detalhes a').first();assert.match(await ataOrigin.getAttribute('href'),/\/app\/editais\//);assert.equal(await ataOrigin.getAttribute('rel'),'noopener noreferrer');
   for(const width of [320,390,768]){await page.setViewportSize({width,height:844});assert(await page.locator('#details-dialog').evaluate(node=>node.scrollWidth<=node.clientWidth+1));}
   if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:`${process.env.COMPRAS_QA_SCREENSHOT_DIR}/ata-details-mobile.png`});await page.setViewportSize({width:1440,height:1000});check('Detalhes de ata conservam vínculos seguros e layout em telas menores');
-  await page.locator('#details-dialog .close-dialog').click();page.off('request',observeAta);
+  await page.locator('#details-dialog .close-dialog').click();page.off(serviceEvent,observeAta);
   await page.locator('#filters-button').click();await page.locator('#draft-status').selectOption('vigente');await page.locator('#apply-filters').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='12 atas');
   const ataDownload=page.waitForEvent('download');await page.locator('#export-button').click();const exportedAtas=await ataDownload,ataCsv=await readFile(await exportedAtas.path(),'utf8');assert.equal(ataCsv.split('\r\n').length,14);assert(ataCsv.split('\r\n')[0].includes('"cancelado"'));assert(!ataCsv.split('\r\n')[0].includes('"valor_global"'));check('Vigência e CSV de atas conservam os mesmos critérios e colunas');
   await page.locator('#clear-button').click();await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='24 atas');assert.equal(await addEveryFilter('ata'),16);check('Todos os 16 filtros de atas podem ser preenchidos e aplicados no navegador');
   await page.locator('#document-type').selectOption('edital');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');check('Voltar a contratações restaura colunas e critérios do tipo escolhido');
   await page.locator('#columns-button').click();const checkbox=page.locator('#column-list label').filter({hasText:'CNPJ do órgão'}).locator('input');await checkbox.check();await page.locator('#columns-dialog .close-dialog').click();assert(await page.locator('.tabulator-col[tabulator-field="orgao_cnpj"]').isVisible());check('Seleção de colunas');
+  await search('csv-lenta-ui');await page.waitForFunction(()=>document.querySelector('#result-title').textContent==='164 contratações');
+  let cancelledDownloads=0;const observeDownload=()=>cancelledDownloads++;page.on('download',observeDownload);
+  await page.locator('#export-button').click();
+  if(staticMode)await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Coletando'));
+  assert(await page.locator('#cancel-export-button').isVisible());await page.locator('#cancel-export-button').click();
+  await page.waitForFunction(()=>!document.querySelector('#export-button').disabled);await page.waitForTimeout(600);
+  assert.equal(cancelledDownloads,0);assert.match(await page.locator('#notice').innerText(),/Exportação cancelada/);page.off('download',observeDownload);check(staticMode?'Progresso e botão Cancelar CSV interrompem a coleta sem baixar arquivo parcial':'Cancelar CSV interrompe a coleta sem baixar arquivo parcial');
   await search('lenta-ui');assert.equal(await page.locator('#search-button').isVisible(),false);assert(await page.locator('#cancel-button').isVisible());
   await page.locator('#cancel-button').click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Consulta cancelada'));
   assert(await page.locator('#search-button').isVisible());assert.equal(await page.locator('#cancel-button').isVisible(),false);check('Cancelar substitui Pesquisar durante o carregamento e restaura o botão ao cancelar');
@@ -213,6 +211,7 @@ try {
   }
   await page.setViewportSize({width:390,height:844});await page.locator('#filters-button').click();assert(await page.locator('#filters-dialog').isVisible());await page.locator('#filters-dialog .close-dialog[aria-label="Fechar"]').click();check('Cabeçalho em linha única com rolagem acessível e painéis sem overflow da página');
   if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:process.env.COMPRAS_QA_SCREENSHOT_DIR+'/mobile.png',fullPage:true});
+  if(staticMode){assert.deepEqual(localApiRequests,[]);check('Distribuição estática executa todas as ações sem API local');}
   assert.deepEqual(errors,[]);check('Sem erros JavaScript não tratados');
   console.log(JSON.stringify({checks:checks.length,passed:checks,errors}));
 }finally{await browser.close();await app.close();}

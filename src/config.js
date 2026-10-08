@@ -1,18 +1,7 @@
 import { assert } from './errors.js';
 
-const defaults = {
-  HOST: '127.0.0.1', PORT: 8000,
-  PNCP_SEARCH_BASE_URL: 'https://pncp.gov.br/api/search',
-  PNCP_DETAIL_BASE_URL: 'https://pncp.gov.br/api/pncp/v1',
-  PNCP_CONNECT_TIMEOUT_SECONDS: 5, PNCP_READ_TIMEOUT_SECONDS: 30,
-  PNCP_OPERATION_TIMEOUT_SECONDS: 120, PNCP_MAX_RETRIES: 2,
-  PNCP_MAX_CONCURRENT_REQUESTS: 2, PNCP_REQUESTS_PER_SECOND: 2,
-  PNCP_MAX_CONCURRENT_OPERATIONS: 4, PNCP_PAGE_SIZE: 50,
-  PNCP_MAX_DETAIL_ITEMS: 20000,
-  PNCP_MAX_EXPORT_DOCUMENTS: 10000, PNCP_MAX_EXPORT_BYTES: 50 * 1024 * 1024,
-  PNCP_MAX_OPERATION_BYTES: 100 * 1024 * 1024,
-  PNCP_MAX_REQUESTS_PER_OPERATION: 1000, PNCP_VALIDATED_FILTERS: '', DEMO_MODE: false,
-};
+import { defaults as portableDefaults, validateSettings } from './settings.js';
+const defaults = { HOST: '127.0.0.1', PORT: 8000, PNCP_CONNECT_TIMEOUT_SECONDS: 5, ...portableDefaults };
 export function loadConfig(env = process.env) {
   const config = { ...defaults };
   for (const [key, fallback] of Object.entries(defaults)) {
@@ -37,5 +26,6 @@ export function loadConfig(env = process.env) {
     assert(Number.isInteger(config[key]), 'INVALID_CONFIG', `${key} deve ser inteiro.`);
   }
   assert(config.PORT <= 65535, 'INVALID_CONFIG', 'PORT deve ser no máximo 65535.');
+  validateSettings(Object.fromEntries(Object.keys(portableDefaults).map(key => [key, config[key]])));
   return config;
 }
