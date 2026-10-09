@@ -137,7 +137,8 @@ try {
   } finally {await orderedPage.close();}
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
   assert.equal(await page.locator('#app-header .header-toolbar .criteria-row').count(),1);
-  for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);
+  for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button','repository-link'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);
+  assert.equal(await page.locator('.tabulator-footer .repository-link').count(),0);
   for(const [id,label,accessibleLabel=label] of [['search-button','Pesquisar'],['filters-button','Filtros'],['refresh-button','Atualizar resultados'],['columns-button','Selecionar colunas'],['export-button','Exportar CSV'],['repository-link','Repositório no GitHub','Repositório do Contratos Web no GitHub (abre em nova aba)']]){
     const button=page.locator(`#${id}`),tooltip=page.locator(`#${id}-tooltip`);
     assert.equal(await button.getAttribute('aria-label'),accessibleLabel);assert.equal(await button.getAttribute('title'),null);assert.equal(await button.locator('svg').count(),1);assert.equal(await button.locator('span:not(.count-badge)').count(),0);
@@ -318,13 +319,18 @@ try {
   if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:process.env.COMPRAS_QA_SCREENSHOT_DIR+'/desktop.png',fullPage:true});
   for(const width of [320,390,768,1057,1440]) {
     await page.setViewportSize({width,height:844});await page.waitForTimeout(150);
-    const fit=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,centers:[...document.querySelectorAll('#app-header .brand,#app-header input,#app-header button,#app-header select,#source-badge')].filter(node=>node.getClientRects().length).map(node=>{const rect=node.getBoundingClientRect();return rect.top+rect.height/2;})}));
+    const fit=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,centers:[...document.querySelectorAll('#app-header .brand,#app-header input,#app-header button,#app-header select,#source-badge,#repository-link')].filter(node=>node.getClientRects().length).map(node=>{const rect=node.getBoundingClientRect();return rect.top+rect.height/2;})}));
     assert(fit.scroll<=fit.width,`Overflow da página em ${width}px`);
     assert(Math.max(...fit.centers)-Math.min(...fit.centers)<=1,`Cabeçalho quebrou linha em ${width}px`);
+    const repository=await page.locator('#repository-link').boundingBox();
+    assert(repository.x>=0 && repository.y>=0 && repository.y<=20,`GitHub fora do canto superior em ${width}px`);
+    assert.equal(repository.x+repository.width,width-(width<=600?8:12),`GitHub fora do canto direito em ${width}px`);
     await page.locator('#export-button').evaluate(node=>node.blur());await page.locator('#export-button').focus();
-    const focused=await page.locator('#export-button').boundingBox();assert(focused.x>=-.5 && focused.x+focused.width<=width+.5,`Exportar não ficou visível com foco em ${width}px`);
+    const focused=await page.locator('#export-button').boundingBox();assert(focused.x>=-.5 && focused.x+focused.width<=repository.x,`Exportar não ficou visível sem sobrepor o GitHub em ${width}px`);
+    assert.deepEqual(await page.locator('#repository-link').boundingBox(),repository,`GitHub se deslocou com a rolagem em ${width}px`);
     const tooltip=page.locator('#export-button-tooltip');await tooltip.waitFor({state:'visible'});
     const box=await tooltip.boundingBox();assert(box.x>=8 && box.x+box.width<=width-8,`Tooltip cortado em ${width}px`);
+    await page.locator('#repository-link').focus();await page.locator('#repository-link-tooltip').waitFor({state:'visible'});
   }
   await page.setViewportSize({width:390,height:844});await page.locator('#filters-button').click();assert(await page.locator('#filters-dialog').isVisible());await page.locator('#filters-dialog .close-dialog[aria-label="Fechar"]').click();check('Cabeçalho em linha única com rolagem acessível e painéis sem overflow da página');
   if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:process.env.COMPRAS_QA_SCREENSHOT_DIR+'/mobile.png',fullPage:true});

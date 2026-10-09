@@ -173,7 +173,7 @@ test('HEADER-UI-01: ordenação e todas as ações dos resultados ficam no cabe�
   assert.match(header,/id="search-button"[^>]*>\s*<svg[\s\S]*<\/svg>\s*<\/button>\s*<button type="button" class="button danger search-action" id="cancel-button" hidden>Cancelar<\/button>/);
   assert.doesNotMatch(html,/class="result-toolbar"/);
   assert.match(header, /id="filters-button"[\s\S]*?<\/button>\s*<button type="button" class="button" id="clear-button" hidden>Limpar filtros<\/button>/);
-  for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button']) {
+  for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button','repository-link']) {
     assert.match(header,new RegExp(`id="${id}"`));
     assert.equal([...html.matchAll(new RegExp(`id="${id}"`,'g'))].length,1);
   }

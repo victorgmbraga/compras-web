@@ -71,7 +71,7 @@ npm run build
 npm run preview
 ```
 
-Abra `http://localhost:8000/?demo=1`. Confira a troca dos três tipos, aplicação de filtros, compartilhamento/recarregamento da URL, detalhes, paginação e CSV. O ícone do GitHub deve ficar à direita da paginação e abrir o repositório em nova aba.
+Abra `http://localhost:8000/?demo=1`. Confira a troca dos três tipos, aplicação de filtros, compartilhamento/recarregamento da URL, detalhes, paginação e CSV. O ícone do GitHub deve ficar no canto superior direito, permanecer visível durante a rolagem horizontal do cabeçalho e abrir o repositório em nova aba.
 
 A demonstração contém 64 contratações, 24 atas e 32 contratos. Todos os filtros têm simulação, mas os status de vigência usam a data fixa `2026-10-07`; a simulação de relevância e recebimento de propostas não reproduz integralmente a fonte. Os links dos registros fictícios são ilustrativos.
 
