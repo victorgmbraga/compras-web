@@ -53,7 +53,7 @@ Critérios novos começam na primeira página; Atualizar preserva os últimos cr
 
 Antes da primeira consulta, a interface lê a URL e configura tipo documental, colunas, texto, status, filtros, ordenação e página. Uma URL inválida mostra um aviso sem executar a busca. Cada consulta iniciada sincroniza os parâmetros com `history.pushState`, preservando caminho, fragmento e parâmetros externos. Inicialização e `popstate` usam `replaceState` para normalizar a URL sem duplicar entradas. Voltar/Avançar cancelam operações anteriores e restauram a consulta; rascunhos de filtros e navegação dos painéis não alteram o link.
 
-A paginação remota usa `setPage` para abrir diretamente a página do link. O seletor de ordenação e os menus de colunas enviam critérios nativos ao PNCP; `headerSort: false` desabilita a ordenação própria do Tabulator. Novos critérios reiniciam a página. Atualizar consulta a página da última pesquisa concluída; repetir uma falha usa a página que falhou.
+A paginação remota usa `setPage` para abrir diretamente a página do link. O seletor de ordenação usa `orders_by_document` e `order_labels` do esquema; o Worker e a leitura da URL validam a mesma compatibilidade. O seletor e os menus de colunas enviam critérios nativos ao PNCP; `headerSort: false` desabilita a ordenação própria do Tabulator. Novos critérios reiniciam a página. Atualizar consulta a página da última pesquisa concluída; repetir uma falha usa a página que falhou.
 
 ## Painéis dos documentos
 

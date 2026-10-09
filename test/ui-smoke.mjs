@@ -108,6 +108,33 @@ try {
     assert.equal(sharedQueries.length,beforeInvalid);assert.equal(new URL(sharedPage.url()).searchParams.get('pagina'),'101');
     await sharedPage.locator('#clear-button').click();await sharedPage.waitForFunction(()=>document.querySelector('#result-title').textContent==='64 contratações');assert.equal(new URL(sharedPage.url()).searchParams.get('pagina'),'1');check('Parâmetros inválidos são exibidos sem pesquisa automática e podem ser corrigidos pela interface');
   } finally {await sharedPage.close();}
+  const orderedPage=await context.newPage();
+  try {
+    const expectedOrders={edital:['-data','data','relevancia','numero_controle_pncp','-valor_total_estimado'],ata:['-data','data','relevancia','valor','-valor'],contrato:['-data','data','relevancia','numero_contratacao','numero_controle_pncp','data_inicio_vigencia','valor_global']};
+    await orderedPage.addInitScript(()=>{
+      const NativeWorker=window.Worker;window.__orderRequests=[];
+      window.Worker=class extends NativeWorker {postMessage(message,...args){if(message.method==='execute')window.__orderRequests.push(message.payload.query);return super.postMessage(message,...args);}};
+    });
+    const orderedBase=`http://127.0.0.1:${app.server.address().port}/`;
+    const waitOrdered=(type,order)=>orderedPage.waitForFunction(({type,order})=>window.__orderRequests.at(-1)?.document_type===type && window.__orderRequests.at(-1)?.order===order && !document.querySelector('#export-button').disabled,{type,order});
+    await orderedPage.goto(orderedBase+'?demo=1');await waitOrdered('edital','-data');
+    for(const [type,orders] of Object.entries(expectedOrders)) {
+      if(type!=='edital'){await orderedPage.locator('#document-type').selectOption(type);await waitOrdered(type,'-data');}
+      assert.deepEqual(await orderedPage.locator('#order option').evaluateAll(options=>options.map(option=>option.value)),orders);
+      assert.equal(await orderedPage.locator('#order').inputValue(),'-data');
+      for(const order of orders.slice(3)) {
+        await orderedPage.locator('#order').selectOption(order);await waitOrdered(type,order);
+        assert.equal(new URL(orderedPage.url()).searchParams.get('ordenacao'),order);
+        assert.equal(new URL(orderedPage.url()).searchParams.get('pagina'),'1');
+        const href=orderedPage.url();await orderedPage.reload();await waitOrdered(type,order);
+        assert.equal(await orderedPage.locator('#order').inputValue(),order);assert.equal(orderedPage.url(),href);
+      }
+    }
+    check('Oito opções adicionais acompanham o tipo e chegam ao Worker, à URL e ao recarregamento');
+    await orderedPage.goto(orderedBase+'?demo=1&tipos_documento=ata&ordenacao=valor_global');
+    await orderedPage.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Ordenação não disponível'));
+    assert.equal(await orderedPage.evaluate(()=>window.__orderRequests.length),0);check('Link com ordenação incompatível é rejeitado antes de consultar o PNCP');
+  } finally {await orderedPage.close();}
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
   assert.equal(await page.locator('#app-header .header-toolbar .criteria-row').count(),1);
   for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);

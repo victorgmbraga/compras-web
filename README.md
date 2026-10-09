@@ -9,7 +9,7 @@ A aplicação executa no navegador. Consultas, validação de filtros e geraçã
 ## Usar a aplicação
 
 1. Escolha **Editais e Avisos de Contratações**, **Atas de Registro de Preços** ou **Contratos**. Digite a busca e use o botão com ícone de lupa. Sem critérios na URL, a aplicação pesquisa contratações sem filtros.
-2. Use o botão com ícone de filtro para editar os critérios e selecione **Aplicar e pesquisar**. As opções disponíveis dependem do tipo documental. A ordenação pode ser por publicação ou relevância; relevância exige texto.
+2. Use o botão com ícone de filtro para editar os critérios e selecione **Aplicar e pesquisar**. Filtros e ordenações disponíveis dependem do tipo documental; ordenar por relevância exige texto.
 3. Navegue pelos resultados, com 100 documentos por página. Novos critérios começam na página 1. **Atualizar** repete a última consulta concluída; **Tentar novamente** repete a página que falhou. **Cancelar** interrompe a consulta em andamento.
 4. Clique em uma linha para abrir seus detalhes. O título do painel é o título da linha; **Abrir no PNCP** e **Sistema de origem**, quando disponíveis, ficam junto ao botão de fechar.
 5. Use **Selecionar colunas** para ajustar a tabela. Colunas com filtro exibem um ícone após o nome; seu menu oferece as ações de filtro e ordenação disponíveis.
@@ -36,6 +36,8 @@ O catálogo contém 80 filtros: 71 aplicáveis a contratações, 16 a atas e 32 
 As opções dos três tipos são carregadas na inicialização e armazenadas no `localStorage` por quatro horas. Listas grandes são compactadas; se o armazenamento estiver indisponível, o cache funciona em memória. Amparos dependentes de normativos carregam sob demanda. Sugestões por texto e consultas de documentos acessam novamente a fonte.
 
 A tabela mantém a ordem, os resultados e o total do PNCP. A janela de navegação alcança até 10.000 documentos; refine a pesquisa para acessar conjuntos maiores. O CSV exige que o total caiba no limite de exportação configurado. Filtros de itens selecionam contratações, enquanto os detalhes exibem todos os itens. Os dados podem mudar entre consultas.
+
+As ordenações acompanham o tipo de documento: editais oferecem controle PNCP e valor estimado; atas, maior/menor valor; contratos, número da contratação, controle PNCP, início da vigência e valor global. Todos oferecem mais recentes, mais antigas e relevância, que exige texto. Veja os [códigos das ordenações](docs/consultas-pncp.md#ordenações-por-tipo-de-documento).
 
 ## Compartilhar uma busca
 

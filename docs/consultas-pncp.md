@@ -30,13 +30,26 @@ Esses métodos são locais, não URLs HTTP. Campos e métodos desconhecidos são
 | `q` | `""` | Texto de até 128 caracteres |
 | `status` | `"todos"` | Em edital: `"todos"`, `"recebendo_proposta"`, `"propostas_encerradas"`; em ata e contrato: `"todos"`, `"vigente"`, `"nao_vigente"` |
 | `pncp_filters` | `{}` | Objeto de filtros habilitados |
-| `order` | `"-data"` | `"-data"` (mais recentes), `"data"` (mais antigas), `"relevancia"` (exige texto não vazio) |
+| `order` | `"-data"` | Critério nativo compatível com o tipo documental, conforme a tabela abaixo |
 | `page` | `1` | Inteiro positivo; `page × size` não pode superar 10.000 |
 | `size` | `PNCP_PAGE_SIZE`, inicialmente `50` | `10`, `25`, `50` ou `100` |
 
 Os campos de `query` podem ser omitidos para usar os padrões; envie `query: {}` para a consulta padrão. A interface envia explicitamente `size: 100`.
 
 O cliente serializa os controles como `tipos_documento`, `q`, `status`, `ordenacao`, `pagina` e `tam_pagina`. As listas de filtros são unidas por `|` e codificadas uma vez. Cada página faz uma chamada de busca, além de eventuais consultas de domínios e novas tentativas em caso de falha transitória.
+
+### Ordenações por tipo de documento
+
+O seletor usa as opções oferecidas pelo portal oficial em [editais](https://pncp.gov.br/app/editais), [atas](https://pncp.gov.br/app/atas) e [contratos](https://pncp.gov.br/app/contratos). A interface, a validação de consultas e os parâmetros da URL usam o mesmo catálogo.
+
+| Tipo | Ordenações disponíveis |
+| --- | --- |
+| Todos | `-data` (mais recentes), `data` (mais antigas), `relevancia` (relevância, exige texto não vazio) |
+| Edital | `numero_controle_pncp` (controle PNCP), `-valor_total_estimado` (valor total estimado) |
+| Ata | `valor` (maior valor), `-valor` (menor valor) |
+| Contrato | `numero_contratacao` (número da contratação), `numero_controle_pncp` (controle PNCP), `data_inicio_vigencia` (início da vigência), `valor_global` (valor global) |
+
+Os códigos são enviados exatamente como no PNCP, inclusive `valor`/`-valor` das atas. A aplicação preserva a ordem retornada pela fonte. Selecionar uma ordenação reinicia na página 1; trocar o tipo documental restaura `-data`. Links com uma ordenação incompatível exibem um erro antes de consultar o PNCP.
 
 ### URL compartilhável da interface
 
@@ -47,7 +60,7 @@ Os parâmetros GET da página são lidos pela interface estática e convertidos 
 | `tipos_documento` | `edital` | Um tipo: `edital`, `ata` ou `contrato` |
 | `q` | Vazio | Texto de até 128 caracteres, codificado pela URL |
 | `status` | `todos` | Status temporal compatível com o tipo documental |
-| `ordenacao` | `-data` | `-data`, `data` ou `relevancia`; relevância exige texto |
+| `ordenacao` | `-data` | Código da tabela de ordenações, compatível com `tipos_documento`; relevância exige texto |
 | `pagina` | `1` | Inteiro de 1 a 100; a interface usa 100 registros por página |
 | Nome de filtro habilitado | Ausente | Tipo e compatibilidade publicados no catálogo |
 
@@ -125,7 +138,7 @@ Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false
 
 Filtros de itens selecionam **contratações** na busca nativa. Tabela e CSV continuam contendo uma linha por contratação. Os detalhes exibem todos os itens, inclusive os que não satisfazem os critérios. Uma condição verdadeira na busca pode coexistir com itens que a informam como falsa nos detalhes. Não há garantia de que condições diferentes incidam sobre o mesmo item; a aplicação não aplica um refinamento local para impor essa correlação. Os nomes enviados à busca continuam sendo `categorias_leilao` e `beneficios`, embora os domínios usem aliases.
 
-`service.call("schema")` informa `columns`, `columns_by_document`, `capabilities`, `statuses`, `statuses_by_document`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete controles reservados ao adaptador e 80 filtros. São 71 aplicáveis a edital, 16 a ata e 32 a contrato. `columns` e `statuses` usam os padrões de edital; os mapas por documento fornecem os valores próprios de cada tipo. A compatibilidade de filtros é definida por `documents`.
+`service.call("schema")` informa `columns`, `columns_by_document`, `capabilities`, `statuses`, `statuses_by_document`, `orders`, `orders_by_document`, `order_labels` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete controles reservados ao adaptador e 80 filtros. São 71 aplicáveis a edital, 16 a ata e 32 a contrato. `columns`, `statuses` e `orders` usam os padrões de edital; os mapas por documento fornecem os valores próprios de cada tipo, e `order_labels` contém os nomes exibidos no seletor. A compatibilidade de filtros é definida por `documents`.
 
 Atas aceitam `ufs`, `orgaos`, `unidades`, `municipios`, `esferas`, `poderes`, `anos`, `modalidades`, `tipos`, `permite_adesao`, `data_publicacao_inicio/fim`, `data_assinatura_inicio/fim` e `data_inicio_vigencia_inicio/fim`. Filtros de itens, resultados e valores contratuais não são aplicáveis a atas.
 

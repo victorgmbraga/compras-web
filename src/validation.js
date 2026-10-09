@@ -1,5 +1,5 @@
 import { assert, checkKeys } from './errors.js';
-import { capabilities, reserved, documentStatuses } from './schema.js';
+import { capabilities, reserved, documentStatuses, documentOrders } from './schema.js';
 
 export function validateDocumentType(type) {
   assert(Object.hasOwn(documentStatuses, type), 'DOCUMENT_TYPE_UNAVAILABLE', 'Escolha edital, ata ou contrato.', 409);
@@ -76,7 +76,8 @@ export function validateQuery(input, config) {
   assert(typeof q.document_type==='string' && Object.hasOwn(documentStatuses,q.document_type), 'DOCUMENT_TYPE_UNAVAILABLE', 'Escolha editais (edital), atas (ata) ou contratos (contrato).', 409);
   assert(typeof q.q === 'string' && q.q.length <= 128, 'INVALID_QUERY_TEXT', 'A busca textual permite até 128 caracteres.');
   assert(documentStatuses[q.document_type].includes(q.status), 'INVALID_STATUS', 'Status temporal inválido para o tipo documental.');
-  assert(['-data','data','relevancia'].includes(q.order) && (q.order !== 'relevancia' || q.q.trim()), 'INVALID_ORDER', 'Ordenação não habilitada ou relevância sem busca textual.');
+  assert(documentOrders[q.document_type].includes(q.order), 'INVALID_ORDER', 'Ordenação não disponível para o tipo documental.');
+  assert(q.order !== 'relevancia' || q.q.trim(), 'INVALID_ORDER', 'Ordenação por relevância exige busca textual.');
   assert(Number.isSafeInteger(q.page) && q.page > 0, 'INVALID_PAGE', 'page deve ser inteiro positivo.');
   assert([10,25,50,100].includes(q.size), 'INVALID_SIZE', 'size deve ser 10, 25, 50 ou 100.');
   q.pncp_filters = validateFilters(q.pncp_filters, config, q.document_type);

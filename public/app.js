@@ -117,7 +117,9 @@ for(const dialog of document.querySelectorAll('dialog')) {
   dialog.querySelectorAll('.close-dialog').forEach(button=>button.addEventListener('click',()=>closeDialog(dialog)));
 }
 function updateCriteria() {
-  const q=state.query;$('order').value=q.order;
+  const q=state.query,order=$('order');order.replaceChildren();
+  for(const value of state.schema.orders_by_document[q.document_type]){const option=el('option',state.schema.order_labels[value]);option.value=value;order.append(option);}
+  order.value=q.order;
   $('document-type').value=q.document_type;
   const count=Object.keys(q.pncp_filters).length+(q.status==='todos'?0:1);
   $('filter-count').hidden=!count;$('filter-count').textContent=String(count);$('clear-button').hidden=!count && !q.q;

@@ -11,7 +11,7 @@ npm test
 O runner nativo executa `test/*.test.js` em sequência. A suíte cobre:
 
 - Critérios, tipos documentais, os 80 filtros, domínios, formatos, intervalos, precisão decimal e identificadores.
-- Pesquisa, paginação, projeção de dados, identidades e detalhes dos três tipos.
+- Pesquisa, paginação, ordenações compatíveis por tipo, projeção de dados, identidades e detalhes dos três tipos.
 - HTTP 204/404 nos recursos permitidos, histórico de contrato com total desconhecido, falhas de formato, transporte e contagem.
 - CSV, consistência entre páginas, limites de bytes/documentos, progresso e cancelamento.
 - Configuração pública, fila, tentativas, prazo de operação e comunicação com o Worker.

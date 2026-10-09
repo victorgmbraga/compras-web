@@ -59,6 +59,7 @@ export const demoDocuments = Array.from({length:64},(_,i)=>({
   tem_resultado:i%3===0,item_url:null,link_sistema_origem:null,ano:'2026',numero_sequencial:String(i+1),
 }));
 export const demoContracts=demoDocuments.slice(0,32).map((doc,i)=>({...doc,id:`demo-contract-${i+1}`,document_type:'contrato',numero_controle_pncp:`00000000000000-2-${String(i+1).padStart(6,'0')}/2026`,
+  numero_contratacao:doc.numero_controle_pncp,
   title:`Contrato de demonstração nº ${i+1}/2026`,item_url:`/contratos/00000000000000/2026/${i+1}`,tipo_contrato_id:i%2===0?'1':'7',tipo_contrato_nome:i%2===0?'Contrato (termo inicial)':'Empenho',
   fornecedor_id:i%2===0?'15566':'40491',fornecedor_nome:i%2===0?'Fornecedor sintético A':'Fornecedor sintético B',fornecedor_ni:i%2===0?'01234567000189':'12345678901',fornecedor_subcontratado_id:i%4===3?null:'200',
   data_assinatura:`2026-08-${String(i%28+1).padStart(2,'0')}`,data_inicio_vigencia:`2026-09-${String(i%28+1).padStart(2,'0')}`,data_fim_vigencia:i%2===0?'2027-09-30':'2026-09-30',
@@ -177,7 +178,18 @@ export function demoFetch(url) {
       if(!p.has(name+'_'+suffix))continue;const value=p.get(name+'_'+suffix);
       docs=docs.filter(d=>{const rows=source==='document'?[d]:source==='item'?demoItems[Number(d.numero_sequencial)-1]:demoResults[Number(d.numero_sequencial)-1];return rows.some(row=>row[field]!=null && (name.startsWith('data_')?String(row[field]).slice(0,10).localeCompare(value)*direction>=0:compareDecimal(String(row[field]),value)*direction>=0));});
     }
-    docs=[...docs].sort((a,b)=>(a.data_publicacao_pncp<b.data_publicacao_pncp?-1:a.data_publicacao_pncp>b.data_publicacao_pncp?1:0)*(p.get('ordenacao')==='data'?1:-1));
+    const [orderField,direction,decimal]=({
+      data:['data_publicacao_pncp',1],'-data':['data_publicacao_pncp',-1],
+      numero_controle_pncp:['numero_controle_pncp',1],numero_contratacao:['numero_contratacao',1],
+      '-valor_total_estimado':['valor_total_estimado',-1,true],
+      valor:['valor_total_estimado',-1,true],'-valor':['valor_total_estimado',1,true],
+      data_inicio_vigencia:['data_inicio_vigencia',1],valor_global:['valor_global',1,true],
+    })[p.get('ordenacao')] || ['data_publicacao_pncp',-1];
+    docs=[...docs].sort((a,b)=>{
+      const left=a[orderField],right=b[orderField];
+      if(left==null || right==null)return left==null?(right==null?0:1):-1;
+      return (decimal?compareDecimal(String(left),String(right)):left<right?-1:left>right?1:0)*direction;
+    });
     const size=Number(p.get('tam_pagina')),page=Number(p.get('pagina'));result={items:docs.slice((page-1)*size,page*size),total:docs.length};
   }
   return Promise.resolve(new Response(JSON.stringify(result),{status:200,headers:{'Content-Type':'application/json'}}));

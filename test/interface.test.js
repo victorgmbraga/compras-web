@@ -200,6 +200,16 @@ test('HEADER-UI-03: botão de menu do cabeçalho aparece somente em colunas filt
   for(const field of ['orgao_nome','uf','data_publicacao_pncp','valor_total_estimado'])assert.match(columns[field].headerMenuIcon,/header-filter-icon/);
 });
 
+test('ORDER-UI-01: seletor acompanha o tipo, preserva a ordenação do link e restaura o padrão ao trocar de documento',async()=>{
+  const ui=await interfaceFixture({href:'https://example.test/?tipos_documento=edital&ordenacao=-valor_total_estimado'}),options=()=>ui.nodes.get('order').children.map(option=>option.value);
+  assert.deepEqual(options(),['-data','data','relevancia','numero_controle_pncp','-valor_total_estimado']);assert.equal(ui.nodes.get('order').value,'-valor_total_estimado');assert.equal(ui.requests[0].order,'-valor_total_estimado');
+  ui.nodes.get('document-type').value='contrato';await ui.nodes.get('document-type').fire('change');
+  assert.deepEqual(options(),['-data','data','relevancia','numero_contratacao','numero_controle_pncp','data_inicio_vigencia','valor_global']);assert.equal(ui.state().order,'-data');
+  ui.nodes.get('order').value='valor_global';await ui.nodes.get('order').fire('change');assert.equal(ui.requests.at(-1).order,'valor_global');assert.equal(new URL(ui.browser.href()).searchParams.get('ordenacao'),'valor_global');
+  ui.nodes.get('document-type').value='ata';await ui.nodes.get('document-type').fire('change');assert.deepEqual(options(),['-data','data','relevancia','valor','-valor']);assert.equal(ui.state().order,'-data');
+  await ui.browser.back();assert.equal(ui.nodes.get('document-type').value,'contrato');assert.equal(ui.nodes.get('order').value,'valor_global');assert(options().includes('valor_global'));assert(!options().includes('valor'));
+});
+
 test('EXPORT-UI-01: um clique baixa o CSV dos últimos critérios concluídos sem modal',async()=>{
   const ui=await interfaceFixture();ui.nodes.get('search').value='firewall';await ui.nodes.get('search-form').fire('submit');
   const completed=ui.state();ui.nodes.get('search').value='texto ainda não pesquisado';

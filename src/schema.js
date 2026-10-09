@@ -26,6 +26,14 @@ export const columns = [
 ];
 export const reserved = ['tipos_documento', 'q', 'status', 'ordenacao', 'pagina', 'tam_pagina', 'total'];
 export const documentStatuses={edital:['todos','recebendo_proposta','propostas_encerradas'],ata:['todos','vigente','nao_vigente'],contrato:['todos','vigente','nao_vigente']};
+// Opções por documento do portal PNCP: ResultPanel.setOrder/setTabsMissingData.
+const commonOrders=['-data','data','relevancia'];
+export const documentOrders={
+  edital:[...commonOrders,'numero_controle_pncp','-valor_total_estimado'],
+  ata:[...commonOrders,'valor','-valor'],
+  contrato:[...commonOrders,'numero_contratacao','numero_controle_pncp','data_inicio_vigencia','valor_global'],
+};
+export const orderLabels={'-data':'Mais recentes',data:'Mais antigas',relevancia:'Relevância',numero_controle_pncp:'Controle PNCP','-valor_total_estimado':'Valor total estimado',valor:'Maior valor','-valor':'Menor valor',numero_contratacao:'Número da contratação',data_inicio_vigencia:'Início da vigência',valor_global:'Valor global'};
 export const documentNames={edital:{singular:'contratação',plural:'contratações',label:'Editais e Avisos de Contratações'},ata:{singular:'ata',plural:'atas',label:'Atas de Registro de Preços'},contrato:{singular:'contrato',plural:'contratos',label:'Contratos'}};
 const commonColumns=columns.filter(c=>!['modalidade_nome','situacao_compra_nome_pncp','valor_total_estimado','valor_total_homologado','tem_resultado'].includes(c.field));
 const contractColumns=[...commonColumns,
@@ -65,5 +73,5 @@ export function capabilities(config) {
   });
 }
 export function schema(config) {
-  return { source: config.DEMO_MODE ? 'demo' : 'pncp', api_version: '2.0', live: !config.DEMO_MODE, demo: config.DEMO_MODE, document_types: [...Object.entries(documentNames).map(([id,names])=>({id,name:names.label,...names,enabled:true})), ...['irp', 'pcaorgao'].map(id => ({ id, enabled: false, reason: 'Projeção ainda não implementada.' }))], columns, columns_by_document:{edital:columns,ata:ataColumns,contrato:contractColumns}, capabilities: capabilities(config), statuses: documentStatuses.edital, statuses_by_document:documentStatuses, orders: ['-data', 'data', 'relevancia'], limits: { page_sizes: [10, 25, 50, 100], default_page_size: config.PNCP_PAGE_SIZE, search_window: 10000, export_documents: config.PNCP_MAX_EXPORT_DOCUMENTS, max_q_length: 128 } };
+  return { source: config.DEMO_MODE ? 'demo' : 'pncp', api_version: '2.0', live: !config.DEMO_MODE, demo: config.DEMO_MODE, document_types: [...Object.entries(documentNames).map(([id,names])=>({id,name:names.label,...names,enabled:true})), ...['irp', 'pcaorgao'].map(id => ({ id, enabled: false, reason: 'Projeção ainda não implementada.' }))], columns, columns_by_document:{edital:columns,ata:ataColumns,contrato:contractColumns}, capabilities: capabilities(config), statuses: documentStatuses.edital, statuses_by_document:documentStatuses, orders: documentOrders.edital, orders_by_document:documentOrders, order_labels:orderLabels, limits: { page_sizes: [10, 25, 50, 100], default_page_size: config.PNCP_PAGE_SIZE, search_window: 10000, export_documents: config.PNCP_MAX_EXPORT_DOCUMENTS, max_q_length: 128 } };
 }
