@@ -42,7 +42,7 @@ const filterLabel=name=>state.schema.capabilities.find(c=>c.name===name)?.label 
 const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,legalAbort:null,legalSeq:0,legalPending:false,legalError:false,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
 let filterOptionsCache;
 let urlMode='replace',urlError=null,tableReady=false;
-const toolbarButtonIds=['search-button','filters-button','refresh-button','columns-button','export-button'];
+const toolbarButtonIds=['search-button','cancel-button','filters-button','clear-button','refresh-button','columns-button','export-button','cancel-export-button'];
 function syncQueryUrl(query) {
   const mode=urlMode;urlMode='push';
   if(!window.location?.href || !window.history)return;
@@ -87,6 +87,7 @@ function updateExportButton() {
   $('export-button').disabled=busy || !['success','empty'].includes(state.status);
   $('export-button').setAttribute('aria-busy',String(busy));
   $('cancel-export-button').hidden=!busy;
+  if(!busy)$('cancel-export-button-tooltip').hidden=true;
   $('export-button-tooltip').textContent=busy?'Consultando e gerando CSV…':'Exportar CSV';
   if(busy)$('export-button-tooltip').hidden=true;
   $('export-button').setAttribute('aria-label',busy?'Gerando CSV':'Exportar CSV');
@@ -103,6 +104,7 @@ function status(value,query=state.query) {
     $('table-loader-message').textContent='Consultando o PNCP. Aguarde um instante.';
   }
   $('search-button').hidden=busy;$('cancel-button').hidden=!busy;$('retry-button').hidden=value!=='error';
+  if(!busy)$('cancel-button-tooltip').hidden=true;
   $('refresh-button').disabled=!state.lastQuery || busy;
   updateExportButton();
   $('search-button').disabled=false;
@@ -123,6 +125,7 @@ function updateCriteria() {
   $('document-type').value=q.document_type;
   const count=Object.keys(q.pncp_filters).length+(q.status==='todos'?0:1);
   $('filter-count').hidden=!count;$('filter-count').textContent=String(count);$('clear-button').hidden=!count && !q.q;
+  if($('clear-button').hidden)$('clear-button-tooltip').hidden=true;
   $('native-chips').replaceChildren();
   for(const [key,value]of Object.entries(q.pncp_filters)) {
     const cap=state.schema.capabilities.find(c=>c.name===key),options=state.domains?.filters[cap?.domain] || [];

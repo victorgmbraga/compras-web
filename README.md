@@ -9,11 +9,11 @@ A aplicação executa no navegador. Consultas, validação de filtros e geraçã
 ## Usar a aplicação
 
 1. Escolha **Editais e Avisos de Contratações**, **Atas de Registro de Preços** ou **Contratos**. Digite a busca e use o botão com ícone de lupa. Sem critérios na URL, a aplicação pesquisa contratações sem filtros.
-2. Use o botão com ícone de filtro para editar os critérios e selecione **Aplicar e pesquisar**. Filtros e ordenações disponíveis dependem do tipo documental; ordenar por relevância exige texto.
-3. Navegue pelos resultados, com 100 documentos por página. Novos critérios começam na página 1. **Atualizar** repete a última consulta concluída; **Tentar novamente** repete a página que falhou. **Cancelar** interrompe a consulta em andamento.
+2. Use o botão com ícone de filtro para editar os critérios e selecione **Aplicar e pesquisar**. Filtros e ordenações disponíveis dependem do tipo documental; ordenar por relevância exige texto. O filtro com um X (**Limpar filtros**) remove os critérios aplicados.
+3. Navegue pelos resultados, com 100 documentos por página. Novos critérios começam na página 1. **Atualizar** repete a última consulta concluída; **Tentar novamente** repete a página que falhou. O X em um círculo (**Cancelar pesquisa**) interrompe a consulta em andamento.
 4. Clique em uma linha para abrir seus detalhes. O título do painel é o título da linha; **Abrir no PNCP** e **Sistema de origem**, quando disponíveis, ficam junto ao botão de fechar.
 5. Use **Selecionar colunas** para ajustar a tabela. Colunas com filtro exibem um ícone após o nome; seu menu oferece as ações de filtro e ordenação disponíveis.
-6. Use **Exportar CSV** para coletar todos os documentos dos últimos critérios concluídos, desde a primeira página. O arquivo inclui todas as colunas do tipo documental. A coleta mostra progresso e pode ser interrompida com **Cancelar CSV**.
+6. Use **Exportar CSV** para coletar todos os documentos dos últimos critérios concluídos, desde a primeira página. O arquivo inclui todas as colunas do tipo documental. A coleta mostra progresso e pode ser interrompida pelo X em um círculo (**Cancelar CSV**).
 
 O ícone do GitHub, no canto superior direito, abre o repositório em nova aba e permanece visível durante a rolagem horizontal do cabeçalho.
 
