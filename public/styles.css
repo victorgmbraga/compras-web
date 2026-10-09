@@ -38,7 +38,8 @@ p{line-height:1.55}
 .button.primary:hover:not(:disabled),.button.dark:hover:not(:disabled){background:var(--blue-hover);border-color:var(--blue-hover);color:white}
 .button.subtle{background:transparent;border-color:#d1dce8}
 .button.small{min-height:36px;padding:7px 13px}
-.button.danger{color:#9b3830;border-color:#e2bbb5}
+.button.danger{background:#9b3830;border-color:#9b3830;color:white}
+.button.danger:hover:not(:disabled){background:#7f2d27;border-color:#7f2d27;color:white}
 .search-row{display:flex;align-items:stretch;gap:var(--header-gap);flex:1 0 300px;min-width:300px}
 .topbar .button{min-height:36px;padding:7px 12px;font-size:.8125rem;border-radius:6px;flex-shrink:0}
 .topbar .button.icon-only{width:36px;height:36px;padding:0}
