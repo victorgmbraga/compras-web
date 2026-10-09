@@ -11,8 +11,8 @@ button[hidden],[hidden]{display:none!important}
 a{color:var(--blue);text-decoration:none}
 a:hover{text-decoration:underline}
 svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
-.topbar{--header-gap:12px;display:flex;flex-wrap:nowrap;align-items:center;padding:10px 12px;background:white;border-bottom:1px solid var(--line);gap:var(--header-gap);flex-shrink:0;min-width:0}
-.topbar-content{display:flex;align-items:center;gap:inherit;flex:1;min-width:0;overflow-x:auto;padding:6px;margin:-6px}
+.topbar{--header-gap:6px;display:flex;flex-wrap:nowrap;align-items:center;padding:10px 12px;background:white;border-bottom:1px solid var(--line);gap:var(--header-gap);flex-shrink:0;min-width:0}
+.topbar-content{display:flex;align-items:center;gap:inherit;flex:1;min-width:0;overflow-x:auto;padding:6px 5px;margin:-6px -5px}
 .brand{display:flex;align-items:center;flex-shrink:0;gap:var(--header-gap);color:var(--navy);font-size:1rem;letter-spacing:-.025em;white-space:nowrap}
 .brand img{width:28px;height:28px;flex-shrink:0}
 .brand:hover{text-decoration:none}
@@ -210,7 +210,7 @@ dialog select[multiple]{min-height:155px}
 }
 @media(max-width:600px){
   .item-values{grid-template-columns:1fr}
-  .topbar{--header-gap:8px;padding:8px}
+  .topbar{--header-gap:5px;padding:8px}
   .repository-link{flex-basis:34px;width:34px;height:34px}
   .brand{font-size:.9375rem}
   .brand img{width:26px;height:26px}

@@ -16,7 +16,7 @@
       "borderRightWidth": "0px",
       "borderRadius": "0px",
       "display": "flex",
-      "gap": "12px",
+      "gap": "6px",
       "minHeight": "auto"
     },
     ".search-field": {
@@ -328,7 +328,7 @@
     "390": {
       "#app-header": {
         "padding": "8px",
-        "gap": "8px"
+        "gap": "5px"
       },
       "#search-button": {
         "fontSize": "12px",
