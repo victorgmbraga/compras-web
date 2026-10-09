@@ -107,8 +107,8 @@ p{line-height:1.55}
 .tabulator .tabulator-footer .tabulator-page-size{font-size:.8125rem;padding:4px;border-color:var(--line);border-radius:4px}
 .tabulator .tabulator-footer .tabulator-page-counter{flex:1;min-width:0;text-align:left;white-space:normal}
 .tabulator .tabulator-footer .tabulator-paginator{display:flex;align-items:center;justify-content:flex-end;gap:4px;font-size:.8125rem;flex:0 0 auto}
-.tabulator .tabulator-footer .repository-link{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border:1px solid var(--line);border-radius:4px;color:#4a647e;transition:background .12s,color .12s}
-.tabulator .tabulator-footer .repository-link:hover{background:#eef3f9;color:var(--navy);text-decoration:none}
+.tabulator .tabulator-footer .repository-link{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border:1px solid #4a647e;border-radius:4px;background:#4a647e;color:white;transition:background .12s,color .12s}
+.tabulator .tabulator-footer .repository-link:hover{background:var(--navy);border-color:var(--navy);color:#eef3f9;text-decoration:none}
 .tabulator .tabulator-footer .repository-link svg{width:18px;height:18px;stroke-width:2}
 .tabulator-menu{border:1px solid #ccd9e7;border-radius:6px;box-shadow:0 5px 20px #173b6520;font-size:.875rem;max-width:300px}
 .tabulator-menu .tabulator-menu-item{padding:9px 12px}
