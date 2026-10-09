@@ -125,9 +125,11 @@ test('DETAIL-TABS-02: teclado percorre abas sem novas chamadas e mantém apenas 
 test('DETAIL-TABS-03: abertura é imediata e consulta as cinco listas com no máximo duas requisições simultâneas',async()=>{
   let active=0,peak=0;const queued=[],started=[];
   const handler=(payload,options,core)=>{active++;peak=Math.max(peak,active);started.push(payload);return new Promise(resolve=>queued.push(async()=>{const {document,resource,page,size}=payload;const result=resource?await core.documentRelated(document,resource,page,size,options.signal):await core.details(document,page,size,options.signal);active--;resolve(result);}));};
-  const ui=await interfaceFixture({itemHandler:handler,relatedHandler:handler});const opening=ui.openDocument(project(document(1)));await settle();assert.equal(ui.nodes.get('details-dialog').open,true);assert.equal(started.length,2);assert.equal(ui.nodes.get('detail-tab-detalhes').getAttribute('aria-selected'),'true');assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (…)');
+  const ui=await interfaceFixture({itemHandler:handler,relatedHandler:handler});const opening=ui.openDocument(project(document(1)));await settle();assert.equal(ui.nodes.get('details-dialog').open,true);assert.equal(started.length,2);assert.equal(ui.nodes.get('detail-tab-detalhes').getAttribute('aria-selected'),'true');
+  const historyTab=ui.nodes.get('detail-tab-historico');assert.equal(historyTab.textContent,'Histórico');assert.equal(historyTab.getAttribute('aria-busy'),'true');assert.equal(historyTab.getAttribute('aria-label'),'Histórico: carregando');
+  assert.equal(historyTab.children.find(node=>node.className==='detail-tab-spinner').getAttribute('aria-hidden'),'true');
   for(let round=0;round<4;round++){await Promise.all(queued.splice(0).map(release=>release()));await settle();}
-  await opening;assert.equal(started.length,5);assert.equal(peak,2);assert.equal(active,0);assert.equal(ui.nodes.get('detail-tab-historico').textContent,'Histórico (12)');
+  await opening;assert.equal(started.length,5);assert.equal(peak,2);assert.equal(active,0);assert.equal(historyTab.textContent,'Histórico (12)');assert.equal(historyTab.getAttribute('aria-busy'),'false');
 });
 
 test('RELATED-UI-01: quatro abas carregam em background e exibem dados e links corretos',async()=>{

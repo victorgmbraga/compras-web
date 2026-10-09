@@ -518,7 +518,7 @@ async function openDetails(doc) {
     if(focus){tabs[index].button.focus();tabs[index].button.scrollIntoView({block:'nearest',inline:'nearest'});}
   }
   function addTab(resource,title,panel) {
-    const button=el('button',`${title} (…)`,'detail-tab'),index=tabs.length;button.type='button';button.id=`detail-tab-${resource}`;button.dataset.resource=resource;
+    const button=el('button',title,'detail-tab'),index=tabs.length;button.type='button';button.id=`detail-tab-${resource}`;button.dataset.resource=resource;
     panel.id=`detail-panel-${resource}`;panel.hidden=true;panel.tabIndex=0;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
     button.setAttribute('role','tab');button.setAttribute('aria-controls',panel.id);button.setAttribute('aria-selected','false');button.tabIndex=-1;
     button.addEventListener('click',()=>activate(index));
@@ -528,7 +528,14 @@ async function openDetails(doc) {
       event.preventDefault();activate(target,true);
     });
     nav.append(button);content.append(panel);tabs.push({button,panel});
-    return (count,phase)=>{button.textContent=`${title} (${count===null?phase==='loading'?'…':phase==='loaded'?'?':'—':fmtInt(count)})`;button.dataset.state=phase;};
+    const update=(count,phase)=>{
+      const loading=count===null && phase==='loading';
+      button.textContent=loading?title:`${title} (${count===null?phase==='loaded'?'?':'—':fmtInt(count)})`;
+      if(loading){const spinner=el('span',undefined,'detail-tab-spinner');spinner.setAttribute('aria-hidden','true');button.append(spinner);}
+      button.setAttribute('aria-label',loading?`${title}: carregando`:button.textContent);
+      button.setAttribute('aria-busy',String(loading));button.dataset.state=phase;
+    };
+    update(null,'loading');return update;
   }
   const common=['numero_controle_pncp','orgao_nome','orgao_cnpj','unidade_orgao_nome_unidade','uf','municipio_nome'];
   const fieldNames=[...common,...(kind==='edital'?['modalidade_nome','situacao_compra_nome_pncp','data_publicacao_pncp','data_atualizacao_pncp','valor_total_estimado','valor_total_homologado']:kind==='ata'?['modalidade_nome','data_publicacao_pncp','data_atualizacao_pncp','data_assinatura','data_inicio_vigencia','data_fim_vigencia','cancelado','permite_adesao']:['tipo_contrato_nome','fornecedor_nome','fornecedor_ni','valor_global','data_assinatura','data_inicio_vigencia','data_fim_vigencia','data_publicacao_pncp','data_atualizacao_pncp'])];

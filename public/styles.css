@@ -162,6 +162,8 @@ dialog select[multiple]{min-height:155px}
 .detail-tab[aria-selected="true"]{color:var(--blue);border-bottom-color:var(--blue);background:#edf5fc;font-weight:700}
 .detail-tab[data-state="error"]{color:#923e33}
 .detail-tab:focus-visible{outline-offset:-3px}
+.detail-tab-spinner{display:inline-block;width:.85em;height:.85em;margin-left:.4em;vertical-align:-.1em;border:1.5px solid #d5e2f0;border-top-color:currentColor;border-radius:50%;animation:table-loader-spin .8s linear infinite}
+@media(prefers-reduced-motion:reduce){.detail-tab-spinner{animation:none}}
 [role="tabpanel"]{padding-top:22px;outline-offset:-2px;min-width:0}
 .detail-panel-title{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 36px;margin:2px 0 24px}
