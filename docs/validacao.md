@@ -1,6 +1,6 @@
 # Testes e validação
 
-Execute os comandos na raiz com Node.js 22.12 ou superior (Node.js 24 recomendado) e dependências instaladas por `npm ci`. Playwright 1.58.2 e Vite 8.3.4 estão fixados no projeto/lockfile.
+Execute os comandos na raiz com Node.js 22.12 ou superior e dependências instaladas por `npm ci`. As versões das ferramentas estão em [`package.json`](../package.json) e [`package-lock.json`](../package-lock.json).
 
 ## Núcleo e interface
 
@@ -8,82 +8,79 @@ Execute os comandos na raiz com Node.js 22.12 ou superior (Node.js 24 recomendad
 npm test
 ```
 
-O runner nativo executa `test/*.test.js`. A suíte cobre filtros dos três tipos em pesquisa/CSV, precisão, validação antes da rede, domínios, paginação, identidades e painéis. Inclui interface com DOM mínimo, núcleo do navegador e ponte RPC. Os mocks de interface recebem métodos e payloads tipados, sem adaptador HTTP.
+O runner nativo executa `test/*.test.js` em sequência. A suíte cobre:
 
-As URLs de pesquisa têm roundtrip dos três tipos e de todos os filtros compatíveis, incluindo `false`, zero, precisão decimal, IDs com zeros, Unicode, caracteres especiais e listas com pipe/parâmetros repetidos. Parâmetros inválidos e incompatíveis não executam uma busca inicial. A interface verifica restauração da página, colunas e controles, aplicação de filtros, rascunhos, limpar, atualizar/repetir sem duplicar histórico e cancelamento de respostas antigas ao usar Voltar/Avançar. No navegador real, o teste abre diretamente a página 2, recarrega o link, percorre o histórico, restaura contratos/atas e corrige um link inválido. O build de produção também recebe links com filtros na raiz e no subdiretório.
+- Critérios, tipos documentais, os 80 filtros, domínios, formatos, intervalos, precisão decimal e identificadores.
+- Pesquisa, paginação, projeção de dados, identidades e detalhes dos três tipos.
+- HTTP 204/404 nos recursos permitidos, histórico de contrato com total desconhecido, falhas de formato, transporte e contagem.
+- CSV, consistência entre páginas, limites de bytes/documentos, progresso e cancelamento.
+- Configuração pública, fila, tentativas, prazo de operação e comunicação com o Worker.
+- URL compartilhável, restauração dos controles e da página, Voltar/Avançar e descarte de respostas atrasadas.
+- Pré-carga das opções, validade de quatro horas, compactação, armazenamento indisponível, deduplicação e amparos por normativo.
 
-O cache de opções tem testes de pré-carga dos três tipos e catálogos compartilhados, reutilização por campo e entre inicializações, expiração exata em 4 horas (memória e `localStorage`), entradas inválidas, armazenamento bloqueado/sem quota, falhas sem persistência, deduplicação e cancelamento por leitor. Também cobre amparos por conjunto de normativos, separação entre fonte real/demonstração e inicialização da tabela sem aguardar uma pré-carga lenta. O smoke no navegador verifica a persistência real, reutilização em nova página, reabertura dos filtros e renovação após vencimento sem apagar dados alheios.
+[`test/interface.test.js`](../test/interface.test.js) usa um DOM mínimo e o serviço tipado para verificar os fluxos da interface. Os testes usam fontes controladas; a renderização é verificada no navegador.
 
-Listas grandes têm verificação de compactação sem perdas, preservação de opções e Unicode, migração do JSON antigo sem prolongar a validade, cache comprimido corrompido e ausência das APIs de compactação. `test/filter-options-cache.browser.mjs`, incluído em `test:browser`, reproduz `QuotaExceededError` com listas sintéticas no `localStorage` real, compacta as entradas antigas e persiste contratos, confere reutilização após reinicialização e expiração. Esse teste serve os módulos do repositório em uma origem local e usa serviços sintéticos, sem consultar ou interceptar o PNCP.
+## Navegador e artefato estático
 
-Os testes de navegador do runtime verificam configuração pública, transporte sem credenciais, UTF-8 dividido entre chunks, números acima de 2^53, ausência distinta de false, 204/404/429/503, erros opacos/JSON, tentativas, timeouts, orçamentos, cancelamento de leitura/fila/CSV, excesso de operações, prazo absoluto, respostas fora de ordem, reinicialização e versão do Worker. CSVs dos três tipos são comparados byte a byte com o núcleo, incluindo limite exato, BOM, CRLF, aspas e acentos; metadados do navegador não contêm a coleção de documentos.
-
-Essa suíte usa fontes controladas, sem provocar falhas ou limitação no PNCP real. Ela não comprova a disponibilidade externa. O DOM mínimo não substitui renderização em navegador.
-
-## Testes em navegador real
-
-Instale os navegadores necessários uma vez:
+Instale o Chromium usado pelo Playwright:
 
 ```sh
-npx playwright install chromium firefox
+npx playwright install chromium
 npm run test:browser
 ```
 
-`test:browser` compila um build de testes em `dist-browser-test/`, com provedor sintético no próprio Worker, e serve somente arquivos. Percorre todos os controles de filtros, buscas, colunas, paginação, três painéis, registros filhos, CSV, progresso/cancelamento, respostas atrasadas, XSS como texto, teclado e responsividade. Verifica ausência de chamadas `/api/...` à hospedagem.
-
-Depois compila **o build de produção** em `dist-browser/`, verifica seus assets e Worker na raiz e em `/compras-web/`, e inspeciona bundles para dependências de Node, variáveis do processo e fixtures indevidas. As fixtures de falha/volume não são incluídas em produção.
-
-A comparação de layout usa a referência visual fixa em [`test/layout-baseline.json`](../test/layout-baseline.json). Confere cores, fontes, espaçamentos e bordas do cabeçalho, linhas, células, rodapé e paginação nos três tipos documentais, em larguras de 1440, 1068 e 390 pixels, tanto na raiz quanto no subdiretório.
-
-Dois servidores de origem controlada conferem CORS por requisições normais: controle positivo, negativo sem permissão e exposição de `Retry-After`. Não há interceptação de respostas ou segurança de origem/TLS desativada. Esse ensaio verifica o mecanismo do navegador, separado das chamadas reais ao PNCP.
-
-O teste também exporta 10.000 documentos no Worker, mede tempo/bytes/chamadas e usa um temporizador da interface para conferir que ela continua recebendo eventos. Cancela uma segunda coleta no progresso e verifica uma pesquisa seguinte. A medição de memória total do Worker/Blob não está disponível nesse ensaio e é identificada como indisponível.
-
-Para repetir a versão estática em Firefox:
+O sistema precisa das bibliotecas exigidas pelo navegador. Quando necessário, a instalação do Playwright aceita `--with-deps`. Para usar Firefox:
 
 ```sh
+npx playwright install firefox
 COMPRAS_QA_BROWSER=firefox npm run test:browser
 ```
 
-`COMPRAS_QA_BROWSER` aceita `chromium` (padrão), `firefox` e `webkit`; WebKit não substitui Safari real. O sistema precisa das bibliotecas dos navegadores. `COMPRAS_QA_BROWSER_EXECUTABLE` aceita um binário instalado no ambiente. `COMPRAS_QA_CHROMIUM_EXECUTABLE`, `COMPRAS_QA_CHROMIUM_MODULE` e `COMPRAS_QA_PLAYWRIGHT_MODULE` mantêm compatibilidade com instalações externas. `COMPRAS_QA_SCREENSHOT_DIR` salva capturas em um diretório já existente.
+O comando [`test/browser-smoke.mjs`](../test/browser-smoke.mjs) executa as seguintes etapas:
 
-Em ambientes gerenciados, preserve proxy e confiança TLS. Use perfis temporários; não altere confiança compartilhada nem contorne CORS/TLS para declarar integração aprovada. Limitações de inicialização devem ser registradas separadamente. Considere a execução aprovada somente quando terminar com código zero e emitir o resumo final.
+| Etapa | Cobertura |
+| --- | --- |
+| Build de testes | `dist-browser-test/` com fonte controlada no Worker |
+| Interface | Filtros, três tipos, links de busca, histórico do navegador, paginação, painéis, CSV, cancelamento, teclado e responsividade |
+| Cache no navegador | Quota real de `localStorage`, compactação, reutilização após reinicialização e expiração |
+| Build de produção | `dist-browser/`, assets e Worker na raiz e em subdiretório |
+| Layout | Cores, fontes, espaçamentos e bordas comparados com [`test/layout-baseline.json`](../test/layout-baseline.json), em 1440, 1068 e 390 pixels |
+| CORS controlado | Duas origens locais, permissão e bloqueio de leitura, exposição de `Retry-After` |
+| Exportação | 10.000 documentos sintéticos, resposta da interface durante a coleta, cancelamento e reutilização do Worker |
+| Bundles | Ausência de dependências de Node, variáveis do processo e fixtures de teste em produção |
 
-## Build e execução
+Esses ensaios servem arquivos estáticos e verificam a ausência de chamadas a uma API da hospedagem. A fonte de grande volume e os casos de falha são sintéticos. O teste de CORS usa requisições entre origens locais; a integração com o PNCP é verificada separadamente.
+
+### Opções do runner
+
+| Variável | Uso |
+| --- | --- |
+| `COMPRAS_QA_BROWSER` | `chromium` (padrão), `firefox` ou `webkit` |
+| `COMPRAS_QA_BROWSER_EXECUTABLE` | Caminho de um navegador instalado no ambiente |
+| `COMPRAS_QA_CHROMIUM_EXECUTABLE` | Caminho alternativo de executável, usado quando a opção geral não está definida |
+| `COMPRAS_QA_CHROMIUM_MODULE` | Módulo que fornece um executável Chromium |
+| `COMPRAS_QA_PLAYWRIGHT_MODULE` | Módulo Playwright fornecido pelo ambiente |
+| `COMPRAS_QA_SCREENSHOT_DIR` | Diretório existente para as capturas da interface |
+
+Preserve o proxy e a confiança TLS exigidos pelo ambiente de execução. Um resultado só é aprovado quando o comando termina com código zero. Os resultados e tempos devem ser obtidos da execução em análise.
+
+## Verificação manual
 
 ```sh
 npm run build
 npm run preview
 ```
 
-Abra `http://localhost:8000` para consultas reais e `/?demo=1` para demonstração explícita. Teste também `npm run demo` no desenvolvimento. As consultas sintéticas iniciais retornam 64 contratações, 24 atas e 32 contratos; `firewall` retorna seis contratações.
+Abra `http://localhost:8000/?demo=1`. Confira a troca dos três tipos, aplicação de filtros, compartilhamento/recarregamento da URL, detalhes, paginação e CSV. O ícone do GitHub deve ficar à direita da paginação e abrir o repositório em nova aba.
 
-O histórico de contratos tem testes de contagem divergente (inclusive zero), total/páginas desconhecidos, continuação após páginas incompletas, término em página vazia, retorno à página anterior e reinício ao abrir outro documento. Núcleo, RPC e interface preservam os eventos sem relaxar a validação das outras listagens. O teste no navegador exercita esse fluxo com respostas controladas no Worker.
+A demonstração contém 64 contratações, 24 atas e 32 contratos. Todos os filtros têm simulação, mas os status de vigência usam a data fixa `2026-10-07`; a simulação de relevância e recebimento de propostas não reproduz integralmente a fonte. Os links dos registros fictícios são ilustrativos.
 
-## Diagnóstico da integração real
+## Diagnóstico do PNCP
 
-Sirva o build final e abra `pncp-diagnostic.html`. Execute **Verificar acesso** e **Salvar evidência**. O diagnóstico consulta diretamente o PNCP na página e no Worker, registra origem/data/navegador, status e cabeçalhos legíveis de uma consulta da página e resultados tipados da matriz de recursos. Inclui pesquisas dos três tipos, página seguinte, ordenação/UF, filtros, sugestões, quatro catálogos auxiliares, detalhes e registros filhos. Exemplos públicos são fixos, com filhos escolhidos da listagem quando disponíveis.
+Abra [`pncp-diagnostic.html`](../public/pncp-diagnostic.html) servido pelo mesmo domínio HTTPS da aplicação. **Verificar acesso** consulta diretamente o PNCP na página e no Worker. **Cancelar** interrompe a verificação; **Salvar evidência** baixa um JSON com origem, data, navegador, status/cabeçalhos legíveis e resultado das operações.
 
-Repita na origem HTTPS publicada em Chromium, Firefox e Safari, incluindo dispositivo móvel real e retomada de aba suspensa. Registros ausentes/404 não homologam uma amostra positiva; listas vazias legítimas e falhas são resultados distintos. HTTP 404 equivale a lista vazia em contratos vinculados à contratação e nas listagens de empenhos e instrumentos de cobrança de um contrato, mas não nos detalhes de registros individuais ou arquivos de termo. Respostas sem CORS não oferecem necessariamente status HTTP ao JavaScript.
+O diagnóstico cobre buscas dos três tipos, paginação, ordenação/UF, filtros, sugestões, catálogos, detalhes e registros filhos. Usa documentos públicos definidos em [`public/pncp-diagnostic.js`](../public/pncp-diagnostic.js); quando disponíveis, escolhe os filhos retornados pelas listagens.
 
-## Resultado verificado
+Uma resposta vazia ou HTTP 404 não comprova a consulta de um registro existente. O significado de 404 depende do recurso, conforme [Consultas ao PNCP](consultas-pncp.md). CORS, TLS e falhas de rede podem impedir que o JavaScript leia o status HTTP.
 
-Medições de 8 de outubro de 2026, Linux, Node.js 24.19.0, Chromium 151 e Firefox 146.
-
-| Verificação | Resultado |
-| --- | --- |
-| `npm test` | 156 testes passaram, sem falhas/ignorados; inclui runtime/RPC/CSV e interface com serviço tipado |
-| Interface estática em Chromium | 63 verificações, todos os 71/16/32 controles, painéis e CSV, sem API local ou erro JavaScript não tratado |
-| Interface estática em Firefox | 63 verificações equivalentes |
-| Artefato e CORS em Chromium/Firefox | Build de produção na raiz e subdiretório, assets/Worker locais, controle CORS negativo e cabeçalhos expostos; bundles sem dependências Node ou fixtures de teste |
-| Exportação sintética no Worker | 10.000 documentos, 100 chamadas/páginas, 4.264.313 bytes; aproximadamente 3,2 s no Chromium e 1,5 s no Firefox nas medições locais; cancelamento após primeira página e pesquisa posterior concluída |
-| Vite de desenvolvimento | Demonstração abriu, Worker pesquisou e não houve erro JavaScript não tratado |
-| PNCP direto no Firefox | 32 operações da matriz: 29 concluídas e três HTTP 404 legíveis; consulta da página HTTP 200 com JSON/CORS legível |
-
-A medição externa está em [`evidencias-browser-implementacao.json`](evidencias-browser-implementacao.json). Ela usa a distribuição estática, origem localhost, fetch nativo e TLS ativo, sem API de aplicação ou interceptação. O proxy de rede do ambiente permaneceu configurado; sua CA foi confiada apenas no perfil temporário. O Firefox precisou executar fora do isolamento de processos para inicializar, preservando segurança de origem e TLS.
-
-O registro confirma acesso direto a buscas, domínios, catálogos, sugestões e principais recursos dos painéis. Empenhos e arquivos de termo retornaram 404 nas amostras; seus registros positivos são cobertos por fixtures. Os exemplos de vínculos incluíram atas e contrato existentes. Essas respostas e totais são observações daquela data, sujeitos a mudanças do PNCP.
-
-As durações sintéticas usam ritmo elevado para medir processamento, sem representar latência do PNCP. Os padrões de 50 registros por página, duas chamadas por segundo e 120 segundos podem interromper uma coleta real de 10.000 registros. Limites por byte foram conferidos em fronteiras exatas, sem remover orçamentos.
-
-A origem HTTPS de produção, Safari e dispositivo móvel real ainda não foram homologados. Viewports móveis e prazos conferidos após retomada não certificam suspensão física do dispositivo. Os procedimentos de publicação e recuperação estão em [Hospedagem estática](hospedagem-estatica.md) e no [plano](plano-implementacao-browser.md).
+Verifique a aplicação nos navegadores e dispositivos usados pelo público, incluindo retomada de uma aba suspensa. Testes com dados sintéticos, viewport móvel ou WebKit automatizado não substituem consultas reais, dispositivo móvel ou Safari. Desempenho e acesso ao PNCP dependem da origem, da rede, do navegador e dos limites configurados.

@@ -60,7 +60,7 @@ export function capabilities(config) {
       domain_kind:domain ? (partialDomains.includes(domain) || partialDomains.includes(a.name) ? 'suggest' : closedDomains.includes(a.name) ? 'closed' : 'options') : null,
       state:enabled ? 'enabled' : 'unsupported_document',
       validation_status:documentaryEnabled.includes(a.name) || itemEnabled.includes(a.name) || ['tipos_item','situacoes_item'].includes(a.name) ? 'sampled_live' : additional.includes(a.name) ? 'operator_declared' : 'integration_tested',
-      evidence:documentaryEnabled.includes(a.name) || itemEnabled.includes(a.name) ? 'live_api:2026-10-06; docs/viabilidade-filtros-pncp.md' : ['tipos_item','situacoes_item'].includes(a.name) ? 'live_api:2026-10-05; docs/consultas-pncp.md' : previouslyEnabled.includes(a.name) || isReserved ? 'supplied_reference:2.0.0' : 'portal_bundle:buildCurrentQueryParams; automated_integration_tests; docs/viabilidade-filtros-pncp.md',
+      evidence:documentaryEnabled.includes(a.name) || itemEnabled.includes(a.name) ? 'live_api:2026-10-06; docs/consultas-pncp.md' : ['tipos_item','situacoes_item'].includes(a.name) ? 'live_api:2026-10-05; docs/consultas-pncp.md' : previouslyEnabled.includes(a.name) || isReserved ? 'supplied_reference:2.0.0' : 'portal_bundle:buildCurrentQueryParams; automated_integration_tests; docs/consultas-pncp.md',
       reason:enabled ? null : 'Tipo documental ainda não implementado.' };
   });
 }

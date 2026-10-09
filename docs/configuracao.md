@@ -2,9 +2,9 @@
 
 Os padrões estão em [`src/settings.js`](../src/settings.js), e [`src/browser/client.js`](../src/browser/client.js) valida as opções públicas e as bases permitidas do PNCP.
 
-## Configuração pública da versão estática
+## Configuração pública
 
-Edite [`public/browser-config.json`](../public/browser-config.json) antes de `npm run build`, ou o `browser-config.json` publicado para alterar somente limites e modo. `{}` aplica os padrões da tabela abaixo. Somente as chaves das tabelas abaixo são permitidas. Valores numéricos e booleanos devem ser tipos JSON, e `PNCP_VALIDATED_FILTERS` continua sendo texto.
+Edite [`public/browser-config.json`](../public/browser-config.json) antes de `npm run build`, ou o `browser-config.json` publicado, e recarregue a aplicação. `{}` aplica os padrões. Somente as chaves das tabelas abaixo são permitidas. Números e booleanos devem usar seus tipos JSON; `PNCP_VALIDATED_FILTERS` é uma string.
 
 ```json
 {
@@ -29,7 +29,7 @@ O cache de opções da interface é independente do cache HTTP: usa `localStorag
 | `DEMO_MODE` | `false` | `true` ativa dados sintéticos; `false` consulta o PNCP |
 | `PNCP_SEARCH_BASE_URL` | `https://pncp.gov.br/api/search` | Base para pesquisa, filtros e sugestões |
 | `PNCP_DETAIL_BASE_URL` | `https://pncp.gov.br/api/pncp/v1` | Base para documentos, itens, arquivos e demais listagens dos detalhes |
-| `PNCP_VALIDATED_FILTERS` | Vazio | Nomes de filtros adicionais validados, separados por vírgula |
+| `PNCP_VALIDATED_FILTERS` | `""` | Nomes de filtros cuja validação externa é declarada pelo operador, separados por vírgula |
 
 As bases devem ser as URLs públicas padrão do PNCP. Não são aceitos hosts alternativos, credenciais, query string ou fragmento.
 
@@ -70,14 +70,14 @@ A interface usa 100 linhas por página de documentos pesquisados e por página d
 
 Os limites numéricos exigem valores de pelo menos 1, exceto `PNCP_MAX_RETRIES`, que aceita zero; exceto ritmo de requisições, todos os valores numéricos exigem inteiros. O navegador administra sua própria memória. Dimensione a memória total com margem para buffers, respostas e CSV.
 
-## Habilitar filtros adicionais
+## Metadados de validação dos filtros
 
-O método `schema` no Worker publica os 80 filtros implementados: 71 de contratações, 16 de atas e 32 de contratos. Não é necessário preencher `PNCP_VALIDATED_FILTERS` para usá-los. A variável permanece por compatibilidade e declara conferência externa feita pelo operador (`validation_status: operator_declared`); não comprova o efeito remoto nem altera a compatibilidade documental. Nomes desconhecidos ou reservados continuam sendo rejeitados.
+O método `schema` publica 80 filtros habilitados: 71 de contratações, 16 de atas e 32 de contratos. `PNCP_VALIDATED_FILTERS` é opcional e altera apenas a classificação de validação para `operator_declared` nos filtros sem classificação `sampled_live`. Essa declaração não altera a disponibilidade nem a compatibilidade documental e não comprova o efeito do filtro no PNCP. Nomes desconhecidos ou reservados são rejeitados ao obter o esquema ou validar uma consulta.
 
-As capacidades publicam tipo, cardinalidade, contexto, provedor de domínio e evidência disponível. Domínios fechados exigem pertencimento ao catálogo antes da pesquisa e do CSV; listas parciais usam sugestões. Países preservam o ID alfabético do catálogo PNCP, como `BRA`, sem convertê-lo para código BCB. Reservas/remanescentes usam a enumeração fixa do portal. Consulte a [lista completa](consultas-pncp.md#filtros-habilitados-por-padrão) e o [alcance da verificação externa](viabilidade-filtros-pncp.md).
+As capacidades publicam tipo, cardinalidade, contexto, provedor de domínio e classificação de validação. Domínios fechados exigem pertencimento ao catálogo antes da pesquisa e do CSV; listas parciais usam sugestões. Países preservam IDs como `BRA`, e reservas/remanescentes usam a enumeração de referência. Consulte os [filtros disponíveis](consultas-pncp.md#filtros-disponíveis) e os procedimentos de [validação do PNCP](validacao.md#diagnóstico-do-pncp).
 
 ## Rede e implantação
 
 Instalar dependências requer acesso ao registro npm. Cada navegador precisa de acesso HTTPS ao PNCP e respostas com CORS válido. A hospedagem serve módulos, Worker e configuração com MIME correto; consulte [Hospedagem estática](hospedagem-estatica.md). Node.js não é necessário no destino publicado.
 
-Na exportação, os padrões de 50 registros/página e duas chamadas/segundo podem consumir cerca de 100 segundos apenas para agendar 10.000 documentos. O prazo de 120 segundos pode encerrar uma coleta lenta. Refine critérios ou ajuste limites conscientemente; o limite sintético validado não garante duração de consultas reais. O CSV é codificado em lotes, limitado a 50 MiB e transferido como buffers; nenhuma coleção completa de documentos acompanha a resposta do Worker.
+Na exportação, os padrões de 50 registros por página e duas chamadas por segundo exigem cerca de 100 segundos para iniciar 200 buscas, além de domínios, latência e tentativas. O prazo de 120 segundos pode encerrar uma coleta lenta. Refine os critérios ou ajuste os limites conforme a rede e o dispositivo. O CSV é codificado em lotes, limitado a 50 MiB por padrão e transferido como buffers.

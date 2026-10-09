@@ -1,10 +1,12 @@
 # Hospedagem estática
 
-O artefato de produção é `dist-browser/`. A hospedagem entrega HTML, módulos JavaScript, CSS, favicon, licenças e `browser-config.json`. O navegador pesquisa diretamente o PNCP e gera CSV no Worker; não existe API da aplicação nesse artefato.
+A aplicação está disponível em [contratos-web.net.br](https://contratos-web.net.br/). O repositório é [victorgmbraga/contratos-web](https://github.com/victorgmbraga/contratos-web).
+
+O artefato de produção é `dist-browser/`. A hospedagem entrega HTML, JavaScript, CSS, favicon, licenças e `browser-config.json`; o navegador consulta o PNCP e gera o CSV.
 
 ## Gerar e verificar
 
-Requer Node.js 22.12 ou superior apenas na máquina de build.
+Use Node.js 22.12 ou superior na máquina de build:
 
 ```sh
 npm ci
@@ -13,42 +15,47 @@ npm run build
 npm run preview
 ```
 
-Abra `http://localhost:8000` para a fonte real, ou `http://localhost:8000/?demo=1` para demonstração explícita. `preview` serve arquivos e não executa o servidor da aplicação. O artefato pode ser servido por qualquer servidor estático que entregue MIME correto: `text/javascript` para módulos e Worker, `text/css` e `application/json`. A abertura por `file://` não é suportada.
+Abra `http://localhost:8000` para a fonte real ou `http://localhost:8000/?demo=1` para demonstração. O preview usa os arquivos compilados.
 
-Configure antes do build em [`public/browser-config.json`](../public/browser-config.json), conforme [Configuração](configuracao.md). Esse arquivo é público; não inclua segredos. `{}` usa o PNCP real e os limites padrão. A demonstração não substitui automaticamente uma falha da fonte real.
+Configure [`public/browser-config.json`](../public/browser-config.json) conforme [Configuração](configuracao.md). `{}` usa o PNCP real e os limites padrão. O arquivo é público.
 
-Publique **o conteúdo da pasta**, incluindo `assets/`, sem prefixar outra pasta `dist-browser` na URL. O build usa caminhos relativos e funciona na raiz ou em `/compras-web/`. Abra a URL do diretório com barra final. Não configure reescrita de `/api/...` para HTML; essas rotas não existem na versão estática.
+Publique **todo o conteúdo de `dist-browser/`**, incluindo `assets/`. Os caminhos relativos permitem servir na raiz ou em um diretório como `/contratos-web/`; abra a URL do diretório com barra final. A hospedagem precisa fornecer MIME apropriado: `text/javascript` para módulos e Worker, `text/css` e `application/json`. Use HTTPS; a abertura por `file://` não é suportada.
 
-Links de pesquisa acrescentam parâmetros ao mesmo caminho, por exemplo `/?tipos_documento=contrato&pagina=2` ou `/compras-web/?tipos_documento=ata&pagina=1`. A interface lê os critérios e consulta diretamente o PNCP; os assets e a configuração pública continuam sendo resolvidos no diretório da aplicação. A hospedagem só precisa entregar o mesmo HTML para a URL com esses parâmetros.
+Links de pesquisa usam parâmetros no mesmo caminho, por exemplo `/contratos-web/?tipos_documento=ata&pagina=2`. O servidor entrega o HTML, e a interface lê os critérios. Rotas `/api/...` são chamadas diretamente no PNCP; a hospedagem não precisa de reescrita para essas rotas.
 
 ## GitHub Pages
 
-[`static-pages.yml`](../.github/workflows/static-pages.yml) publica por GitHub Actions a cada commit na branch `main` e também oferece execução manual. Ele instala dependências, executa testes, compila e publica o artefato, sem servidor Node.js no destino.
+O workflow [`static-pages.yml`](../.github/workflows/static-pages.yml) executa em cada push para `main` e por `workflow_dispatch`. O job `build` usa Node.js 24, instala com `npm ci`, executa `npm test`, compila e envia `dist-browser/` como artefato. O job `deploy` publica no ambiente `github-pages`. Os testes de navegador são executados separadamente, conforme [Validação](validacao.md).
 
-1. Disponibilize os arquivos no branch que será publicado.
-2. Em **Settings → Pages → Build and deployment**, escolha **GitHub Actions**.
-3. Para uma publicação manual, em **Actions → Publicar versão estática → Run workflow**, escolha o branch e execute. Commits enviados à `main` iniciam o workflow automaticamente.
-4. Confira a URL informada pelo job `deploy`. Em um repositório de projeto, o caminho normalmente inclui `/compras-web/`.
-5. Execute o diagnóstico na URL publicada antes de promover essa implantação.
+Para configurar uma publicação:
 
-A configuração da conta pode exigir aprovação do ambiente `github-pages`. GitHub Pages não interpreta `_headers`; a CSP por `<meta>` e a política de referrer permanecem no HTML, mas cabeçalhos de Worker, `frame-ancestors`, `nosniff` e controle de cache dependem das capacidades do provedor.
+1. Em **Settings → Pages → Build and deployment**, selecione **GitHub Actions**.
+2. Envie um commit à `main` ou execute **Actions → Publicar versão estática → Run workflow**.
+3. Confira o resultado do job `deploy` e a URL informada por ele.
+4. Para usar domínio próprio, configure **Custom domain** no Pages, os registros DNS correspondentes e HTTPS.
 
-## Cloudflare Pages ou servidor estático próprio
+Sem domínio próprio, um repositório de projeto usa um caminho como `/contratos-web/`. A conta pode exigir aprovação do ambiente `github-pages`; a configuração do workflow concede as permissões de Pages e identidade necessárias à publicação.
 
-Na Cloudflare Pages, selecione build `npm run build`, diretório de saída `dist-browser` e Node.js 24 na máquina de build. Nenhuma Pages Function é necessária. O artefato inclui `_headers`, com CSP, `nosniff`, `no-referrer`, atualização de HTML/configuração e cache imutável para bundles com hash.
+O GitHub Pages não interpreta `_headers`. A CSP e a política de referrer do HTML são aplicadas; cabeçalhos HTTP adicionais e controle de cache dependem do provedor.
 
-Em Nginx, Apache ou outro servidor, configure os mesmos cabeçalhos. A CSP esperada permite scripts e Worker da própria origem e `connect-src 'self' https://pncp.gov.br`. A diretiva `frame-ancestors 'self'` precisa de cabeçalho HTTP. A CSP no HTML é uma alternativa parcial, pois `<meta>` não protege a resposta do Worker nem define `frame-ancestors`.
+## Outros provedores e cabeçalhos
 
-Não adicione cabeçalhos personalizados nas consultas PNCP para contornar CORS. O transporte nativo usa GET simples sem credenciais; a política de acesso continua sendo definida pela fonte.
+Em provedores como Cloudflare Pages, use comando de build `npm run build`, saída `dist-browser` e Node.js 24 para o build. Em Nginx, Apache ou outro servidor, sirva os mesmos arquivos com MIME correto.
 
-## Homologação e atualização
+O build gera `_headers` com a política de segurança definida em [`vite.config.js`](../vite.config.js):
 
-Abra `pncp-diagnostic.html` no domínio HTTPS publicado. **Verificar acesso** executa uma consulta direta na página e a matriz de pesquisas, catálogos, sugestões, detalhes e registros filhos no Worker. **Salvar evidência** registra origem, navegador, data, status/cabeçalhos legíveis da consulta da página e resultado de cada operação. **Cancelar** interrompe o diagnóstico. Os exemplos são documentos públicos específicos; HTTP 404 de um registro inexistente não homologa dados positivos desse recurso.
+- Scripts e Worker da própria origem; conexões à própria origem e a `https://pncp.gov.br`.
+- `X-Content-Type-Options: nosniff` e `Referrer-Policy: no-referrer`.
+- `Cache-Control: no-cache` para os arquivos e cache imutável de um ano para `/assets/*`.
 
-Teste Chromium, Firefox e Safari usados pelo público, incluindo dispositivo móvel e retomada de uma aba suspensa. Confira pesquisa real, todos os painéis, CSV, cancelamento e links. Os testes sintéticos e de CORS controlado descritos em [Validação](validacao.md) são evidências separadas; não certificam a disponibilidade contínua do PNCP nem a política de uma origem de produção ainda não verificada.
+Provedores que aceitam `_headers` podem aplicá-lo diretamente na raiz. Em subdiretórios, ajuste a regra de assets para o prefixo publicado. Nos demais servidores, configure cabeçalhos equivalentes. A CSP em `<meta>` não substitui `frame-ancestors 'self'` nem os cabeçalhos da resposta do Worker.
 
-Publicações devem substituir HTML/configuração e disponibilizar os novos bundles em conjunto. Os nomes com hash impedem reutilização indevida de scripts alterados. Preserve temporariamente assets antigos quando a hospedagem permitir, para abas já abertas. HTML e configuração devem ser revalidados; não instale Service Worker para cache de consultas. Versões incompatíveis da ponte são rejeitadas na inicialização. Após atualizar, verifique a página numa nova aba e repita uma pesquisa.
+O acesso às APIs exige CORS autorizado pelo PNCP. O transporte usa GET sem credenciais e sem seguir redirecionamentos.
 
-## Recuperar uma publicação anterior
+## Verificar e atualizar
 
-Guarde os artefatos estáticos aprovados. Para desfazer uma publicação, restaure HTML, configuração e bundles de um mesmo artefato, mantendo seus nomes e caminhos. Verifique o carregamento em uma nova aba e repita o diagnóstico no domínio publicado.
+Abra `pncp-diagnostic.html` no domínio publicado para conferir o acesso real ao PNCP. O [guia de validação](validacao.md#diagnóstico-do-pncp) explica a matriz de consultas e como salvar o resultado. Confira também busca, links compartilhados, painéis, paginação e CSV nos navegadores usados pelo público.
+
+Atualize HTML, configuração e bundles como um conjunto. Os assets têm nomes com hash; preserve os anteriores temporariamente quando o provedor permitir, para atender abas abertas. HTML e configuração devem ser revalidados. Depois da publicação, abra uma nova aba e repita uma pesquisa.
+
+Para restaurar uma publicação, use HTML, configuração e bundles de um mesmo artefato aprovado, mantendo seus nomes e caminhos, e verifique a aplicação novamente.

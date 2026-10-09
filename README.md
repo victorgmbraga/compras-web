@@ -1,96 +1,88 @@
 # Contratos Web
 
-Aplicação para pesquisar editais e avisos de contratações, atas de registro de preços e contratos públicos diretamente nas APIs do Portal Nacional de Contratações Públicas (PNCP). A distribuição estática executa consultas, filtros e geração de CSV no navegador, em um Web Worker. A hospedagem entrega somente arquivos; não precisa executar Node.js, API própria ou proxy.
+Pesquisa de editais e avisos de contratações, atas de registro de preços e contratos públicos nas APIs do Portal Nacional de Contratações Públicas (PNCP).
 
-Texto, filtros, ordenação e paginação são enviados ao PNCP. Cada pesquisa consulta novamente a fonte. Os resultados ficam em memória durante o uso; a aplicação não requer banco de dados nem volume persistente.
+[Acessar a aplicação](https://contratos-web.net.br/) · [Repositório no GitHub](https://github.com/victorgmbraga/contratos-web)
 
-As listas de opções dos filtros de editais, atas e contratos são pré-carregadas em segundo plano na inicialização e armazenadas no `localStorage` por **4 horas**, sem renovar a validade nas leituras. Listas grandes são compactadas sem descartar opções para reduzir o uso da quota do navegador. Reabrir os filtros ou a aplicação reutiliza essas listas. Amparos dependentes de normativos têm cache separado; sugestões por texto continuam consultando o PNCP, pois algumas listas iniciais são parciais. Se o armazenamento estiver bloqueado, o cache funciona em memória durante a sessão.
+A aplicação executa no navegador. Consultas, validação de filtros e geração de CSV usam um Web Worker; a hospedagem serve arquivos estáticos. O navegador precisa de acesso à internet e de respostas do PNCP com CORS válido.
 
-## Executar no navegador
+## Usar a aplicação
 
-Para desenvolver e gerar os arquivos, requer **Node.js 22.12 ou superior**, com Node.js 24 recomendado, e npm. Depois do build, a hospedagem precisa apenas servir arquivos por HTTPS. Cada navegador acessa `pncp.gov.br` diretamente, sem credenciais.
+1. Escolha **Editais e Avisos de Contratações**, **Atas de Registro de Preços** ou **Contratos**. Digite a busca e use o botão com ícone de lupa. Sem critérios na URL, a aplicação pesquisa contratações sem filtros.
+2. Use o botão com ícone de filtro para editar os critérios e selecione **Aplicar e pesquisar**. As opções disponíveis dependem do tipo documental. A ordenação pode ser por publicação ou relevância; relevância exige texto.
+3. Navegue pelos resultados, com 100 documentos por página. Novos critérios começam na página 1. **Atualizar** repete a última consulta concluída; **Tentar novamente** repete a página que falhou. **Cancelar** interrompe a consulta em andamento.
+4. Clique em uma linha para abrir seus detalhes. O título do painel é o título da linha; **Abrir no PNCP** e **Sistema de origem**, quando disponíveis, ficam junto ao botão de fechar.
+5. Use **Selecionar colunas** para ajustar a tabela. Colunas com filtro exibem um ícone após o nome; seu menu oferece as ações de filtro e ordenação disponíveis.
+6. Use **Exportar CSV** para coletar todos os documentos dos últimos critérios concluídos, desde a primeira página. O arquivo inclui todas as colunas do tipo documental. A coleta mostra progresso e pode ser interrompida com **Cancelar CSV**.
+
+O ícone do GitHub, à direita da paginação, abre o repositório em nova aba.
+
+### Detalhes dos documentos
+
+| Tipo | Abas |
+| --- | --- |
+| Edital/aviso | Detalhes, Itens, Arquivos, Atas de Registro de Preço, Contratos/Empenhos, Histórico |
+| Ata | Detalhes, Partes envolvidas, Contratos, Arquivos, Histórico |
+| Contrato | Detalhes, Empenhos, Instrumentos de cobrança, Termos, Arquivos, Histórico |
+
+Ao abrir o painel, os dados completos de atas/contratos e a primeira página de cada listagem carregam em segundo plano. As abas exibem contadores; cada listagem tem paginação e tratamento de falhas próprios. Arquivos de termos e detalhes de empenhos/instrumentos de cobrança carregam ao selecionar o registro.
+
+Quando o PNCP informa uma contagem incompatível com os eventos do histórico de um contrato, a aba mostra **Histórico (?)** e **Quantidade desconhecida**. É possível tentar a próxima página até encontrar uma página vazia. HTTP 404 significa lista vazia em **Contratos/Empenhos** de uma contratação e nas listas **Empenhos** e **Instrumentos de cobrança** de um contrato. As demais regras estão no [guia de consultas](docs/consultas-pncp.md).
+
+### Filtros, cache e limites
+
+O catálogo contém 80 filtros: 71 aplicáveis a contratações, 16 a atas e 32 a contratos. Há filtros compartilhados entre tipos. Órgãos, unidades e fornecedores usam os IDs fornecidos pelo PNCP. Informação ausente é distinta de **Não**, zero ou lista vazia.
+
+As opções dos três tipos são carregadas na inicialização e armazenadas no `localStorage` por quatro horas. Listas grandes são compactadas; se o armazenamento estiver indisponível, o cache funciona em memória. Amparos dependentes de normativos carregam sob demanda. Sugestões por texto e consultas de documentos acessam novamente a fonte.
+
+A tabela mantém a ordem, os resultados e o total do PNCP. A janela de navegação alcança até 10.000 documentos; refine a pesquisa para acessar conjuntos maiores. O CSV exige que o total caiba no limite de exportação configurado. Filtros de itens selecionam contratações, enquanto os detalhes exibem todos os itens. Os dados podem mudar entre consultas.
+
+## Compartilhar uma busca
+
+Copie a URL da barra de endereços depois de pesquisar, aplicar filtros ou mudar de página. O link contém busca, filtros aplicados, tipo documental, ordenação e página. Abrir o link, recarregar ou usar **Voltar/Avançar** restaura esses critérios.
+
+```text
+https://contratos-web.net.br/?tipos_documento=contrato&q=reforma&status=vigente&ordenacao=-data&pagina=2&possui_nfe=false
+```
+
+Os parâmetros usam os nomes do PNCP. Listas usam `|` codificado como `%7C`, por exemplo `ufs=SP%7CDF`; booleanos usam `true`/`false`. Alterações no painel de filtros só entram na URL ao aplicar. Um link inválido exibe um aviso e permite corrigir ou limpar os critérios. Veja o [formato completo dos parâmetros](docs/consultas-pncp.md#url-compartilhável-da-interface).
+
+## Executar localmente
+
+Na raiz do repositório, use **Node.js 22.12 ou superior** e npm. O workflow de publicação usa Node.js 24.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Abra `http://localhost:8000`. Para usar dados fictícios explicitamente:
-
-```sh
-npm run demo
-```
-
-A demonstração identifica sua fonte e contém 64 contratações, 24 atas e 32 contratos, incluindo itens e listagens relacionadas. Ela também pode ser escolhida com `?demo=1` na URL da versão estática. Falhas de acesso ao PNCP nunca ativam a demonstração automaticamente.
-
-Para gerar e verificar a distribuição:
-
-```sh
-npm run build
-npm run preview
-```
-
-Publique **o conteúdo de `dist-browser/`** em uma hospedagem estática. Funciona na raiz e em `/compras-web/`, com assets locais. Não abra o HTML por `file://`. A configuração pública está em [`public/browser-config.json`](public/browser-config.json); consulte [Configuração](docs/configuracao.md) e [Hospedagem estática](docs/hospedagem-estatica.md).
-
-## Usar a interface
-
-1. Ao abrir um link, a página restaura os critérios e a página indicados na URL. Sem parâmetros de busca, inicia contratações sem filtros e mostra até 100 documentos por página. Escolha **Editais e Avisos de Contratações**, **Atas de Registro de Preços** ou **Contratos** no cabeçalho. A troca reinicia os critérios e ajusta as colunas. Digite um texto para pesquisar e escolha a ordenação por publicação ou relevância; relevância exige texto.
-2. Abra **Filtros** para selecionar condições documentais, sub-rogação, itens, resultados e fornecedores. Há intervalos de quantidade, valores, classificação, homologação e desconto; catálogos de países, portes e naturezas jurídicas; e condições de adesão, benefício e preferência. Atas permitem filtros de assinatura, início de vigência e adesão. Em contratos, use também tipo, nota fiscal, fornecedor subcontratado, assinatura, início de vigência e valor global. Campos de outro tipo documental ficam indisponíveis nessa seleção. Órgãos, unidades e fornecedores usam os IDs fornecidos pelo PNCP.
-3. Use a paginação para consultar outras páginas. **Atualizar** repete os últimos critérios concluídos na página atual; novos critérios começam na primeira página. **Cancelar** interrompe a pesquisa em andamento. Uma falha mantém e identifica o resultado anterior.
-4. Clique em um documento para abrir seus detalhes. Os links **Abrir no PNCP** e **Sistema de origem**, quando disponíveis, ficam junto ao botão de fechar. Em contratações, as abas **Detalhes**, **Itens**, **Arquivos**, **Atas de Registro de Preço**, **Contratos/Empenhos** e **Histórico** têm contadores; as cinco listagens carregam sua primeira página automaticamente em segundo plano. Cada aba preserva sua paginação e permite repetir uma consulta que falhou. Arquivos têm links de download; atas e contratos têm links para o PNCP. Atas têm abas **Detalhes**, **Partes envolvidas**, **Contratos**, **Arquivos** e **Histórico**. Contratos têm **Detalhes**, **Empenhos**, **Instrumentos de cobrança**, **Termos**, **Arquivos** e **Histórico**. Seus dados completos e primeiras páginas carregam em segundo plano. Os detalhes incluem a contratação de origem, assinatura e vigência; atas mostram cancelamento e adesão, enquanto contratos mostram processo, fornecedor, valores e parcelas. Arquivos de termos e detalhes de empenhos/instrumentos podem ser abertos no registro selecionado.
-5. Use **Colunas** para escolher os campos visíveis. O menu de cada coluna oferece as ações de filtro e ordenação nativas disponíveis.
-6. **Exportar CSV** faz uma nova coleta com os últimos critérios concluídos e inicia o download. O arquivo contém todas as colunas documentais, independentemente da seleção visual. A exportação mostra progresso e pode ser interrompida com **Cancelar CSV**.
-
-Os **80 filtros do catálogo estão implementados**, sem filtros pendentes: 71 aplicáveis a contratações, 16 a atas e 32 a contratos. A compatibilidade é informada por documento. O esquema compartilhado publica tipos, contextos, domínios e alcance da validação. Nas condições Sim/Não, informação ausente não equivale a Não. Filtros de itens e resultados selecionam contratações; os detalhes mantêm todos os itens, e condições diferentes podem corresponder a registros filhos diferentes. Tabela e CSV têm uma linha por documento.
-
-O total apresentado é o informado pelo PNCP. A navegação alcança no máximo 10.000 documentos; acima desse valor, a interface exibe um aviso. A exportação exige que o total caiba no limite configurado: delimite a pesquisa quando necessário. Alterações na fonte entre chamadas podem fazer o CSV diferir da tabela.
-
-HTTP 404 do PNCP nas listas **Empenhos** e **Instrumentos de cobrança** de um contrato indica ausência de registros: as abas exibem `(0)` e uma mensagem de lista vazia. Essa regra não se aplica aos detalhes de registros individuais nem a outras falhas de consulta.
-
-Quando a contagem do **Histórico** de um contrato diverge dos eventos retornados pelo PNCP, o sistema exibe os registros e informa **Quantidade desconhecida**, com a aba **Histórico (?)**. Use **Próxima** até encontrar uma página vazia; páginas incompletas ainda permitem avançar. **Anterior** permite retornar aos registros. Essa exceção não altera as demais listagens, a pesquisa ou o CSV.
-
-## Compartilhar uma busca
-
-Copie a URL da barra de endereços depois de pesquisar, aplicar filtros ou mudar de página. O link contém o texto, os filtros aplicados, o tipo documental, a ordenação e a página. Abrir o link ou recarregar a aplicação restaura esses critérios; **Voltar** e **Avançar** do navegador também restauram a pesquisa. Alterações no painel de filtros só entram na URL ao aplicar.
-
-Os parâmetros seguem os nomes do PNCP. Exemplo de sufixo para acrescentar ao endereço da aplicação:
-
-```text
-?tipos_documento=contrato&q=reforma&status=vigente&ordenacao=-data&pagina=2&possui_nfe=false
-```
-
-Use `tipos_documento=edital`, `ata` ou `contrato`; `q` para o texto; `ordenacao=-data`, `data` ou `relevancia`; `pagina` de 1 a 100; e `status` compatível com o documento. Filtros usam seus nomes do catálogo, como `ufs=SP%7CDF`, `srp=false` ou `valor_global_min=1000.50`. Listas são separadas por `|`, codificado como `%7C`; booleanos usam `true`/`false`. A tabela mantém 100 registros por página. Consulte o [formato completo](docs/consultas-pncp.md#url-compartilhável-da-interface).
-
-Um link com parâmetros inválidos exibe um aviso e permite ajustar os critérios ou limpar a busca. O link define a consulta; os resultados são obtidos novamente do PNCP e podem mudar com o tempo.
-
-## Desenvolver e validar
+Abra `http://localhost:8000`. Para usar dados fictícios, execute `npm run demo` ou acrescente `?demo=1` à URL. A demonstração contém 64 contratações, 24 atas e 32 contratos e identifica sua fonte na interface.
 
 | Comando | Finalidade |
 | --- | --- |
 | `npm start` ou `npm run dev` | Desenvolvimento com Vite e recarga automática |
-| `npm run demo` | Desenvolvimento com fonte fictícia |
-| `npm run build` | Compila aplicação e Worker em `dist-browser/` |
-| `npm run preview` | Serve o artefato estático para verificação local |
-| `npm test` | Testa núcleo, filtros, interface e comunicação com o Worker |
-| `npm run test:browser` | Testa layout, CORS, artefato estático e CSV de 10.000 documentos |
+| `npm run demo` | Desenvolvimento com dados fictícios |
+| `npm test` | Testes do núcleo, filtros, interface e comunicação com o Worker |
+| `npm run test:browser` | Testes de interface, cache, layout, CORS, artefato e CSV em navegador |
+| `npm run build` | Gera a distribuição estática em `dist-browser/` |
+| `npm run preview` | Serve o build em `http://localhost:8000` |
 
-Node.js é usado apenas nessas ferramentas. A aplicação publicada executa no navegador; não há servidor da aplicação, API própria ou dependências a instalar na hospedagem.
+Os testes de navegador precisam de um navegador instalado pelo Playwright ou de um executável configurado. Consulte [Testes e validação](docs/validacao.md).
 
-## Distribuir e publicar
+## Configurar e publicar
 
-Execute `npm run build` e publique **o conteúdo de `dist-browser/`** por HTTPS. O [guia de hospedagem estática](docs/hospedagem-estatica.md) descreve GitHub Pages, Cloudflare Pages, cabeçalhos e atualização dos arquivos. O workflow de GitHub Pages publica automaticamente cada commit na `main` e também pode ser executado manualmente.
+A configuração pública fica em [`public/browser-config.json`](public/browser-config.json); `{}` usa os padrões. As opções e os limites estão em [Configuração](docs/configuracao.md).
 
-A configuração pública é `browser-config.json`. Cada navegador precisa acessar diretamente o PNCP com CORS válido. Use `pncp-diagnostic.html` no domínio publicado para verificar essa integração. O [guia de validação](docs/validacao.md) distingue os testes sintéticos das medições reais.
+Execute `npm run build` e publique o conteúdo de `dist-browser/` por HTTPS. Os caminhos relativos permitem publicar na raiz ou em um subdiretório, como `/contratos-web/`. Node.js é necessário para as ferramentas de desenvolvimento e build; o artefato publicado executa no navegador.
+
+O [workflow do GitHub Pages](.github/workflows/static-pages.yml) executa testes, gera o build e publica cada commit enviado à `main`, com opção de execução manual. O [guia de hospedagem](docs/hospedagem-estatica.md) descreve a configuração do Pages, cabeçalhos, atualização e diagnóstico do acesso ao PNCP.
 
 ## Documentação
 
 - [Arquitetura e organização do código](docs/arquitetura.md)
-- [Execução no navegador e alcance da homologação](docs/viabilidade-browser.md)
-- [Implementação e verificações para publicação](docs/plano-implementacao-browser.md)
 - [Configuração, rede e limites](docs/configuracao.md)
 - [Serviço do navegador, filtros e consultas ao PNCP](docs/consultas-pncp.md)
-- [Implementação e verificação dos filtros](docs/viabilidade-filtros-pncp.md)
 - [Testes e validação](docs/validacao.md)
 - [Hospedagem estática](docs/hospedagem-estatica.md)
 
-Os avisos de licença do Tabulator, de lossless-json e dos ícones usados na interface estão em [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+As licenças das dependências e dos ícones estão em [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

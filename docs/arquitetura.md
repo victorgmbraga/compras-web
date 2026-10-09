@@ -21,7 +21,7 @@ flowchart LR
 | [`src/settings.js`](../src/settings.js) | Padrões e validação de configuração portável; whitelist pública |
 | [`src/operation.js`](../src/operation.js) | Operações, cancelamento, prazo absoluto e contadores de recursos |
 | [`src/validation.js`](../src/validation.js) | Consultas, filtros, domínios, sugestões, identidades e paginação; valida antes da rede no Worker |
-| [`src/schema.js`](../src/schema.js), catálogo JSON e [`src/filter-domains.js`](../src/filter-domains.js) | Colunas, 80 filtros, compatibilidade documental, domínios e apresentação |
+| [`src/schema.js`](../src/schema.js), [`src/pncp-arguments.json`](../src/pncp-arguments.json) e [`src/filter-domains.js`](../src/filter-domains.js) | Colunas, 80 filtros, compatibilidade documental, domínios e apresentação |
 | [`src/pncp-core.js`](../src/pncp-core.js) | Serialização, fila, ritmo, tentativas, leitura incremental, normalização e caminhos PNCP |
 | [`src/query-core.js`](../src/query-core.js) | Pesquisa, validação de domínios, metadados, detalhes e coleta por páginas |
 | [`src/csv.js`](../src/csv.js) | Codificação UTF-8 com BOM, CRLF, escape e orçamento por byte |
@@ -31,7 +31,7 @@ flowchart LR
 | [`src/browser/service.js`](../src/browser/service.js), [`protocol.js`](../src/browser/protocol.js) | Ponte por ID, versão, cancelamento local, descarte de respostas tardias e recuperação de falha |
 | [`src/browser/filter-options-cache.js`](../src/browser/filter-options-cache.js) | Pré-carregamento dos domínios dos três tipos, cache local com validade de 4 horas, deduplicação e opções dependentes de normativos |
 | [`src/browser/query-url.js`](../src/browser/query-url.js) | Leitura e escrita de parâmetros GET, conversão de filtros tipados e validação compartilhada de links de pesquisa |
-| [`public/app.js`](../public/app.js) | Interface compartilhada inicializada com um serviço injetado; DOM, Tabulator, painéis e download |
+| [`public/app.js`](../public/app.js) | Interface inicializada com serviço injetado; DOM, Tabulator, histórico da URL, painéis e download |
 | [`public/browser-entry.js`](../public/browser-entry.js) | Bibliotecas locais, configuração pública e inicialização da distribuição estática |
 | [`src/demo.js`](../src/demo.js) | Fonte fictícia escolhida explicitamente |
 | [`vite.config.js`](../vite.config.js) | Aplicação e diagnóstico, Worker ES module, assets relativos, CSP e saída `dist-browser/` |
@@ -45,7 +45,7 @@ A interface usa `service.call(method, payload, {signal, onProgress})`. A ponte d
 
 Os métodos são `schema`, `execute`, `domains`, `suggest`, `details`, `related`, `documentDetails`, `documentRelated`, `contractChild` e `export`. Métodos e campos desconhecidos são rejeitados. Se o Worker falhar, todas as promessas pendentes são rejeitadas; a próxima chamada inicializa um novo Worker. O descarte da página encerra o Worker. Fechar um painel cancela suas operações sem encerrar as demais.
 
-A primeira pesquisa configura esquema, colunas e filtros, valida capacidades e domínios fechados e consulta a fonte. Cada troca de página faz nova chamada. A fila compartilha concorrência e ritmo entre pesquisa, domínios, painéis e CSV. O leitor confere bytes antes de decodificar o corpo com `TextDecoder`, e interpreta JSON com `lossless-json`. A pesquisa confere tipo documental, total e quantidade de registros antes da projeção.
+A inicialização obtém o esquema e configura colunas e filtros. O Worker valida os critérios e domínios fechados antes de consultar a fonte. Cada troca de página faz nova chamada. A fila compartilha concorrência e ritmo entre pesquisa, domínios, painéis e CSV. O leitor contabiliza bytes, decodifica o corpo com `TextDecoder` e interpreta JSON com `lossless-json`. A pesquisa confere tipo documental, total e quantidade de registros antes da projeção.
 
 Após receber o esquema, a interface inicia em segundo plano os três domínios de busca, os quatro catálogos auxiliares compartilhados e a enumeração de referência. A pré-carga é sequencial e não espera para inicializar a tabela. O painel reutiliza essas listas, deduplicando chamadas pendentes; fechar os filtros cancela a espera daquele leitor, sem interromper o carregamento compartilhado. Sugestões por texto e a conferência de domínios fechados antes da pesquisa/CSV continuam consultando a fonte.
 
@@ -53,11 +53,11 @@ Critérios novos começam na primeira página; Atualizar preserva os últimos cr
 
 Antes da primeira consulta, a interface lê a URL e configura tipo documental, colunas, texto, status, filtros, ordenação e página. Uma URL inválida mostra um aviso sem executar a busca. Cada consulta iniciada sincroniza os parâmetros com `history.pushState`, preservando caminho, fragmento e parâmetros externos. Inicialização e `popstate` usam `replaceState` para normalizar a URL sem duplicar entradas. Voltar/Avançar cancelam operações anteriores e restauram a consulta; rascunhos de filtros e navegação dos painéis não alteram o link.
 
-A paginação remota usa `setPage` para abrir diretamente a página do link. A ordenação vem dos controles nativos da aplicação, com ordenação de cabeçalhos do Tabulator desabilitada; a restauração não dispara uma segunda consulta de ordenação da tabela. Novos critérios reiniciam a página, enquanto Atualizar e repetir uma falha preservam a página solicitada.
+A paginação remota usa `setPage` para abrir diretamente a página do link. O seletor de ordenação e os menus de colunas enviam critérios nativos ao PNCP; `headerSort: false` desabilita a ordenação própria do Tabulator. Novos critérios reiniciam a página. Atualizar consulta a página da última pesquisa concluída; repetir uma falha usa a página que falhou.
 
 ## Painéis dos documentos
 
-Contratações iniciam itens, arquivos, atas, contratos/empenhos e histórico em segundo plano. Atas iniciam detalhes completos, partes envolvidas, contratos, arquivos e histórico. Contratos iniciam detalhes completos, empenhos, instrumentos de cobrança, termos, arquivos e histórico. Uma fila do painel limita a duas tarefas ativas; abas preservam dados e paginação, contadores, teclado e recuperação independente.
+O cabeçalho do painel usa o título da linha selecionada. Contratações iniciam itens, arquivos, atas, contratos/empenhos e histórico em segundo plano. Atas iniciam detalhes completos, partes envolvidas, contratos, arquivos e histórico. Contratos iniciam detalhes completos, empenhos, instrumentos de cobrança, termos, arquivos e histórico. Uma fila do painel limita a duas tarefas ativas; abas preservam dados e paginação, contadores, teclado e recuperação independente.
 
 CNPJ, ano e sequenciais são textos validados. Atas preservam sequenciais da compra e da ata; contratos usam seu próprio sequencial. O detalhe completo confere controle PNCP contra a identidade antes de substituir os campos da busca. Falhas conservam os campos disponíveis.
 
@@ -69,16 +69,16 @@ HTTP 404 significa zero nas listas de contratos vinculados a uma contratação e
 
 ## CSV e recursos
 
-Exportar inicia uma nova coleta com os últimos critérios concluídos. Cada página confere total, tamanho e identidade; duplicação ou alteração encerra a operação. O Worker projeta uma página e codifica lotes de 25 documentos, devolvendo controle ao loop de eventos entre lotes/páginas. Mantém chunks de bytes e um conjunto de identidades, sem acumular todos os documentos. O núcleo exporta somente bytes e metadados compactos, também nos testes.
+Exportar inicia uma nova coleta com os últimos critérios concluídos, desde a primeira página. O tamanho das páginas de coleta vem de `PNCP_PAGE_SIZE`. Cada página confere total, tamanho e identidade; duplicação ou alteração encerra a operação. O Worker projeta uma página e codifica lotes de 25 documentos, devolvendo controle ao loop de eventos entre lotes/páginas. Mantém chunks de bytes e um conjunto de identidades. O resultado contém bytes e metadados compactos.
 
-Progresso contém páginas, linhas, total e bytes. Só a coleta completa transfere os `ArrayBuffer` à interface, junto de nome, MIME e metadados compactos. A interface cria o Blob e revoga a URL após o download. Não há download parcial. `snapshot_guaranteed` permanece `false`, pois o PNCP pode mudar entre chamadas.
+Progresso contém páginas, linhas, total e bytes. Só a coleta completa transfere os `ArrayBuffer` à interface, junto de nome, MIME e metadados compactos. A interface cria o Blob e revoga a URL após o download. Não há download parcial. `snapshot_guaranteed` é `false`, pois o PNCP pode mudar entre chamadas.
 
 
 ## Persistência e segurança
 
 Estado de consultas, fila, contadores e resultados de pesquisa, detalhes e CSV são transitórios. Somente listas normalizadas de opções e seus metadados de apresentação ficam no `localStorage`, sob o prefixo `contratos-web:filter-options:v1:`, separadas por fonte, versão do esquema e contexto. A validade é de 4 horas desde o carregamento bem-sucedido; a inicialização e cada uso descartam entradas vencidas, corrompidas ou com data futura, sem limpar dados alheios. Leituras não prolongam a validade. Amparos legais têm entradas por tipo e conjunto de normativos.
 
-Listas com JSON a partir de 64 Ki caracteres são compactadas com `CompressionStream('gzip')` e armazenadas em base64, mantendo todas as opções, IDs, rótulos, estados e metadados. A leitura usa `DecompressionStream`; listas menores mantêm o formato JSON. Entradas antigas grandes são compactadas ao serem lidas, sem consultar a fonte nem renovar sua validade. A pré-carga processa cada entrada antes da próxima, liberando quota antes de persistir contratos. Cache comprimido inválido é descartado e recarregado.
+Listas com JSON a partir de 65.536 caracteres são compactadas com `CompressionStream('gzip')` e armazenadas em base64, mantendo opções, IDs, rótulos, estados e metadados. A leitura aceita JSON ou gzip/base64 e usa `DecompressionStream` no segundo caso. A pré-carga processa cada entrada antes da próxima. Conteúdo inválido é descartado e recarregado.
 
 Falhas não são armazenadas e não impedem a pré-carga das demais listas. Armazenamento bloqueado ou sem quota mantém o cache em memória, com a mesma validade. Sem as APIs nativas de compactação, o navegador mantém o formato JSON e o fallback em memória se a quota for insuficiente. Novas abas podem reutilizar entradas persistidas na mesma origem, mas não há coordenação de chamadas concorrentes entre abas. Não há banco de dados, login, Service Worker nem consultas reais offline. A demonstração usa chaves separadas e nunca substitui automaticamente falhas reais.
 

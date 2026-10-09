@@ -1,6 +1,6 @@
 # Serviço do navegador e consultas ao PNCP
 
-Este guia descreve `service.call(method, payload, {signal, onProgress})`, usado pela interface para comunicar-se com o Web Worker. A hospedagem entrega somente arquivos estáticos. Os formatos de critérios/dados mantêm `api_version: "2.0"`, com `edital`, `ata` e `contrato`.
+Este guia descreve `service.call(method, payload, {signal, onProgress})`, usado pela interface para comunicar-se com o Web Worker. A hospedagem entrega arquivos estáticos. Os formatos de critérios e dados usam `api_version: "2.0"`, com `edital`, `ata` e `contrato`.
 
 O Worker consulta `https://pncp.gov.br/api/search/` para pesquisa, filtros e sugestões e `https://pncp.gov.br/api/pncp/v1` para detalhes, listagens e catálogos. A [arquitetura](arquitetura.md) descreve a ponte e o [guia de configuração](configuracao.md) informa os limites públicos.
 
@@ -34,7 +34,7 @@ Esses métodos são locais, não URLs HTTP. Campos e métodos desconhecidos são
 | `page` | `1` | Inteiro positivo; `page × size` não pode superar 10.000 |
 | `size` | `PNCP_PAGE_SIZE`, inicialmente `50` | `10`, `25`, `50` ou `100` |
 
-Todos os campos podem ser omitidos para usar os padrões. A interface envia explicitamente `size: 100`.
+Os campos de `query` podem ser omitidos para usar os padrões; envie `query: {}` para a consulta padrão. A interface envia explicitamente `size: 100`.
 
 O cliente serializa os controles como `tipos_documento`, `q`, `status`, `ordenacao`, `pagina` e `tam_pagina`. As listas de filtros são unidas por `|` e codificadas uma vez. Cada página faz uma chamada de busca, além de eventuais consultas de domínios e novas tentativas em caso de falha transitória.
 
@@ -51,13 +51,13 @@ Os parâmetros GET da página são lidos pela interface estática e convertidos 
 | `pagina` | `1` | Inteiro de 1 a 100; a interface usa 100 registros por página |
 | Nome de filtro habilitado | Ausente | Tipo e compatibilidade publicados no catálogo |
 
-Listas aceitam `ufs=SP%7CDF` ou parâmetros repetidos como `ufs=SP&ufs=DF`; a URL gerada usa uma única lista separada por pipe e codificada uma vez. Booleanos exigem `true` ou `false`, inclusive quando o valor é Não. Inteiros preservam zero; decimais permanecem strings com ponto, sem perda de precisão; IDs e código IBGE preservam zeros à esquerda. Datas usam `AAAA-MM-DD`. Controles e filtros de valor único não aceitam parâmetros repetidos. Valores vazios, tipos incompatíveis, datas inválidas e intervalos invertidos produzem aviso e impedem a pesquisa inicial, sem remover silenciosamente filtros.
+Listas aceitam `ufs=SP%7CDF` ou parâmetros repetidos como `ufs=SP&ufs=DF`; a URL gerada usa uma única lista separada por pipe e codificada uma vez. Booleanos exigem `true` ou `false`, inclusive quando o valor é Não. Inteiros preservam zero; decimais são strings com ponto, sem perda de precisão; IDs e código IBGE preservam zeros à esquerda. Datas usam `AAAA-MM-DD`. Controles e filtros de valor único não aceitam parâmetros repetidos. Filtros sem valor, tipos incompatíveis, datas inválidas e intervalos invertidos produzem aviso e impedem a pesquisa inicial. `q` aceita texto vazio.
 
-A inicialização e o recarregamento consultam diretamente a página indicada. Aplicar texto/filtros, trocar ordenação ou tipo começa na página 1; paginação atualiza `pagina`. A URL muda ao iniciar a consulta, inclusive quando ela falha ou é cancelada. Atualizar e repetir uma falha mantêm a página; operações idênticas não criam entradas duplicadas. Voltar/Avançar leem a URL, cancelam consultas anteriores, restauram controles/colunas e consultam o PNCP sem inserir outra entrada no histórico. Respostas tardias não alteram a URL nem os resultados atuais.
+A inicialização e o recarregamento consultam diretamente a página indicada. Aplicar texto/filtros, trocar ordenação ou tipo começa na página 1; paginação atualiza `pagina`. A URL muda ao iniciar a consulta, inclusive quando ela falha ou é cancelada. Atualizar usa a página da última consulta concluída; repetir uma falha usa a página solicitada. Consultas idênticas não criam entradas duplicadas. Voltar/Avançar leem a URL, cancelam consultas anteriores, restauram controles/colunas e consultam o PNCP sem inserir outra entrada no histórico. Respostas tardias não alteram a URL nem os resultados atuais.
 
 `tipos_documento`, `ordenacao` e `pagina` ficam explícitos na URL; texto vazio, status `todos` e filtros ausentes são omitidos. O caminho da hospedagem, o fragmento e parâmetros externos são preservados, incluindo `demo=1`; somente os controles e filtros reconhecidos tornam-se critérios do PNCP. A validação de pertencimento aos domínios continua no Worker. A URL compartilha critérios e página, sem garantir uma fotografia dos resultados da fonte.
 
-### Filtros habilitados por padrão
+### Filtros disponíveis
 
 | Campos | Formato |
 | --- | --- |
@@ -88,7 +88,7 @@ A inicialização e o recarregamento consultam diretamente a página indicada. A
 | `valor_total_estimado_min`, `valor_total_estimado_max` | Decimais não negativos como strings com ponto, por exemplo `"1000.50"` |
 | `valor_total_homologado_min`, `valor_total_homologado_max` | Mesmo formato decimal |
 
-Todos os filtros restantes também estão implementados. A notação `min/max` e `inicio/fim` abaixo representa parâmetros separados:
+Os campos de sub-rogação, itens, resultados, fornecedores e contratos estão abaixo. A notação `min/max` e `inicio/fim` representa parâmetros separados:
 
 | Filtros | Formato e domínio |
 | --- | --- |
@@ -117,7 +117,7 @@ Filtros de itens, resultados e características de fornecedores nessa tabela sã
 
 As listas devem conter de 1 a 100 strings; não envie nomes de órgãos no lugar dos IDs nem caracteres `|` dentro dos valores. Os intervalos devem ter início ou mínimo menor ou igual ao fim ou máximo. `status` representa o período de recebimento de propostas em editais e a vigência em atas/contratos; `situacoes` é um filtro separado de situação da contratação.
 
-Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false`, e não descartado. Omitir o argumento não restringe por aquela condição. Ausência de informação não é convertida em `false`; na demonstração, registros com `null` ficam fora tanto de Sim quanto de Não. `tem_nfe_contrato` é um vínculo da contratação; `possui_nfe` continua exclusivo de contratos e indisponível para `edital`. Não há exclusões automáticas de modos de disputa por modalidade: os critérios são enviados juntos à fonte.
+Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false`. Omitir o argumento não restringe por aquela condição. Ausência de informação não é convertida em `false`; na demonstração, registros com `null` ficam fora tanto de Sim quanto de Não. `tem_nfe_contrato` é um vínculo da contratação; `possui_nfe` é exclusivo de contratos. Os critérios de modo de disputa e modalidade são enviados juntos à fonte.
 
 ```json
 {"api_version":"2.0","document_type":"edital","q":"firewall","pncp_filters":{"fontes":["3","5"],"modos_disputa":["1","3"],"indicador_orcamento_sigiloso":false,"tem_contrato_empenho":true},"page":1,"size":10}
@@ -125,11 +125,13 @@ Booleanos exigem valores JSON, sem aspas: `false` é enviado ao PNCP como `false
 
 Filtros de itens selecionam **contratações** na busca nativa. Tabela e CSV continuam contendo uma linha por contratação. Os detalhes exibem todos os itens, inclusive os que não satisfazem os critérios. Uma condição verdadeira na busca pode coexistir com itens que a informam como falsa nos detalhes. Não há garantia de que condições diferentes incidam sobre o mesmo item; a aplicação não aplica um refinamento local para impor essa correlação. Os nomes enviados à busca continuam sendo `categorias_leilao` e `beneficios`, embora os domínios usem aliases.
 
-`service.call("schema")` informa `columns`, `columns_by_document`, `capabilities`, `statuses`, `statuses_by_document`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete reservados ao adaptador e 80 filtros implementados, sem pendências. São 71 de edital, 16 de ata e 32 de contrato. `columns` e `statuses` mantêm os padrões de edital; os mapas por documento fornecem os valores próprios de cada tipo. A compatibilidade de filtros é definida por `documents`.
+`service.call("schema")` informa `columns`, `columns_by_document`, `capabilities`, `statuses`, `statuses_by_document`, `orders` e `limits`. O catálogo em [`src/pncp-arguments.json`](../src/pncp-arguments.json) contém 87 argumentos: sete controles reservados ao adaptador e 80 filtros. São 71 aplicáveis a edital, 16 a ata e 32 a contrato. `columns` e `statuses` usam os padrões de edital; os mapas por documento fornecem os valores próprios de cada tipo. A compatibilidade de filtros é definida por `documents`.
 
 Atas aceitam `ufs`, `orgaos`, `unidades`, `municipios`, `esferas`, `poderes`, `anos`, `modalidades`, `tipos`, `permite_adesao`, `data_publicacao_inicio/fim`, `data_assinatura_inicio/fim` e `data_inicio_vigencia_inicio/fim`. Filtros de itens, resultados e valores contratuais não são aplicáveis a atas.
 
-Cada capacidade também informa `label`, `group`, `input_hint`, `cardinality`, `domain_source`, `domain_kind`, `evidence` e `validation_status`. O tipo `enum` é singular: `tipos_item` e `tipos_margens_preferencia` usam uma string escolhida no domínio. `sampled_live` registra filtros com controles reais documentados; `integration_tested` registra cobertura da aplicação, sem homologação integral da fonte; `operator_declared` declara conferência externa via [PNCP_VALIDATED_FILTERS](configuracao.md#habilitar-filtros-adicionais).
+Cada capacidade também informa `label`, `group`, `input_hint`, `cardinality`, `domain_source`, `domain_kind`, `evidence` e `validation_status`. O tipo `enum` é singular: `tipos_item` e `tipos_margens_preferencia` usam uma string escolhida no domínio. Unidades de medida preservam caixa e espaços; `UNIDADE` e `Unidade ` são valores distintos.
+
+`state: enabled` informa disponibilidade. `validation_status` classifica a validação como `sampled_live` (amostragem da fonte), `integration_tested` (cobertura automatizada da aplicação) ou `operator_declared` (declaração via [PNCP_VALIDATED_FILTERS](configuracao.md#metadados-de-validação-dos-filtros)). Essas classificações não garantem todas as combinações de filtros ou a disponibilidade do PNCP. Para conferir a integração em um domínio, use o [diagnóstico do PNCP](validacao.md#diagnóstico-do-pncp).
 
 ### Resposta da pesquisa
 
@@ -167,7 +169,7 @@ Sem `field`, ou com um filtro da busca, a origem é `/api/search/filters`. Para 
 | `naturezas_juridicas` | `/api/pncp/v1/naturezas-juridicas` | ID com zeros à esquerda, como `0000` |
 | `situacoes_resultado` | `/api/pncp/v1/situacoes-compra-item-resultado` | ID como string, normalizado em `resultado_item_situacoes` |
 
-Opções desses catálogos podem incluir `active: false`; a interface distingue opções inativas sem descartar registros históricos. O aplicativo valida e envia os IDs do catálogo de países, sem conversão BCB. O alcance da verificação do predicado remoto está no [guia dos filtros](viabilidade-filtros-pncp.md).
+Opções desses catálogos podem incluir `active: false`; a interface identifica opções inativas e permite consultar registros associados a elas. O aplicativo valida e envia os IDs do catálogo de países, sem conversão BCB.
 
 Domínios fechados são conferidos pelo Worker antes da pesquisa e da exportação. Reservas/remanescentes usam a enumeração fixa do portal, com `domain_source: reference` e sem requisição externa para obter essas opções. Domínios parciais utilizam sugestões e não são tratados como listas exaustivas; incluem sub-rogação, fornecedores, municípios de fornecedores e unidades de medida.
 
@@ -179,10 +181,10 @@ Ao adicionar ou remover normativos, a interface obtém os amparos do cache espec
 
 | Parâmetro | Regra |
 | --- | --- |
-| `type` | `edital`, `ata` ou `contrato`; padrão `edital` |
-| `field` | Nome de um filtro habilitado do tipo lista |
+| `type` | Obrigatório: `edital`, `ata` ou `contrato` |
+| `field` | Obrigatório: filtro compatível com o tipo documental e com `domain_kind: suggest` |
 | `q` | Texto entre 3 e 128 caracteres |
-| `size` | Inteiro de 1 a 20; padrão `20` |
+| `size` | Obrigatório: inteiro de 1 a 20; a interface envia `20` |
 
 A resposta contém `items` com pares `{id, label}`, `request_id` e `queried_at`. Listas de domínios podem ser parciais; o retorno de sugestões depende da fonte.
 
@@ -198,7 +200,7 @@ A interface consulta os itens ao abrir os detalhes e ao navegar entre suas pági
 
 `service.call("documentRelated", {document, resource, page, size})` usa os mesmos identificadores de contratação e os parâmetros `page` e `size` dos itens. Ao abrir os detalhes, a interface inicia as primeiras páginas dessas listagens e dos itens em segundo plano, com até duas requisições simultâneas. Pede dez registros por página nas quatro listagens e 100 nos itens. Cada aba preserva seu próprio estado e permite repetir uma consulta que falhou. Trocar de aba não faz nova consulta; mudar sua página consulta novamente a fonte. Fechar os detalhes, abrir outra contratação ou trocar o tipo documental cancela chamadas ativas e pendentes.
 
-O painel tem largura de até 888 pixels e começa na aba **Detalhes**, com 12 campos documentais. Seu contador indica os campos exibidos; os contadores das outras cinco abas indicam o total de registros informado pela fonte, independentemente da página atual. `…` indica carregamento; `—` indica falha ou identificação insuficiente. Zero é mostrado somente quando confirmado pela fonte. As abas podem ser percorridas por setas, Home e End; em telas menores, a barra permite rolagem horizontal. Os links externos ficam no cabeçalho junto ao botão de fechar.
+O painel usa o título da linha selecionada e começa na aba **Detalhes**, com 12 campos documentais. Seu contador indica os campos exibidos; os contadores das outras cinco abas indicam o total de registros informado pela fonte, independentemente da página atual. `…` indica carregamento; `—` indica falha ou identificação insuficiente. Zero é mostrado somente quando confirmado pela fonte. As abas podem ser percorridas por setas, Home e End; em telas menores, a barra permite rolagem horizontal. Os links externos ficam no cabeçalho junto ao botão de fechar.
 
 | Recurso | Campos em `data` | Serviço externo, relativo a `PNCP_DETAIL_BASE_URL` |
 | --- | --- | --- |
@@ -273,7 +275,7 @@ const blob = new Blob(csv.chunks, {type: csv.mime});
 
 O resultado contém `chunks` como `ArrayBuffer[]`, `mime`, `filename` e `metadata`. Os metadados incluem `exported_rows`, totais, critérios, tempos, chamadas e `collection_complete: true`, sem `data` com a coleção de documentos. O CSV contém BOM UTF-8, cabeçalho, CRLF e valores entre aspas; aspas internas são duplicadas e decimais mantêm sua representação exata, sem formatação monetária.
 
-Total acima do limite, mudança de total, duplicação, identidade ausente, página incompleta, cancelamento e limites de bytes interrompem a operação. Buffers são transferidos somente após conclusão; não há download parcial. A interface revoga a URL do Blob após o download. `snapshot_guaranteed` continua sendo `false`.
+Total acima do limite, mudança de total, duplicação, identidade ausente, página incompleta, cancelamento e limites de bytes interrompem a operação. Buffers são transferidos somente após conclusão; não há download parcial. A interface revoga a URL do Blob após o download. `snapshot_guaranteed` é `false`.
 
 ## Erros e diagnóstico
 
