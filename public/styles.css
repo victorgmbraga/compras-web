@@ -68,7 +68,9 @@ p{line-height:1.55}
 .footer-marker{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;min-width:20px;min-height:20px;border:0;border-radius:4px;background:transparent;color:var(--blue);font-size:inherit;line-height:inherit;padding:2px;flex-shrink:0;transition:background .12s,color .12s}
 .footer-marker svg{width:15px;height:15px;stroke-width:2;pointer-events:none}
 .footer-marker.warning{color:#b53229;cursor:help}
-.footer-tooltip{position:fixed;z-index:1000;width:min(320px,calc(100vw - 16px));padding:10px 12px;border:1px solid #e9d8b6;border-radius:6px;background:#fffaeb;color:#7c6028;box-shadow:0 4px 16px #133d6826;font-size:.8125rem;line-height:1.5;white-space:normal;pointer-events:none}
+.tooltip{position:fixed;z-index:1000;width:max-content;max-width:calc(100vw - 16px);padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:white;color:var(--navy);box-shadow:0 4px 16px #133d6826;font-size:.8125rem;line-height:1.5;white-space:normal;pointer-events:none}
+.footer-tooltip{width:min(320px,calc(100vw - 16px))}
+.tooltip.warning{border-color:#e9d8b6;background:#fffaeb;color:#7c6028}
 .result-actions{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;flex-shrink:0}
 .table-shell{flex:1;min-height:0;min-width:0;position:relative;overflow:hidden}
 .table-loader{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:#f7faffd9;backdrop-filter:blur(1px);cursor:progress;padding:16px}

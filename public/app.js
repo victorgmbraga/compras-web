@@ -42,6 +42,7 @@ const filterLabel=name=>state.schema.capabilities.find(c=>c.name===name)?.label 
 const state={schema:null,query:null,lastQuery:null,lastResult:null,table:null,placeholder:null,seq:0,abort:null,status:'idle',draft:null,domains:null,domainAbort:null,domainSeq:0,selected:[],suggestAbort:null,suggestSeq:0,suggestTimer:null,legalAbort:null,legalSeq:0,legalPending:false,legalError:false,detailAbort:null,detailSeq:0,exportAbort:null,exportSeq:0};
 let filterOptionsCache;
 let urlMode='replace',urlError=null,tableReady=false;
+const toolbarButtonIds=['search-button','filters-button','refresh-button','columns-button','export-button'];
 function syncQueryUrl(query) {
   const mode=urlMode;urlMode='push';
   if(!window.location?.href || !window.history)return;
@@ -54,28 +55,39 @@ function invalidQueryUrl(error) {
 }
 function notice(message,kind='') { $('notice').textContent=message;$('notice').className='notice '+kind;$('notice').hidden=!message; }
 function hideWindowTooltip() { $('window-warning-tooltip').hidden=true; }
-function showWindowTooltip() {
-  const marker=$('window-warning'),tooltip=$('window-warning-tooltip');
-  if(marker.hidden || state.status==='loading' || !tooltip.textContent)return;
+function hideTooltips() {
+  hideWindowTooltip();
+  for(const id of toolbarButtonIds)$(`${id}-tooltip`).hidden=true;
+}
+function showTooltip(marker,tooltip) {
+  if(marker.hidden || !tooltip.textContent)return;
+  hideTooltips();
   tooltip.hidden=false;
+  positionTooltip(marker,tooltip);
+}
+function positionTooltip(marker,tooltip) {
   const anchor=marker.getBoundingClientRect(),box=tooltip.getBoundingClientRect(),gap=8;
   const left=Math.max(gap,Math.min(anchor.left+(anchor.width-box.width)/2,window.innerWidth-box.width-gap));
   const above=anchor.top-box.height-gap;
   const top=above>=gap?above:Math.min(anchor.bottom+gap,window.innerHeight-box.height-gap);
   tooltip.style.left=`${left}px`;tooltip.style.top=`${Math.max(gap,top)}px`;
 }
+function showWindowTooltip() {
+  if(state.status!=='loading')showTooltip($('window-warning'),$('window-warning-tooltip'));
+}
 function updateExportButton() {
   const busy=!!state.exportAbort;
   $('export-button').disabled=busy || !['success','empty'].includes(state.status);
   $('export-button').setAttribute('aria-busy',String(busy));
   $('cancel-export-button').hidden=!busy;
-  $('export-button').title=busy?'Consultando e gerando CSV…':'Exportar CSV';
+  $('export-button-tooltip').textContent=busy?'Consultando e gerando CSV…':'Exportar CSV';
+  if(busy)$('export-button-tooltip').hidden=true;
   $('export-button').setAttribute('aria-label',busy?'Gerando CSV':'Exportar CSV');
 }
 function status(value,query=state.query) {
   state.status=value;
   const busy=value==='loading';
-  if(busy)hideWindowTooltip();
+  if(busy)hideTooltips();
   $('table-loader').hidden=!busy;
   $('results-table').setAttribute('aria-busy',String(busy));$('results-table').inert=busy;
   if(busy) {
@@ -88,10 +100,10 @@ function status(value,query=state.query) {
   updateExportButton();
   $('search-button').disabled=false;
 }
-function openDialog(id) { const dialog=$(id);if(!dialog.open)dialog.showModal(); }
+function openDialog(id) { hideTooltips();const dialog=$(id);if(!dialog.open)dialog.showModal(); }
 function closeDialog(dialog) { dialog.close(); }
 document.addEventListener('keydown',event=>{
-  if(event.key==='Escape')hideWindowTooltip();
+  if(event.key==='Escape')hideTooltips();
 });
 for(const dialog of document.querySelectorAll('dialog')) {
   dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left || event.clientX>rect.right || event.clientY<rect.top || event.clientY>rect.bottom)closeDialog(dialog);}});
@@ -642,14 +654,30 @@ async function init() {
   $('filters-dialog').addEventListener('close',()=>{state.domainAbort?.abort();state.suggestAbort?.abort();state.legalAbort?.abort();clearTimeout(state.suggestTimer);state.domainSeq++;state.suggestSeq++;state.legalSeq++;});
   $('details-dialog').addEventListener('close',()=>{state.detailAbort?.abort();state.detailSeq++;});
   $('export-button').addEventListener('click',exportCsv);
+  for(const id of toolbarButtonIds) {
+    const button=$(id),tooltip=$(`${id}-tooltip`),show=()=>showTooltip(button,tooltip),hide=()=>{tooltip.hidden=true;};
+    button.addEventListener('mouseenter',show);button.addEventListener('mouseleave',hide);
+    button.addEventListener('focus',show);button.addEventListener('blur',hide);
+    button.addEventListener('click',hide);
+  }
   $('window-warning').addEventListener('mouseenter',showWindowTooltip);
   $('window-warning').addEventListener('mouseleave',hideWindowTooltip);
   $('window-warning').addEventListener('focus',showWindowTooltip);
   $('window-warning').addEventListener('blur',hideWindowTooltip);
-  window.addEventListener('resize',hideWindowTooltip);
+  window.addEventListener('resize',hideTooltips);
   window.addEventListener('popstate',restoreQueryUrl);
   window.addEventListener('pagehide',event=>{if(!event.persisted)filterOptionsCache.close();});
-  document.addEventListener('scroll',hideWindowTooltip,true);
+  document.addEventListener('scroll',event=>{
+    const button=document.activeElement;
+    // Ao focar uma ação em telas menores, o cabeçalho rola para torná-la visível.
+    if(event.target===$('app-header') && toolbarButtonIds.includes(button?.id)) {
+      const tooltip=$(`${button.id}-tooltip`),anchor=button.getBoundingClientRect();
+      if(!tooltip.hidden && anchor.left>=0 && anchor.right<=window.innerWidth) {
+        positionTooltip(button,tooltip);return;
+      }
+    }
+    hideTooltips();
+  },true);
   updateCriteria();status('idle');
   state.table.on('tableBuilt',()=>{
     const repositoryLink=document.querySelector('.tabulator-footer .repository-link');

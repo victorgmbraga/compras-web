@@ -111,9 +111,19 @@ try {
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
   assert.equal(await page.locator('#app-header .header-toolbar .criteria-row').count(),1);
   for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);
-  for(const [id,label] of [['search-button','Pesquisar'],['filters-button','Filtros']]){
-    const button=page.locator(`#${id}`);assert.equal(await button.getAttribute('aria-label'),label);assert.equal(await button.getAttribute('title'),label);assert.equal(await button.locator('svg').count(),1);assert.equal(await button.locator('span:not(.count-badge)').count(),0);
+  for(const [id,label] of [['search-button','Pesquisar'],['filters-button','Filtros'],['refresh-button','Atualizar resultados'],['columns-button','Selecionar colunas'],['export-button','Exportar CSV']]){
+    const button=page.locator(`#${id}`),tooltip=page.locator(`#${id}-tooltip`);
+    assert.equal(await button.getAttribute('aria-label'),label);assert.equal(await button.getAttribute('title'),null);assert.equal(await button.locator('svg').count(),1);assert.equal(await button.locator('span:not(.count-badge)').count(),0);
+    assert.equal(await button.getAttribute('aria-describedby'),`${id}-tooltip`);
+    await button.hover();await tooltip.waitFor({state:'visible'});assert.equal(await tooltip.innerText(),label);
+    const style=await tooltip.evaluate(node=>{const css=getComputedStyle(node);return {background:css.backgroundColor,color:css.color,border:css.borderColor};});
+    assert.deepEqual(style,{background:'rgb(255, 255, 255)',color:'rgb(19, 61, 104)',border:'rgb(220, 228, 237)'});
+    const box=await tooltip.boundingBox();assert(box.x>=8 && box.x+box.width<=page.viewportSize().width-8);assert(box.y>=8 && box.y+box.height<=page.viewportSize().height-8);
+    await page.mouse.move(0,0);await tooltip.waitFor({state:'hidden'});
+    await button.focus();await tooltip.waitFor({state:'visible'});await page.keyboard.press('Escape');await tooltip.waitFor({state:'hidden'});
+    await page.locator('#search').focus();
   }
+  check('Cinco ações usam tooltips neutros ao passar o mouse e focar pelo teclado, dispensáveis com Escape');
   assert.equal(await page.locator('.result-toolbar').count(),0);
   assert.equal(await page.locator('.tabulator-footer .result-info').count(),1);
   const popupFields=await page.locator('.tabulator-header-popup-button').evaluateAll(buttons=>buttons.map(button=>button.closest('.tabulator-col')?.getAttribute('tabulator-field')));
@@ -286,6 +296,8 @@ try {
     assert(Math.max(...fit.centers)-Math.min(...fit.centers)<=1,`Cabeçalho quebrou linha em ${width}px`);
     await page.locator('#export-button').evaluate(node=>node.blur());await page.locator('#export-button').focus();
     const focused=await page.locator('#export-button').boundingBox();assert(focused.x>=-.5 && focused.x+focused.width<=width+.5,`Exportar não ficou visível com foco em ${width}px`);
+    const tooltip=page.locator('#export-button-tooltip');await tooltip.waitFor({state:'visible'});
+    const box=await tooltip.boundingBox();assert(box.x>=8 && box.x+box.width<=width-8,`Tooltip cortado em ${width}px`);
   }
   await page.setViewportSize({width:390,height:844});await page.locator('#filters-button').click();assert(await page.locator('#filters-dialog').isVisible());await page.locator('#filters-dialog .close-dialog[aria-label="Fechar"]').click();check('Cabeçalho em linha única com rolagem acessível e painéis sem overflow da página');
   if(process.env.COMPRAS_QA_SCREENSHOT_DIR)await page.screenshot({path:process.env.COMPRAS_QA_SCREENSHOT_DIR+'/mobile.png',fullPage:true});

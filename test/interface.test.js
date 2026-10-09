@@ -182,7 +182,9 @@ test('HEADER-UI-02: busca, filtros e ações usam somente ícones com nomes aces
   for(const [id,label]of [['search-button','Pesquisar'],['filters-button','Filtros'],['refresh-button','Atualizar resultados'],['columns-button','Selecionar colunas'],['export-button','Exportar CSV']]) {
     const button=html.match(new RegExp(`<button(?=[^>]*id="${id}")([^>]*)>([\\s\\S]*?)<\\/button>`));
     assert.ok(button);assert.match(button[1],/class="[^"]*\bicon-only\b/);
-    assert.match(button[1],new RegExp(`aria-label="${label}"`));assert.match(button[1],new RegExp(`title="${label}"`));
+    assert.match(button[1],new RegExp(`aria-label="${label}"`));assert.doesNotMatch(button[1],/\btitle=/);
+    assert.match(button[1],new RegExp(`aria-describedby="${id}-tooltip"`));
+    assert.match(html,new RegExp(`<div id="${id}-tooltip" class="tooltip" role="tooltip" hidden>${label}<\/div>`));
     assert.match(button[2],/^<svg\b[^>]*aria-hidden="true"[^>]*>[\s\S]*<\/svg>(?:<span id="filter-count"[^>]*><\/span>)?$/);
     assert.equal(button[2].replace(/<[^>]+>/g,''),'');
   }
@@ -218,7 +220,8 @@ test('EXPORT-UI-02: geração desabilita o botão e impede exportações duplica
   assert.match(ui.nodes.get('notice').textContent,/gerando CSV/);
   await ui.nodes.get('export-button').fire('click');assert.equal(ui.exportRequests.length,1);
   await finish();await exporting;assert.equal(ui.downloads.length,1);assert.equal(ui.nodes.get('export-button').disabled,false);
-  assert.equal(ui.nodes.get('export-button').title,'Exportar CSV');
+  assert.equal(ui.nodes.get('export-button-tooltip').textContent,'Exportar CSV');
+  assert.equal(ui.nodes.get('export-button').getAttribute('title'),null);
 });
 
 test('EXPORT-UI-03: falha é exibida acima da tabela e permite tentar exportar novamente',async()=>{
