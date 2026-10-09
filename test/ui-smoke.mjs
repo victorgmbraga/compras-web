@@ -111,9 +111,9 @@ try {
   assert.equal(await page.locator('.tabulator-page-size').count(),0);check('Seletor de linhas removido');
   assert.equal(await page.locator('#app-header .header-toolbar .criteria-row').count(),1);
   for(const id of ['order','clear-button','cancel-button','retry-button','refresh-button','columns-button','export-button'])assert.equal(await page.locator(`#app-header #${id}`).count(),1);
-  for(const [id,label] of [['search-button','Pesquisar'],['filters-button','Filtros'],['refresh-button','Atualizar resultados'],['columns-button','Selecionar colunas'],['export-button','Exportar CSV']]){
+  for(const [id,label,accessibleLabel=label] of [['search-button','Pesquisar'],['filters-button','Filtros'],['refresh-button','Atualizar resultados'],['columns-button','Selecionar colunas'],['export-button','Exportar CSV'],['repository-link','Repositório no GitHub','Repositório do Contratos Web no GitHub (abre em nova aba)']]){
     const button=page.locator(`#${id}`),tooltip=page.locator(`#${id}-tooltip`);
-    assert.equal(await button.getAttribute('aria-label'),label);assert.equal(await button.getAttribute('title'),null);assert.equal(await button.locator('svg').count(),1);assert.equal(await button.locator('span:not(.count-badge)').count(),0);
+    assert.equal(await button.getAttribute('aria-label'),accessibleLabel);assert.equal(await button.getAttribute('title'),null);assert.equal(await button.locator('svg').count(),1);assert.equal(await button.locator('span:not(.count-badge)').count(),0);
     assert.equal(await button.getAttribute('aria-describedby'),`${id}-tooltip`);
     await button.hover();await tooltip.waitFor({state:'visible'});assert.equal(await tooltip.innerText(),label);
     const style=await tooltip.evaluate(node=>{const css=getComputedStyle(node);return {background:css.backgroundColor,color:css.color,border:css.borderColor};});
@@ -123,7 +123,7 @@ try {
     await button.focus();await tooltip.waitFor({state:'visible'});await page.keyboard.press('Escape');await tooltip.waitFor({state:'hidden'});
     await page.locator('#search').focus();
   }
-  check('Cinco ações usam tooltips neutros ao passar o mouse e focar pelo teclado, dispensáveis com Escape');
+  check('Ações do cabeçalho e link do GitHub usam tooltips neutros com mouse, foco e Escape');
   assert.equal(await page.locator('.result-toolbar').count(),0);
   assert.equal(await page.locator('.tabulator-footer .result-info').count(),1);
   const popupFields=await page.locator('.tabulator-header-popup-button').evaluateAll(buttons=>buttons.map(button=>button.closest('.tabulator-col')?.getAttribute('tabulator-field')));
